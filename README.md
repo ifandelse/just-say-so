@@ -87,6 +87,18 @@ Matching is case-insensitive with word boundaries that treat hyphens as part of 
 
 The Claude Code hook protocol — JSON on stdin, JSON on stdout, exit 2 blocks — became the de-facto convention across coding agents, so most of this plugin carries over with wiring changes only. [adapters/README.md](adapters/README.md) maps the current landscape and the adapter contract.
 
+## Development
+
+Runtime code has zero dependencies; the test stack (vitest) is dev-only.
+
+```
+npm test               # run the suite
+npm run test:watch     # watch mode
+npm run test:coverage  # enforces 100% line coverage on src/lib/**
+```
+
+Test conventions live in [.ai/UnitTestGeneration.md](.ai/UnitTestGeneration.md). Hook logic sits in `src/lib/hooks/` as pure `run(input, env)` functions; the scripts in `src/hooks/` are stdin shims around them, exercised by the integration tests.
+
 ## License
 
 MIT

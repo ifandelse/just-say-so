@@ -1,7 +1,7 @@
 {
   "name": "just-say-so",
   "version": "0.1.0",
-  "description": "Communication rules as a redistributable plugin: interval reminders, a banned-word gate on tool output, and commands that load the rules on demand.",
+  "description": "My LLM communication rules as a plugin. Reading agent text is like grasping an oil slick. These rules tame that.",
   "type": "module",
   "license": "MIT",
   "author": "Jim Cowart",
@@ -9,7 +9,9 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "files": [
     ".claude-plugin",
@@ -18,5 +20,9 @@
     "skills",
     "src",
     "adapters"
-  ]
+  ],
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
+    "vitest": "^5.0.1"
+  }
 }

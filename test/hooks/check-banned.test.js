@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { run } from '../../src/lib/hooks/check-banned.js';
 import { makeSandbox } from '../helpers/sandbox.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ALLOW_CLI = path.join(ROOT, 'src', 'cli', 'allow.js');
 
 /*
  * Branch map — src/lib/hooks/check-banned.js
  *   mode off → null · tool not listed → null
+ *   own-config gate: .just-say-so.json → ask · just-say-so/config.json → ask ·
+ *                    unrelated config.json → normal scan · gate skipped when mode off
  *   file_path present: exclude match → null · include set and not matched → null ·
  *                      include set and matched → proceeds
  *   file_path absent → glob checks skipped, target = tool name
@@ -52,6 +58,69 @@ describe('check-banned.run', () => {
     });
 
     it('should return null', () => {
+      expect(output).toBe(null);
+    });
+  });
+
+  describe('when the model edits the plugin\'s own config files', () => {
+    let projectConfig, globalConfig;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      projectConfig = run(
+        writeEvent(sandbox, '.just-say-so.json', '{"bannedCheck":{"disableWords":["robust"]}}'),
+        sandbox.env
+      );
+      globalConfig = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Write',
+          tool_input: { file_path: path.join(sandbox.work, 'just-say-so', 'config.json'), content: '{}' }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should force a confirmation prompt for both, regardless of content', () => {
+      const expected = (name) => ({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason:
+            `just-say-so: this edits the just-say-so config (${name}). ` +
+            'Allow only if you asked for this change.'
+        }
+      });
+      expect({ projectConfig, globalConfig }).toEqual({
+        projectConfig: expected('.just-say-so.json'),
+        globalConfig: expected('config.json')
+      });
+    });
+  });
+
+  describe('when an unrelated config.json is edited', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      output = run(writeEvent(sandbox, 'app/config.json', '{"retries": 3}'), sandbox.env);
+    });
+
+    it('should scan it normally instead of gating', () => {
+      expect(output).toBe(null);
+    });
+  });
+
+  describe('when the check is off and the own config is edited', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' } });
+      output = run(writeEvent(sandbox, '.just-say-so.json', '{}'), sandbox.env);
+    });
+
+    it('should not gate — the user opted out of enforcement', () => {
       expect(output).toBe(null);
     });
   });
@@ -148,8 +217,8 @@ describe('check-banned.run', () => {
             '  - "robust" ×1\n' +
             '  - "in order to" ×1 — use "to"\n' +
             'Rewrite the flagged text per the communication rules, then retry the tool call. ' +
-            'If a flagged term is a precise domain term in this project, ask the user to add it to ' +
-            '"disableWords" or "allowPhrases" in .just-say-so.json.'
+            'If a flagged term is a precise domain term in this project, ask the user — if they agree, run: ' +
+            `node "${ALLOW_CLI}" "leverage"`
         }
       });
     });

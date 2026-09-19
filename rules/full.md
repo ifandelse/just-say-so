@@ -19,7 +19,7 @@ dictionary and minus its part-of-speech restrictions.
 - One idea per sentence. Most sentences under 20 words.
 - Prefer active voice with a named actor (for example: "the scheduler retries the job," not "the job is retried"). Use passive voice when the actor is unknown or irrelevant.
 - Prefer simple tenses (for example: "we updated," not "has been updated") when they preserve the intended time and state.
-- One word, one meaning, per document. Pick one of check/verify/validate for a given concept and keep it.
+- Use one term for each concept. Do not use that term for a different concept in the same document. Pick one of check/verify/validate for a given concept and keep it.
 - Concrete verbs and nouns over abstractions.
 - Noun clusters: three words maximum. Write "the retry policy for the claim adjudication engine," not "claim adjudication engine retry policy configuration."
 - Give each paragraph one topic. Keep most paragraphs under six sentences.

@@ -15,10 +15,11 @@ The `just-say-so` communication rules are adapted from the [ASD-STE100 standard]
 | `SessionStart`                                         | `session-start.js` | Re-injects the condensed rules after compaction, when the model most likely lost them.                                                                    |
 | `Stop` (off by default)                                | `check-output.js`  | Scans the final chat reply for banned terms. `block` forces a rewrite; `warn` queues a note for the next prompt.                                          |
 
-You also get two commands to cover environments without hooks (like desktop apps):
+You also get three commands to cover environments without hooks (like desktop apps):
 
 - `/just-say-so:rules` — load the full rules into context for the rest of the session.
 - `/just-say-so:remind` — inject the condensed reminder now.
+- `/just-say-so:allow <term>` — permit a domain term the gate flagged: single words land in `disableWords`, collocations in `allowPhrases`, in this project's `.just-say-so.json`.
 
 ## Install (Claude Code)
 
@@ -86,7 +87,9 @@ You might hate my rules, fair enough. To plug your own ruleset in, point `rules.
 
 Matching is case-insensitive with word boundaries that treat hyphens as part of the word — a banned word inside an identifier or dependency name does not match. Phrases tolerate hyphen/space variation both ways. Curly quotes normalize to straight before matching. Matches inside an `allowPhrases` collocation do not count, so a project can permit "robust regression" while bare "robust" stays blocked. Terms in `rules/banned.json` marked `contextual` carry a condition a matcher cannot judge (the empty intensifiers, which the rules say to replace with a measurement), so they report as advisories and never block on their own.
 
-The checker is stricter than the prose rule on purpose. The rules permit a buzzword "when it has precise meaning or is relevant to the domain" — a judgment call a regex cannot make, and one the model would argue its way through. Domain legitimacy is a per-project fact, so it lives in per-project config: add the term to `disableWords`, or the collocation to `allowPhrases`, in that project's `.just-say-so.json`. The deny message tells the model to route that decision to you.
+The checker is stricter than the prose rule on purpose. The rules permit a buzzword "when it has precise meaning or is relevant to the domain" — a judgment call a regex cannot make, and one the model would argue its way through. Domain legitimacy is a per-project fact, so it lives in per-project config: add the term to `disableWords`, or the collocation to `allowPhrases`, in that project's `.just-say-so.json`. The deny message tells the model to route that decision to you, and includes the exact `allow` command to run once you agree.
+
+Who authorized an allow-list change stays visible by construction. `/just-say-so:allow` is user-invoked, so consent is the invocation itself. When the model edits `.just-say-so.json` (or the global config) directly, the hook returns `permissionDecision: "ask"` — a confirmation prompt the harness enforces even in auto-accept modes. The model cannot silently exempt itself from the gate.
 
 ## Limits (it's not perfect, y'all)
 

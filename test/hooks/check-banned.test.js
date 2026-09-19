@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from '../../src/lib/hooks/check-banned.js';
@@ -348,6 +349,24 @@ describe('check-banned.run', () => {
             'The call was allowed; fix the flagged text per the communication rules.'
         }
       });
+    });
+  });
+
+  describe('when a message catalog override is configured', () => {
+    let output;
+
+    beforeEach(() => {
+      const catalogDir = makeSandbox().work;
+      const catalog = path.join(catalogDir, 'CAL_ZONE_VOICE.json');
+      fs.writeFileSync(catalog, JSON.stringify({ bannedIntro: 'palabras prohibidas en {target}:' }));
+      const sandbox = makeSandbox({ rules: { messagesPath: catalog } });
+      output = run(writeEvent(sandbox, 'notes.md', 'pure synergy'), sandbox.env);
+    });
+
+    it('should use the overridden strings and keep shipped ones for unlisted keys', () => {
+      const reason = output.hookSpecificOutput.permissionDecisionReason;
+      expect(reason.startsWith('palabras prohibidas en notes.md:')).toBe(true);
+      expect(reason).toContain('Rewrite the flagged text per the communication rules');
     });
   });
 

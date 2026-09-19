@@ -249,7 +249,7 @@ describe('matcher', () => {
 
       beforeEach(() => {
         const { hard, soft } = findViolations('We leverage this very often.', BANNED);
-        result = formatViolations(hard, soft);
+        result = formatViolations(hard, soft, 'advisories (replace with a measurement or a concrete consequence)');
       });
 
       it('should render the hint and the advisory line', () => {
@@ -265,7 +265,7 @@ describe('matcher', () => {
 
       beforeEach(() => {
         const { hard } = findViolations("It's not a bug, it's a feature.", BANNED);
-        result = formatViolations(hard, []);
+        result = formatViolations(hard, [], 'UNUSED LABEL');
       });
 
       it('should render the bare pattern label', () => {

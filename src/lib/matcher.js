@@ -85,7 +85,9 @@ export function findViolations(text, banned) {
   return { hard, soft };
 }
 
-export function formatViolations(hard, soft) {
+// advisoryLabel comes from the message catalog (loadMessages) — this module
+// is pure text logic and carries no English of its own.
+export function formatViolations(hard, soft, advisoryLabel) {
   const lines = [];
   for (const v of hard) {
     const label = v.kind === 'pattern' ? v.term : `"${v.term}"`;
@@ -93,7 +95,7 @@ export function formatViolations(hard, soft) {
   }
   if (soft.length) {
     const terms = soft.map((v) => `"${v.term}" ×${v.count}`).join(', ');
-    lines.push(`  - advisories (replace with a measurement or a concrete consequence): ${terms}`);
+    lines.push(`  - ${advisoryLabel}: ${terms}`);
   }
   return lines.join('\n');
 }

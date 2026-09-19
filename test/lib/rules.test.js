@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readRules, loadBanned } from '../../src/lib/rules.js';
+import { readRules, loadBanned, loadMessages, fill } from '../../src/lib/rules.js';
 import { DEFAULTS, merge } from '../../src/lib/config.js';
 import { findViolations } from '../../src/lib/matcher.js';
 
@@ -12,6 +12,8 @@ import { findViolations } from '../../src/lib/matcher.js';
  *   readRules: kind full/condensed · override present vs null
  *   loadBanned: disableWords filter (words + contextual) · additions as string vs object ·
  *               additions phrases/patterns · empty additions · allowPhrases wired to allow
+ *   loadMessages: no override → shipped · override merges per key · unreadable override → shipped
+ *   fill: known placeholder replaced · unknown placeholder left literal
  */
 
 describe('rules', () => {
@@ -68,6 +70,65 @@ describe('rules', () => {
 
       it('should expand it under the home directory before reading', () => {
         expect(error.path).toBe(path.join(os.homedir(), 'MISSING_JSS_RULES_8675309.md'));
+      });
+    });
+  });
+
+  describe('fill', () => {
+    describe('when a template has known and unknown placeholders', () => {
+      let result;
+
+      beforeEach(() => {
+        result = fill('banned terms in {target} ({nope})', { target: 'notes.md' });
+      });
+
+      it('should replace known keys and leave unknown ones literal', () => {
+        expect(result).toBe('banned terms in notes.md ({nope})');
+      });
+    });
+  });
+
+  describe('loadMessages', () => {
+    describe('when no override is configured', () => {
+      let result;
+
+      beforeEach(() => {
+        result = loadMessages(DEFAULTS);
+      });
+
+      it('should return the shipped catalog', () => {
+        expect(result.bannedIntro).toBe('just-say-so: banned terms in {target}:');
+        expect(result.outputRewrite).toBe('Rewrite the reply per the communication rules.');
+      });
+    });
+
+    describe('when a partial override is configured', () => {
+      let result;
+
+      beforeEach(() => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-messages-'));
+        const file = path.join(dir, 'CAL_ZONE_VOICE.json');
+        fs.writeFileSync(file, JSON.stringify({ bannedIntro: 'palabras prohibidas en {target}:' }));
+        result = loadMessages(merge(DEFAULTS, { rules: { messagesPath: file } }));
+      });
+
+      it('should merge the override per key and keep shipped defaults for the rest', () => {
+        expect(result.bannedIntro).toBe('palabras prohibidas en {target}:');
+        expect(result.rewriteInstruction).toBe(
+          'Rewrite the flagged text per the communication rules, then retry the tool call.'
+        );
+      });
+    });
+
+    describe('when the override file is unreadable', () => {
+      let result;
+
+      beforeEach(() => {
+        result = loadMessages(merge(DEFAULTS, { rules: { messagesPath: '/nope/MISSING.json' } }));
+      });
+
+      it('should fall back to the shipped catalog', () => {
+        expect(result.bannedIntro).toBe('just-say-so: banned terms in {target}:');
       });
     });
   });

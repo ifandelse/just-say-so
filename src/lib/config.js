@@ -23,7 +23,8 @@ export const DEFAULTS = {
   },
   rules: {
     fullPath: null,
-    condensedPath: null
+    condensedPath: null,
+    messagesPath: null
   }
 };
 

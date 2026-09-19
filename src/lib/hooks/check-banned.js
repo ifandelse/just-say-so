@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../config.js';
-import { loadBanned } from '../rules.js';
+import { loadBanned, loadMessages, fill } from '../rules.js';
 import { findViolations, formatViolations } from '../matcher.js';
 import { matchesAny } from '../glob.js';
 
@@ -49,13 +49,12 @@ export function run(input, env = process.env) {
   // banned words). Neither: force an interactive confirmation, before the
   // exclude globs so nothing can route around it.
   if (filePath && isOwnConfig(filePath)) {
+    const messages = loadMessages(config);
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'ask',
-        permissionDecisionReason:
-          `just-say-so: this edits the just-say-so config (${path.basename(filePath)}). ` +
-          'Allow only if you asked for this change.'
+        permissionDecisionReason: fill(messages.configAskReason, { target: path.basename(filePath) })
       }
     };
   }
@@ -71,28 +70,26 @@ export function run(input, env = process.env) {
   const { hard, soft } = findViolations(text, loadBanned(config));
   if (hard.length === 0 && soft.length === 0) return null;
 
+  const messages = loadMessages(config);
   const target = filePath ? path.basename(filePath) : input.tool_name;
-  const detail = formatViolations(hard, soft);
+  const intro = fill(messages.bannedIntro, { target });
+  const detail = formatViolations(hard, soft, messages.advisoryLabel);
 
   if (hard.length > 0 && bc.mode === 'block') {
+    const allowCommand = `node "${ALLOW_CLI}" "${hard[0].term}"`;
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          `just-say-so: banned terms in ${target}:\n${detail}\n` +
-          'Rewrite the flagged text per the communication rules, then retry the tool call. ' +
-          'If a flagged term is a precise domain term in this project, ask the user — if they agree, run: ' +
-          `node "${ALLOW_CLI}" "${hard[0].term}"`
+          `${intro}\n${detail}\n${messages.rewriteInstruction} ${fill(messages.escapeHatch, { allowCommand })}`
       }
     };
   }
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
-      additionalContext:
-        `just-say-so: banned terms in ${target}:\n${detail}\n` +
-        'The call was allowed; fix the flagged text per the communication rules.'
+      additionalContext: `${intro}\n${detail}\n${messages.warnInstruction}`
     }
   };
 }

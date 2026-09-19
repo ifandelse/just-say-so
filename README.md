@@ -72,7 +72,8 @@ Config merges in order: built-in defaults ← `~/.config/just-say-so/config.json
   "outputCheck": { "mode": "off" }, // Stop-hook chat check: "off" | "warn" | "block"
   "rules": {
     "fullPath": null, // your own rules file, replaces rules/full.md
-    "condensedPath": null // replaces rules/condensed.md
+    "condensedPath": null, // replaces rules/condensed.md
+    "messagesPath": null // overrides hook message strings, per key (rules/messages.json)
   }
 }
 ```
@@ -82,6 +83,10 @@ Glob notes: a pattern without a slash matches the file's basename anywhere (`*.m
 ### Bring your own rules
 
 You might hate my rules, fair enough. To plug your own ruleset in, point `rules.fullPath` and `rules.condensedPath` at your own markdown, and edit the banned list through `disableWords` and `additions`. All the hooks, commands, and config machinery stay the same.
+
+### Bring your own voice
+
+Every sentence the hooks emit — deny reasons, the advisory label, the config-edit confirmation — lives in [rules/messages.json](rules/messages.json). Point `rules.messagesPath` at your own JSON to override any subset; unlisted keys keep the shipped English, and `{target}`/`{allowCommand}` placeholders are filled at runtime. This is how you run the enforcement side in another language, or just reword the nagging. One seam to know: the per-term hints ("use a concrete verb...") live in the banned list, not the message catalog, so a full translation swaps both files.
 
 ### Term matching
 

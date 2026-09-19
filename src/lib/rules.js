@@ -26,6 +26,27 @@ function toEntry(item) {
   return typeof item === 'string' ? { term: item } : item;
 }
 
+// {key} placeholders; unknown keys stay literal so a typo is visible.
+export function fill(template, vars = {}) {
+  return String(template).replace(/\{(\w+)\}/g, (match, key) => (key in vars ? vars[key] : match));
+}
+
+/**
+ * Load the message catalog. A user file at rules.messagesPath overrides
+ * per key; unlisted keys keep the shipped English. A missing or malformed
+ * override falls back silently — hooks must never break on config.
+ */
+export function loadMessages(config) {
+  const shipped = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'rules', 'messages.json'), 'utf8'));
+  const override = config?.rules?.messagesPath;
+  if (!override) return shipped;
+  try {
+    return { ...shipped, ...JSON.parse(fs.readFileSync(expandHome(override), 'utf8')) };
+  } catch {
+    return shipped;
+  }
+}
+
 /**
  * Load rules/banned.json, drop terms listed in bannedCheck.disableWords,
  * and append bannedCheck.additions.

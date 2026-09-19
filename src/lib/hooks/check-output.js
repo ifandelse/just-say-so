@@ -4,7 +4,7 @@
 // that the remind hook delivers with the next prompt.
 // Returns the hook output object, or null for silence.
 import { loadConfig } from '../config.js';
-import { loadBanned } from '../rules.js';
+import { loadBanned, loadMessages } from '../rules.js';
 import { findViolations, formatViolations } from '../matcher.js';
 import { lastAssistantText } from '../transcript.js';
 import { readSession, writeSession } from '../state.js';
@@ -23,9 +23,9 @@ export function run(input, env = process.env) {
   const { hard } = findViolations(text, loadBanned(config));
   if (hard.length === 0) return null;
 
+  const messages = loadMessages(config);
   const message =
-    `just-say-so: your last reply contains banned terms:\n${formatViolations(hard, [])}\n` +
-    'Rewrite the reply per the communication rules.';
+    `${messages.outputIntro}\n${formatViolations(hard, [], messages.advisoryLabel)}\n${messages.outputRewrite}`;
 
   if (mode === 'block') {
     return { decision: 'block', reason: message };

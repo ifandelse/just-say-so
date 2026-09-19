@@ -1,0 +1,22 @@
+{
+  "name": "just-say-so",
+  "version": "0.1.0",
+  "description": "Communication rules as a redistributable plugin: interval reminders, a banned-word gate on tool output, and commands that load the rules on demand.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jim Cowart",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "files": [
+    ".claude-plugin",
+    "hooks",
+    "rules",
+    "skills",
+    "src",
+    "adapters"
+  ]
+}

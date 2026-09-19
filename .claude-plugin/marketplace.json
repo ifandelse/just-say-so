@@ -1,0 +1,18 @@
+{
+  "name": "just-say-so",
+  "description": "Communication rules for AI coding agents: interval reminders, post-compaction re-injection, and a banned-word gate on tool output.",
+  "owner": {
+    "name": "Jim Cowart"
+  },
+  "plugins": [
+    {
+      "name": "just-say-so",
+      "source": "./",
+      "description": "Keeps model output aligned with your communication rules: interval reminders, post-compaction re-injection, and a banned-word gate on tool output.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Jim Cowart"
+      }
+    }
+  ]
+}

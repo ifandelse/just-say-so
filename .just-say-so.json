@@ -1,0 +1,16 @@
+{
+  "$comment": "This repo documents the banned words, so its own docs, rules payload, and tests name them on purpose. Exclude those paths from the gate; everything else in the repo stays checked.",
+  "bannedCheck": {
+    "exclude": [
+      "**/package*.json",
+      "**/*.lock",
+      "**/node_modules/**",
+      "**/*.min.*",
+      "rules/**",
+      "test/**",
+      "README.md",
+      "adapters/README.md",
+      "src/lib/matcher.js"
+    ]
+  }
+}

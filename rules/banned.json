@@ -1,0 +1,40 @@
+{
+  "$comment": "Banned-term data for the just-say-so matcher. `words` and `phrases` are hard violations. `patterns` are raw regexes (hard). `contextual` entries carry a condition a matcher cannot judge (e.g. 'unless quantified'), so they report as advisories and never block on their own.",
+  "words": [
+    { "term": "leverage", "hint": "use a concrete verb: use, apply, rely on" },
+    { "term": "robust" },
+    { "term": "seamless" },
+    { "term": "holistic" },
+    { "term": "streamline" },
+    { "term": "empower" },
+    { "term": "cutting-edge" },
+    { "term": "game-changing" },
+    { "term": "synergy" },
+    { "term": "delve" },
+    { "term": "utilize", "hint": "use \"use\"" },
+    { "term": "belt-and-suspenders" }
+  ],
+  "phrases": [
+    { "term": "structural spine" },
+    { "term": "load bearing" },
+    { "term": "blast radius" },
+    { "term": "honest take" },
+    { "term": "it's important to note" },
+    { "term": "it should be noted that" },
+    { "term": "in today's landscape" },
+    { "term": "in order to", "hint": "use \"to\"" }
+  ],
+  "patterns": [
+    {
+      "regex": "\\b(?:it|this|that|he|she|they|we)(?:'s|'re| is| are| was| were)(?: actually)? not (?:just |only |merely |simply )?[^.,;:!?\\n]{1,80}?[,;:—–]\\s*(?:it|this|that|he|she|they|we)(?:'s|'re| is| are| was| were)\\b",
+      "flags": "i",
+      "label": "\"it's not {x}, it's {y}\" frame"
+    }
+  ],
+  "contextual": [
+    { "term": "very", "note": "empty intensifier — banned unless quantified" },
+    { "term": "truly", "note": "empty intensifier — banned unless quantified" },
+    { "term": "crucial", "note": "empty intensifier — banned unless quantified" },
+    { "term": "vital", "note": "empty intensifier — banned unless quantified" }
+  ]
+}

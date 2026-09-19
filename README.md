@@ -1,19 +1,21 @@
 # just-say-so
 
-Communication rules for AI coding agents, packaged as a plugin. Models drift from style instructions as context grows — a rule stated once at session start loses force twenty turns later. just-say-so re-injects a condensed rule set on a configurable interval, gates tool output on a banned-term list, and re-loads the rules after compaction. The shipped rules target prose that is precise and readable ([rules/full.md](rules/full.md)); swap in your own rules with two config keys.
+LLM-generated prose is not fit for human consumption. Agents simultaneously speak as if we hold multiple PhDs and drop into a verbal shorthand that feels like a mix between a bad movie trailer and a conversation you showed up late to. `just-say-so` packages the rules I've used to tackle this problem and makes them available as skills. But it also does something else: it fights attention decay. If you're using a coding harness (like Claude Code), you've already experienced this when the model forgets key things (like how to talk to you) and has to be reminded frequently. `just-say-so` plugs into your harness's hooks and can be configured to remind the agent either by turn count or token count, and to ensure the agent is reminded after compaction.
+
+The `just-say-so` communication rules are adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), but they do not adhere to the 900-word-dictionary that ASD-STE100 is limited to.
 
 ## What it does
 
-Three mechanisms, all driven by hooks:
+`just-say-so` gets integrated into your harness via the following hooks:
 
-| Hook | Script | Behavior |
-| --- | --- | --- |
-| `UserPromptSubmit` | `remind.js` | Injects the condensed rules every N prompts (default 5) or every N tokens of context growth (default 4,000). Never blocks a prompt. |
-| `PreToolUse` on `Write\|Edit\|MultiEdit\|NotebookEdit` | `check-banned.js` | Scans the text the model is adding for banned terms. Default: deny the call with the violation list, so the model rewrites before anything lands on disk. |
-| `SessionStart` | `session-start.js` | Re-injects the condensed rules after compaction, when the model most likely lost them. |
-| `Stop` (off by default) | `check-output.js` | Scans the final chat reply for banned terms. `block` forces a rewrite; `warn` queues a note for the next prompt. |
+| Hook                                                   | Script             | Behavior                                                                                                                                                  |
+| ------------------------------------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UserPromptSubmit`                                     | `remind.js`        | Injects the condensed rules every N prompts (default 5) or every N tokens of context growth (default 4,000). Never blocks a prompt.                       |
+| `PreToolUse` on `Write\|Edit\|MultiEdit\|NotebookEdit` | `check-banned.js`  | Scans the text the model is adding for banned terms. Default: deny the call with the violation list, so the model rewrites before anything lands on disk. |
+| `SessionStart`                                         | `session-start.js` | Re-injects the condensed rules after compaction, when the model most likely lost them.                                                                    |
+| `Stop` (off by default)                                | `check-output.js`  | Scans the final chat reply for banned terms. `block` forces a rewrite; `warn` queues a note for the next prompt.                                          |
 
-Two commands cover environments without hooks, and manual use anywhere:
+You also get two commands to cover environments without hooks (like desktop apps):
 
 - `/just-say-so:rules` — load the full rules into context for the rest of the session.
 - `/just-say-so:remind` — inject the condensed reminder now.
@@ -40,28 +42,36 @@ Config merges in order: built-in defaults ← `~/.config/just-say-so/config.json
 ```jsonc
 {
   "reminder": {
-    "mode": "prompts",             // "prompts" | "tokens" | "off"
-    "everyPrompts": 5,             // fire every N user prompts
-    "everyTokens": 4000,           // or: fire after N tokens of context growth
-    "onSessionStart": ["compact"]  // also inject on these SessionStart sources:
-                                   // "startup", "resume", "clear", "compact"
+    "mode": "prompts", // "prompts" | "tokens" | "off"
+    "everyPrompts": 5, // fire every N user prompts
+    "everyTokens": 4000, // or: fire after N tokens of context growth
+    "onSessionStart": ["compact"] // also inject on these SessionStart sources:
+    // "startup", "resume", "clear", "compact"
   },
   "bannedCheck": {
-    "mode": "block",               // "block" | "warn" | "off"
+    "mode": "block", // "block" | "warn" | "off"
     "tools": ["Write", "Edit", "MultiEdit", "NotebookEdit"],
-    "exclude": ["**/package*.json", "**/*.lock", "**/node_modules/**", "**/*.min.*"],
-    "include": [],                 // when non-empty, only these paths get checked
-    "disableWords": [],            // opt out of specific built-in terms
-    "additions": {                 // extend the list
-      "words": [],                 // "ninja" or { "term": "ninja", "hint": "..." }
+    "exclude": [
+      "**/package*.json",
+      "**/*.lock",
+      "**/node_modules/**",
+      "**/*.min.*"
+    ],
+    "include": [], // when non-empty, only these paths get checked
+    "disableWords": [], // opt out of specific built-in terms
+    "allowPhrases": [], // collocations that neutralize matches inside them,
+    // e.g. "robust regression" passes while bare "robust" stays blocked
+    "additions": {
+      // extend the list
+      "words": [], // "ninja" or { "term": "ninja", "hint": "..." }
       "phrases": [],
-      "patterns": []               // { "regex": "...", "flags": "i", "label": "..." }
+      "patterns": [] // { "regex": "...", "flags": "i", "label": "..." }
     }
   },
   "outputCheck": { "mode": "off" }, // Stop-hook chat check: "off" | "warn" | "block"
   "rules": {
-    "fullPath": null,              // your own rules file, replaces rules/full.md
-    "condensedPath": null          // replaces rules/condensed.md
+    "fullPath": null, // your own rules file, replaces rules/full.md
+    "condensedPath": null // replaces rules/condensed.md
   }
 }
 ```
@@ -70,15 +80,17 @@ Glob notes: a pattern without a slash matches the file's basename anywhere (`*.m
 
 ### Bring your own rules
 
-The shipped rules are the default payload, not a requirement. Point `rules.fullPath` and `rules.condensedPath` at your own markdown, and edit the banned list through `disableWords` and `additions`. The hooks, commands, and config machinery stay the same.
+You might hate my rules, fair enough. To plug your own ruleset in, point `rules.fullPath` and `rules.condensedPath` at your own markdown, and edit the banned list through `disableWords` and `additions`. All the hooks, commands, and config machinery stay the same.
 
 ### Term matching
 
-Matching is case-insensitive with word boundaries that treat hyphens as part of the word — a banned word inside an identifier or dependency name does not match. Phrases tolerate hyphen/space variation both ways. Curly quotes normalize to straight before matching. Terms in `rules/banned.json` marked `contextual` carry a condition a matcher cannot judge (the intensifiers, banned "unless quantified"), so they report as advisories and never block on their own.
+Matching is case-insensitive with word boundaries that treat hyphens as part of the word — a banned word inside an identifier or dependency name does not match. Phrases tolerate hyphen/space variation both ways. Curly quotes normalize to straight before matching. Matches inside an `allowPhrases` collocation do not count, so a project can permit "robust regression" while bare "robust" stays blocked. Terms in `rules/banned.json` marked `contextual` carry a condition a matcher cannot judge (the empty intensifiers, which the rules say to replace with a measurement), so they report as advisories and never block on their own.
 
-## Limits, stated plainly
+The checker is stricter than the prose rule on purpose. The rules permit a buzzword "when it has precise meaning or is relevant to the domain" — a judgment call a regex cannot make, and one the model would argue its way through. Domain legitimacy is a per-project fact, so it lives in per-project config: add the term to `disableWords`, or the collocation to `allowPhrases`, in that project's `.just-say-so.json`. The deny message tells the model to route that decision to you.
 
-- The checker cannot tell prose from code. A banned word in a string literal you asked for will trip it. Use `exclude`, `include`, or `disableWords` to carve out what you need.
+## Limits (it's not perfect, y'all)
+
+- The checker cannot tell prose from code. A banned word in a string literal you asked for will trip it. Use `exclude`, `include`, `disableWords`, or `allowPhrases` to carve out what you need.
 - The hedging rule (may/might/could as padding) is not machine-checked. Those words are legitimate in most technical sentences; only the reminder text carries that rule.
 - The interval reminder depends on the harness delivering `UserPromptSubmit` events. Subagent traffic does not count toward the prompt counter.
 - This repo's own docs and tests name the banned words, so its `.just-say-so.json` excludes those paths. Expect the same in any repo that documents its style rules.

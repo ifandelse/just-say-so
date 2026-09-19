@@ -32,9 +32,9 @@
     }
   ],
   "contextual": [
-    { "term": "very", "note": "empty intensifier — banned unless quantified" },
-    { "term": "truly", "note": "empty intensifier — banned unless quantified" },
-    { "term": "crucial", "note": "empty intensifier — banned unless quantified" },
-    { "term": "vital", "note": "empty intensifier — banned unless quantified" }
+    { "term": "very", "note": "empty intensifier — replace with a measurement or a concrete consequence" },
+    { "term": "truly", "note": "empty intensifier — replace with a measurement or a concrete consequence" },
+    { "term": "crucial", "note": "empty intensifier — replace with a measurement or a concrete consequence" },
+    { "term": "vital", "note": "empty intensifier — replace with a measurement or a concrete consequence" }
   ]
 }

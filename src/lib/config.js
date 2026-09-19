@@ -15,6 +15,7 @@ export const DEFAULTS = {
     exclude: ['**/package*.json', '**/*.lock', '**/node_modules/**', '**/*.min.*'],
     include: [],
     disableWords: [],
+    allowPhrases: [],
     additions: { words: [], phrases: [], patterns: [] }
   },
   outputCheck: {

@@ -21,9 +21,22 @@ export function termRegex(term) {
   return new RegExp(BEFORE + tokens.join('[\\s\\u00A0-]+') + AFTER, 'gi');
 }
 
-function countMatches(text, regex) {
-  const matches = text.match(regex);
-  return matches ? matches.length : 0;
+function matchSpans(text, regex) {
+  const spans = [];
+  for (const m of text.matchAll(regex)) spans.push([m.index, m.index + m[0].length]);
+  return spans;
+}
+
+function insideAny([start, end], ranges) {
+  return ranges.some(([s, e]) => start >= s && end <= e);
+}
+
+// Matches that sit inside an allowed collocation ("robust regression") are
+// legitimate domain usage per the rules; they don't count.
+function countOutsideAllowed(text, regex, allowedRanges) {
+  const spans = matchSpans(text, regex);
+  if (allowedRanges.length === 0) return spans.length;
+  return spans.filter((span) => !insideAny(span, allowedRanges)).length;
 }
 
 function ensureGlobal(flags) {
@@ -32,19 +45,21 @@ function ensureGlobal(flags) {
 }
 
 /**
- * Scan text against a banned-term set ({words, phrases, patterns, contextual}).
- * Returns { hard, soft }: hard violations warrant enforcement; soft entries
- * carry a condition a matcher cannot judge ("unless quantified") and only
- * ever produce advisories.
+ * Scan text against a banned-term set ({words, phrases, patterns, contextual,
+ * allow}). Returns { hard, soft }: hard violations warrant enforcement; soft
+ * entries carry a condition a matcher cannot judge (the empty intensifiers)
+ * and only ever produce advisories. Matches inside an `allow` phrase are
+ * skipped entirely.
  */
 export function findViolations(text, banned) {
   const t = normalize(text);
   const hard = [];
   const soft = [];
+  const allowedRanges = (banned?.allow ?? []).flatMap((phrase) => matchSpans(t, termRegex(phrase)));
 
   for (const group of ['words', 'phrases']) {
     for (const entry of banned?.[group] ?? []) {
-      const count = countMatches(t, termRegex(entry.term));
+      const count = countOutsideAllowed(t, termRegex(entry.term), allowedRanges);
       if (count > 0) {
         hard.push({ kind: group === 'words' ? 'word' : 'phrase', term: entry.term, count, hint: entry.hint });
       }
@@ -58,12 +73,12 @@ export function findViolations(text, banned) {
     } catch {
       continue; // a bad user-supplied pattern must not break the check
     }
-    const count = countMatches(t, regex);
+    const count = countOutsideAllowed(t, regex, allowedRanges);
     if (count > 0) hard.push({ kind: 'pattern', term: entry.label ?? entry.regex, count });
   }
 
   for (const entry of banned?.contextual ?? []) {
-    const count = countMatches(t, termRegex(entry.term));
+    const count = countOutsideAllowed(t, termRegex(entry.term), allowedRanges);
     if (count > 0) soft.push({ kind: 'contextual', term: entry.term, count, note: entry.note });
   }
 
@@ -78,7 +93,7 @@ export function formatViolations(hard, soft) {
   }
   if (soft.length) {
     const terms = soft.map((v) => `"${v.term}" ×${v.count}`).join(', ');
-    lines.push(`  - advisories (banned unless quantified): ${terms}`);
+    lines.push(`  - advisories (replace with a measurement or a concrete consequence): ${terms}`);
   }
   return lines.join('\n');
 }

@@ -40,6 +40,7 @@ export function loadBanned(config) {
     words: [...(base.words ?? []).filter(keep), ...(additions.words ?? []).map(toEntry)],
     phrases: [...(base.phrases ?? []).filter(keep), ...(additions.phrases ?? []).map(toEntry)],
     patterns: [...(base.patterns ?? []), ...(additions.patterns ?? [])],
-    contextual: (base.contextual ?? []).filter(keep)
+    contextual: (base.contextual ?? []).filter(keep),
+    allow: [...(config?.bannedCheck?.allowPhrases ?? [])]
   };
 }

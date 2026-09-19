@@ -12,7 +12,8 @@ import { makeSandbox } from '../helpers/sandbox.js';
  *   extractText: Write · Edit (new_string only) · MultiEdit (joined) · NotebookEdit ·
  *                default → '' → null · empty text → null
  *   violations: none → null · hard + block → deny · hard + warn → additionalContext ·
- *               soft-only + block → additionalContext
+ *               soft-only + block → additionalContext ·
+ *               allowPhrases: match inside collocation → null, outside → deny
  */
 
 const SESSION = 'BANNED_SESSION';
@@ -146,7 +147,9 @@ describe('check-banned.run', () => {
             '  - "leverage" ×1 — use a concrete verb: use, apply, rely on\n' +
             '  - "robust" ×1\n' +
             '  - "in order to" ×1 — use "to"\n' +
-            'Rewrite the flagged text per the communication rules, then retry the tool call.'
+            'Rewrite the flagged text per the communication rules, then retry the tool call. ' +
+            'If a flagged term is a precise domain term in this project, ask the user to add it to ' +
+            '"disableWords" or "allowPhrases" in .just-say-so.json.'
         }
       });
     });
@@ -241,6 +244,23 @@ describe('check-banned.run', () => {
     });
   });
 
+  describe('when a project allows a domain collocation', () => {
+    let insideAllowed, outsideAllowed;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { allowPhrases: ['robust regression'] } });
+      insideAllowed = run(writeEvent(sandbox, 'stats.md', 'We fit a robust regression model.'), sandbox.env);
+      outsideAllowed = run(writeEvent(sandbox, 'stats.md', 'We built a robust pipeline.'), sandbox.env);
+    });
+
+    it('should pass the collocation and still block the bare term', () => {
+      expect({
+        insideAllowedIsNull: insideAllowed === null,
+        outsideAllowedDenies: outsideAllowed?.hookSpecificOutput.permissionDecision === 'deny'
+      }).toEqual({ insideAllowedIsNull: true, outsideAllowedDenies: true });
+    });
+  });
+
   describe('when warn mode finds hard violations', () => {
     let output;
 
@@ -276,7 +296,7 @@ describe('check-banned.run', () => {
           hookEventName: 'PreToolUse',
           additionalContext:
             'just-say-so: banned terms in notes.md:\n' +
-            '  - advisories (banned unless quantified): "very" ×1\n' +
+            '  - advisories (replace with a measurement or a concrete consequence): "very" ×1\n' +
             'The call was allowed; fix the flagged text per the communication rules.'
         }
       });

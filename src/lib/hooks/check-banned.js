@@ -52,7 +52,9 @@ export function run(input, env = process.env) {
         permissionDecision: 'deny',
         permissionDecisionReason:
           `just-say-so: banned terms in ${target}:\n${detail}\n` +
-          'Rewrite the flagged text per the communication rules, then retry the tool call.'
+          'Rewrite the flagged text per the communication rules, then retry the tool call. ' +
+          'If a flagged term is a precise domain term in this project, ask the user to add it to ' +
+          '"disableWords" or "allowPhrases" in .just-say-so.json.'
       }
     };
   }

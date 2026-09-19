@@ -7,7 +7,9 @@ import { findViolations, termRegex, formatViolations } from '../../src/lib/match
  *   termRegex: single token · multi token (space/hyphen tolerant) · metacharacter escape
  *   findViolations: word hit/miss (boundaries) · phrase hit · pattern hit ·
  *                   invalid pattern regex → skipped · flags without "g" → ensureGlobal ·
- *                   contextual hit · empty/absent groups
+ *                   contextual hit · empty/absent groups ·
+ *                   allow ranges empty (fast path) · match inside allowed phrase skipped ·
+ *                   match outside allowed phrase counted
  *   formatViolations: word/phrase label (quoted) vs pattern label · hint present/absent ·
  *                     soft empty vs non-empty
  */
@@ -27,7 +29,7 @@ const BANNED = {
       label: '"it\'s not {x}, it\'s {y}" frame'
     }
   ],
-  contextual: [{ term: 'very', note: 'empty intensifier — banned unless quantified' }]
+  contextual: [{ term: 'very', note: 'empty intensifier — replace with a measurement or a concrete consequence' }]
 };
 
 describe('matcher', () => {
@@ -47,7 +49,7 @@ describe('matcher', () => {
             { kind: 'phrase', term: 'load bearing', count: 1, hint: undefined }
           ],
           soft: [
-            { kind: 'contextual', term: 'very', count: 1, note: 'empty intensifier — banned unless quantified' }
+            { kind: 'contextual', term: 'very', count: 1, note: 'empty intensifier — replace with a measurement or a concrete consequence' }
           ]
         });
       });
@@ -177,6 +179,43 @@ describe('matcher', () => {
       });
     });
 
+    describe('when matches fall inside and outside an allowed phrase', () => {
+      let result;
+
+      beforeEach(() => {
+        result = findViolations('We ran a robust regression, then wrote a robust plan. Very robust regression work.', {
+          ...BANNED,
+          allow: ['robust regression']
+        });
+      });
+
+      it('should count only the matches outside the allowed collocations', () => {
+        expect(result).toEqual({
+          hard: [{ kind: 'word', term: 'robust', count: 1, hint: undefined }],
+          soft: [
+            {
+              kind: 'contextual',
+              term: 'very',
+              count: 1,
+              note: 'empty intensifier — replace with a measurement or a concrete consequence'
+            }
+          ]
+        });
+      });
+    });
+
+    describe('when every match sits inside an allowed phrase', () => {
+      let result;
+
+      beforeEach(() => {
+        result = findViolations('The robust regression holds.', { ...BANNED, allow: ['robust regression'] });
+      });
+
+      it('should report nothing', () => {
+        expect(result).toEqual({ hard: [], soft: [] });
+      });
+    });
+
     describe('when the banned set has missing groups', () => {
       let result;
 
@@ -216,7 +255,7 @@ describe('matcher', () => {
       it('should render the hint and the advisory line', () => {
         expect(result).toBe(
           '  - "leverage" ×1 — use a concrete verb: use, apply, rely on\n' +
-            '  - advisories (banned unless quantified): "very" ×1'
+            '  - advisories (replace with a measurement or a concrete consequence): "very" ×1'
         );
       });
     });

@@ -11,7 +11,7 @@ import { findViolations } from '../../src/lib/matcher.js';
  *   expandHome: leading "~" → home join · other → verbatim
  *   readRules: kind full/condensed · override present vs null
  *   loadBanned: disableWords filter (words + contextual) · additions as string vs object ·
- *               additions phrases/patterns · empty additions
+ *               additions phrases/patterns · empty additions · allowPhrases wired to allow
  */
 
 describe('rules', () => {
@@ -108,6 +108,19 @@ describe('rules', () => {
 
       it('should report the intensifier as an advisory', () => {
         expect(result.soft.map((v) => v.term)).toEqual(['very']);
+      });
+    });
+
+    describe('when allowPhrases are configured', () => {
+      let result;
+
+      beforeEach(() => {
+        const config = merge(DEFAULTS, { bannedCheck: { allowPhrases: ['robust regression'] } });
+        result = findViolations('The robust regression converged.', loadBanned(config));
+      });
+
+      it('should neutralize matches inside the collocation', () => {
+        expect(result).toEqual({ hard: [], soft: [] });
       });
     });
 

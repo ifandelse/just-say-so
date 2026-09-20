@@ -20,6 +20,7 @@ The plugin does this through hooks: commands your harness runs at fixed points, 
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `UserPromptSubmit`      | Injects the condensed rules every 5 prompts, or every 4,000 tokens of context growth (both configurable). Never blocks your prompt.                                                                                                              |
 | `SessionStart`          | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction.                                                                                                                                  |
+| `SubagentStart`         | Injects the condensed rules into each subagent when it spawns. Subagents start with fresh context and never see the main session's reminders — without this, they'd discover the rules only by violating them.                                    |
 | `PreToolUse`            | Runs the checker on text the agent is adding through file tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). Default: warn — the write lands and the agent gets the violation list. `block` mode rejects the write; the agent rewrites first. |
 | `Stop` (off by default) | Runs the checker on the agent's final chat reply. `block` forces a rewrite; `warn` queues a note for the next prompt.                                                                                                                            |
 
@@ -61,9 +62,10 @@ Both files use the same JSON shape, and each one can set only the fields you car
     "mode": "prompts", // "prompts" | "tokens" | "off"
     "everyPrompts": 5, // fire every N user prompts
     "everyTokens": 4000, // or: fire after N tokens of context growth
-    "onSessionStart": ["startup", "resume", "clear", "compact"]
+    "onSessionStart": ["startup", "resume", "clear", "compact"],
     // inject at the start of every context; trim the list to inject on fewer sources
     // (for example ["compact"] if your CLAUDE.md already carries the rules at startup)
+    "onSubagentStart": true // brief each subagent with the condensed rules at spawn
   },
   "bannedCheck": {
     "mode": "warn", // "warn" | "block" | "off" — warn by default, like a linter; block is the hard gate
@@ -124,7 +126,7 @@ One courtesy behavior to know: when the model edits `.just-say-so.json` or the g
 
 - The checker cannot tell prose from code. A banned word in a string literal you asked for will trip it. Two pairs of knobs carve out what you need: `exclude` and `include` control which files get checked, while `disableWords` and `allowPhrases` control which terms count as violations.
 - The checker never scans for may/might/could. The rules ban them only as padding, and a pattern match cannot tell padding ("this may be worth considering") from a factual claim ("the config may be overridden"). That rule reaches the model through the rules text alone.
-- The interval reminder depends on the harness delivering `UserPromptSubmit` events. Subagent traffic does not count toward the prompt counter.
+- The interval reminder depends on the harness delivering `UserPromptSubmit` events. Subagent turns do not advance the prompt counter, and that is deliberate: the counter measures the main context, and a subagent's internal traffic burns tokens in its own separate context. Each subagent gets its own copy of the rules at spawn instead.
 - This repo's own docs and tests name the banned words, so its `.just-say-so.json` excludes those paths. Expect the same in any repo that documents its style rules.
 
 ## Other harnesses
@@ -144,6 +146,7 @@ Only the Claude Code adapter exists today. This table shows what each harness's 
 | Banned words: warn before the write      | yes         | partial⁴  | yes       | partial — feedback arrives after the tool runs | untested               | untested                       | no                    |
 | Banned words: block + rewrite            | yes         | partial⁵  | yes       | partial — tool arg shapes undocumented         | yes                    | yes                            | no                    |
 | Confirm edits to the plugin's config     | yes         | **no**⁶   | yes       | partial — cloud agent downgrades to deny       | untested               | untested                       | no                    |
+| Rules injected into subagents            | yes⁸        | untested⁹ | untested  | yes                                            | **no**¹⁰               | untested                       | no                    |
 | Chat reply check                         | yes         | untested  | untested  | untested                                       | yes⁷                   | untested                       | no                    |
 | Commands (`/rules`, `/remind`, `/allow`) | yes         | yes       | yes       | yes                                            | partial — TOML rewrite | partial — command-file rewrite | no                    |
 
@@ -154,6 +157,9 @@ Only the Claude Code adapter exists today. This table shows what each harness's 
 5. Codex delivers edits as patch strings. The adapter must parse out added lines first.
 6. Codex parses `"ask"` but does not act on it.
 7. Gemini's `AfterAgent` rejects the model's reply text outright — the only harness with a pre-display chat gate.
+8. Claude Code documents the `SubagentStart` event; the reachable docs truncate before its output schema, so confirm the injection lands in a live session before relying on it.
+9. Codex lists `SubagentStart` among its events, but nothing documents whether that event accepts injected context.
+10. Gemini's documented event set has no subagent events at all.
 
 The two big sacrifices: Copilot loses per-prompt reminders, the plugin's core feature — rules arrive once per new session and then decay. Codex loses the config confirmation and needs patch parsing before the banned gate functions.
 

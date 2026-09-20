@@ -13,7 +13,7 @@ import { makeSandbox } from '../helpers/sandbox.js';
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SCRIPTS = ['remind.js', 'check-banned.js', 'session-start.js', 'check-output.js'];
+const SCRIPTS = ['remind.js', 'check-banned.js', 'session-start.js', 'subagent-start.js', 'check-output.js'];
 
 function spawnHook(script, input, env) {
   return spawnSync(process.execPath, [path.join(ROOT, 'src', 'hooks', script)], {
@@ -95,7 +95,8 @@ describe('hook protocol', () => {
     });
 
     it('should point every command at a file that exists', () => {
-      expect(scriptPaths.map((p) => fs.existsSync(p))).toEqual([true, true, true, true]);
+      expect(scriptPaths.length).toBe(SCRIPTS.length);
+      expect(scriptPaths.map((p) => fs.existsSync(p))).toEqual(scriptPaths.map(() => true));
     });
   });
 });

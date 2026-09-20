@@ -31,6 +31,16 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/subagent-start.js\""
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

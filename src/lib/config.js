@@ -9,7 +9,10 @@ export const DEFAULTS = {
     everyTokens: 4000,
     // Rules are present at the start of every context, then refreshed every
     // N prompts. Trim this list to inject on fewer SessionStart sources.
-    onSessionStart: ['startup', 'resume', 'clear', 'compact']
+    onSessionStart: ['startup', 'resume', 'clear', 'compact'],
+    // Subagents start with fresh context and never see the main-session
+    // reminders; brief them at spawn too.
+    onSubagentStart: true
   },
   bannedCheck: {
     mode: 'warn', // "warn" | "block" | "off" — warn by default, like a linter; block is the opt-in hard gate

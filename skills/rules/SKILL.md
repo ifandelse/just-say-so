@@ -2,7 +2,7 @@
 name: rules
 description: Load the full just-say-so communication rules into context and apply them to all output for the rest of the session.
 disable-model-invocation: true
-allowed-tools: Read, Bash(node *)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/src/cli/print-rules.js" *)
 ---
 
 Apply the following communication rules to all your output for the rest of the session: chat, explanations, docs, reports, answers, file content, code comments, commit messages, and tool use.

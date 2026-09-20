@@ -11,8 +11,8 @@ The `just-say-so` communication rules are adapted from the [ASD-STE100 standard]
 | Hook                                                   | Script             | Behavior                                                                                                                                                  |
 | ------------------------------------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `UserPromptSubmit`                                     | `remind.js`        | Injects the condensed rules every N prompts (default 5) or every N tokens of context growth (default 4,000). Never blocks a prompt.                       |
-| `PreToolUse` on `Write\|Edit\|MultiEdit\|NotebookEdit` | `check-banned.js`  | Scans the text the model is adding for banned terms. Default: deny the call with the violation list, so the model rewrites before anything lands on disk. |
-| `SessionStart`                                         | `session-start.js` | Re-injects the condensed rules after compaction, when the model most likely lost them.                                                                    |
+| `PreToolUse` on `Write\|Edit\|MultiEdit\|NotebookEdit` | `check-banned.js`  | Scans the text the model is adding for banned terms. Default: warn — the call lands and the model gets the violation list as feedback. Opt into `block` to deny the call so the model rewrites first. |
+| `SessionStart`                                         | `session-start.js` | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction.                                           |
 | `Stop` (off by default)                                | `check-output.js`  | Scans the final chat reply for banned terms. `block` forces a rewrite; `warn` queues a note for the next prompt.                                          |
 
 You also get three commands to cover environments without hooks (like desktop apps):
@@ -46,11 +46,12 @@ Config merges in order: built-in defaults ← `~/.config/just-say-so/config.json
     "mode": "prompts", // "prompts" | "tokens" | "off"
     "everyPrompts": 5, // fire every N user prompts
     "everyTokens": 4000, // or: fire after N tokens of context growth
-    "onSessionStart": ["compact"] // also inject on these SessionStart sources:
-    // "startup", "resume", "clear", "compact"
+    "onSessionStart": ["startup", "resume", "clear", "compact"]
+    // inject at the start of every context; trim the list to inject on fewer sources
+    // (e.g. ["compact"] if your CLAUDE.md already carries the rules at startup)
   },
   "bannedCheck": {
-    "mode": "block", // "block" | "warn" | "off"
+    "mode": "warn", // "warn" | "block" | "off" — warn by default, like a linter; block is the hard gate
     "tools": ["Write", "Edit", "MultiEdit", "NotebookEdit"],
     "exclude": [
       "**/package*.json",
@@ -92,9 +93,9 @@ Every sentence the hooks emit — deny reasons, the advisory label, the config-e
 
 Matching is case-insensitive with word boundaries that treat hyphens as part of the word — a banned word inside an identifier or dependency name does not match. Phrases tolerate hyphen/space variation both ways. Curly quotes normalize to straight before matching. Matches inside an `allowPhrases` collocation do not count, so a project can permit "robust regression" while bare "robust" stays blocked. Terms in `rules/banned.json` marked `contextual` carry a condition a matcher cannot judge (the empty intensifiers, which the rules say to replace with a measurement), so they report as advisories and never block on their own.
 
-The checker is stricter than the prose rule on purpose. The rules permit a buzzword "when it has precise meaning or is relevant to the domain" — a judgment call a regex cannot make, and one the model would argue its way through. Domain legitimacy is a per-project fact, so it lives in per-project config: add the term to `disableWords`, or the collocation to `allowPhrases`, in that project's `.just-say-so.json`. The deny message tells the model to route that decision to you, and includes the exact `allow` command to run once you agree.
+The checker is stricter than the prose rule on purpose. The rules permit a buzzword "when it has precise meaning or is relevant to the domain" — a judgment call a regex cannot make, and one the model would argue its way through. Domain legitimacy is a per-project fact, so it lives in per-project config: add the term to `disableWords`, or the collocation to `allowPhrases`, in that project's `.just-say-so.json`. In block mode, the deny message tells the model to suggest the `/just-say-so:allow` command to you.
 
-Who authorized an allow-list change stays visible by construction. `/just-say-so:allow` is user-invoked, so consent is the invocation itself. When the model edits `.just-say-so.json` (or the global config) directly, the hook returns `permissionDecision: "ask"` — a confirmation prompt the harness enforces even in auto-accept modes. The model cannot silently exempt itself from the gate.
+One courtesy behavior to know: when the model edits `.just-say-so.json` or the global config through the file tools, the hook returns `permissionDecision: "ask"`, so you get a confirmation prompt before the change lands. That's visibility, not a security boundary — this is a style linter, and a determined agent has other ways to write files.
 
 ## Limits (it's not perfect, y'all)
 
@@ -105,11 +106,11 @@ Who authorized an allow-list change stays visible by construction. `/just-say-so
 
 ## Other harnesses
 
-The Claude Code hook protocol — JSON on stdin, JSON on stdout, exit 2 blocks — became the de-facto convention across coding agents, so most of this plugin carries over with wiring changes only. [adapters/README.md](adapters/README.md) maps the current landscape and the adapter contract.
+The Claude Code hook protocol — JSON on stdin, JSON on stdout, exit 2 blocks — became the de-facto convention across coding agents, so the core logic carries over. Each harness still costs real adapter work: Codex delivers file edits as patches, Copilot drops prompt-hook output from config files, Gemini renames the events. [adapters/README.md](adapters/README.md) maps the verified per-harness constraints and the adapter contract.
 
 ## Development
 
-Runtime code has zero dependencies; the test stack (vitest) is dev-only.
+Runtime code has zero dependencies and runs on Node ≥18; the test stack (vitest 5) is dev-only and needs Node ^22.12 / ^24 / ≥26 to run the suite.
 
 ```
 npm test               # run the suite

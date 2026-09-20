@@ -7,10 +7,11 @@ import { makeSandbox } from '../helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/session-start.js
- *   source compact (in default list) → reset + inject
- *   source clear (not in list) → reset + null
- *   source startup → no reset + null
- *   source missing → defaults to "startup"; with it configured → inject
+ *   source compact → reset + inject (default list holds all four sources)
+ *   source clear → reset + inject
+ *   source startup → no reset + inject
+ *   source outside a trimmed configured list → null, no reset
+ *   source missing → defaults to "startup" → inject
  *   cleanupSessions runs on every call (old files removed)
  */
 
@@ -51,16 +52,37 @@ describe('session-start.run', () => {
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should reset the counters without injecting', () => {
-      expect({ output, promptCount: state.promptCount }).toEqual({ output: null, promptCount: 0 });
+    it('should reset the counters and inject', () => {
+      expect({
+        injected: output.hookSpecificOutput.additionalContext.includes('## Communication rules — reminder'),
+        promptCount: state.promptCount
+      }).toEqual({ injected: true, promptCount: 0 });
     });
   });
 
-  describe('when the session starts up normally', () => {
+  describe('when a new session starts up', () => {
     let output, state;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should inject without resetting the counters', () => {
+      expect({
+        injected: output.hookSpecificOutput.hookEventName === 'SessionStart',
+        promptCount: state.promptCount
+      }).toEqual({ injected: true, promptCount: 4 });
+    });
+  });
+
+  describe('when the configured list excludes the source', () => {
+    let output, state;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
       writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);

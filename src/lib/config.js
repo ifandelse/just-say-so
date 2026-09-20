@@ -7,10 +7,12 @@ export const DEFAULTS = {
     mode: 'prompts', // "prompts" | "tokens" | "off"
     everyPrompts: 5,
     everyTokens: 4000,
-    onSessionStart: ['compact'] // subset of ["startup", "resume", "clear", "compact"]
+    // Rules are present at the start of every context, then refreshed every
+    // N prompts. Trim this list to inject on fewer SessionStart sources.
+    onSessionStart: ['startup', 'resume', 'clear', 'compact']
   },
   bannedCheck: {
-    mode: 'block', // "block" | "warn" | "off"
+    mode: 'warn', // "warn" | "block" | "off" — warn by default, like a linter; block is the opt-in hard gate
     tools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
     exclude: ['**/package*.json', '**/*.lock', '**/node_modules/**', '**/*.min.*'],
     include: [],

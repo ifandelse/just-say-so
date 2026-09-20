@@ -1,8 +1,8 @@
 {
-  "$comment": "Every user-facing sentence the hooks emit. Override any subset via rules.messagesPath in config — unlisted keys keep these shipped defaults. {target} and {allowCommand} are filled at runtime.",
+  "$comment": "Every user-facing sentence the hooks emit. Override any subset via rules.messagesPath in config — unlisted keys keep these shipped defaults. {target} is filled at runtime.",
   "bannedIntro": "just-say-so: banned terms in {target}:",
   "rewriteInstruction": "Rewrite the flagged text per the communication rules, then retry the tool call.",
-  "escapeHatch": "If a flagged term is a precise domain term in this project, ask the user — if they agree, run: {allowCommand}",
+  "escapeHatch": "If a flagged term is a precise domain term in this project, suggest that the user run: /just-say-so:allow \"<collocation>\" — quote the flagged term as it appears in the text (for example \"robust regression\", not \"robust\").",
   "warnInstruction": "The call was allowed; fix the flagged text per the communication rules.",
   "advisoryLabel": "advisories (replace with a measurement or a concrete consequence)",
   "configAskReason": "just-say-so: this edits the just-say-so config ({target}). Allow only if you asked for this change.",

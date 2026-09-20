@@ -44,11 +44,11 @@ describe('hook protocol', () => {
     });
   });
 
-  describe('when a banned Write goes through the spawned gate', () => {
+  describe('when a banned Write goes through the spawned gate in block mode', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       result = spawnHook(
         'check-banned.js',
         {

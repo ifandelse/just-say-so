@@ -1,12 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { run } from '../../src/lib/hooks/check-banned.js';
 import { makeSandbox } from '../helpers/sandbox.js';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const ALLOW_CLI = path.join(ROOT, 'src', 'cli', 'allow.js');
 
 /*
  * Branch map — src/lib/hooks/check-banned.js
@@ -18,9 +14,10 @@ const ALLOW_CLI = path.join(ROOT, 'src', 'cli', 'allow.js');
  *   file_path absent → glob checks skipped, target = tool name
  *   extractText: Write · Edit (new_string only) · MultiEdit (joined) · NotebookEdit ·
  *                default → '' → null · empty text → null
- *   violations: none → null · hard + block → deny · hard + warn → additionalContext ·
+ *   violations: none → null · hard + default (warn) → additionalContext ·
+ *               hard + block → deny with allow-skill suggestion ·
  *               soft-only + block → additionalContext ·
- *               allowPhrases: match inside collocation → null, outside → deny
+ *               allowPhrases: match inside collocation → null, outside → flagged
  */
 
 const SESSION = 'BANNED_SESSION';
@@ -203,11 +200,11 @@ describe('check-banned.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       output = run(writeEvent(sandbox, 'notes.md', 'We leverage robust solutions in order to ship.'), sandbox.env);
     });
 
-    it('should deny with the violation list and rewrite instruction', () => {
+    it('should deny with the violation list and the allow-skill suggestion', () => {
       expect(output).toEqual({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -218,8 +215,9 @@ describe('check-banned.run', () => {
             '  - "robust" ×1\n' +
             '  - "in order to" ×1 — use "to"\n' +
             'Rewrite the flagged text per the communication rules, then retry the tool call. ' +
-            'If a flagged term is a precise domain term in this project, ask the user — if they agree, run: ' +
-            `node "${ALLOW_CLI}" "leverage"`
+            'If a flagged term is a precise domain term in this project, suggest that the user run: ' +
+            '/just-say-so:allow "<collocation>" — quote the flagged term as it appears in the text ' +
+            '(for example "robust regression", not "robust").'
         }
       });
     });
@@ -254,7 +252,7 @@ describe('check-banned.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       output = run(
         {
           session_id: SESSION,
@@ -279,7 +277,7 @@ describe('check-banned.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       output = run(
         {
           session_id: SESSION,
@@ -302,7 +300,7 @@ describe('check-banned.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Write', tool_input: { content: 'pure synergy' } },
         sandbox.env
@@ -318,7 +316,7 @@ describe('check-banned.run', () => {
     let insideAllowed, outsideAllowed;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { allowPhrases: ['robust regression'] } });
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', allowPhrases: ['robust regression'] } });
       insideAllowed = run(writeEvent(sandbox, 'stats.md', 'We fit a robust regression model.'), sandbox.env);
       outsideAllowed = run(writeEvent(sandbox, 'stats.md', 'We built a robust pipeline.'), sandbox.env);
     });
@@ -331,11 +329,11 @@ describe('check-banned.run', () => {
     });
   });
 
-  describe('when warn mode finds hard violations', () => {
+  describe('when the default (warn) mode finds hard violations', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'warn' } });
+      const sandbox = makeSandbox();
       output = run(writeEvent(sandbox, 'notes.md', 'a seamless experience'), sandbox.env);
     });
 
@@ -359,7 +357,7 @@ describe('check-banned.run', () => {
       const catalogDir = makeSandbox().work;
       const catalog = path.join(catalogDir, 'CAL_ZONE_VOICE.json');
       fs.writeFileSync(catalog, JSON.stringify({ bannedIntro: 'palabras prohibidas en {target}:' }));
-      const sandbox = makeSandbox({ rules: { messagesPath: catalog } });
+      const sandbox = makeSandbox({ rules: { messagesPath: catalog }, bannedCheck: { mode: 'block' } });
       output = run(writeEvent(sandbox, 'notes.md', 'pure synergy'), sandbox.env);
     });
 
@@ -374,7 +372,7 @@ describe('check-banned.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       output = run(writeEvent(sandbox, 'notes.md', 'This is very nice.'), sandbox.env);
     });
 

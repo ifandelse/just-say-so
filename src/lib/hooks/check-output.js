@@ -17,7 +17,13 @@ export function run(input, env = process.env) {
   if (mode === 'off') return null;
   if (input.stop_hook_active) return null; // never loop on our own rewrite
 
-  const text = lastAssistantText(input.transcript_path);
+  // The transcript file is written asynchronously and can lag the turn, so
+  // the docs say Stop hooks should read last_assistant_message instead.
+  // Fall back to the transcript for harnesses that don't send the field.
+  const text =
+    typeof input.last_assistant_message === 'string' && input.last_assistant_message.length > 0
+      ? input.last_assistant_message
+      : lastAssistantText(input.transcript_path);
   if (!text) return null;
 
   const { hard } = findViolations(text, loadBanned(config));

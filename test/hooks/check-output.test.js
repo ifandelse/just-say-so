@@ -7,7 +7,9 @@ import { makeSandbox, writeTranscript } from '../helpers/sandbox.js';
  * Branch map — src/lib/hooks/check-output.js
  *   mode off → null · stop_hook_active → null · no assistant text → null ·
  *   clean text → null · hard + block → decision block · hard + warn → null + note queued ·
- *   pending notes capped at 3 · missing session_id → "unknown"
+ *   pending notes capped at 3 · missing session_id → "unknown" ·
+ *   text source: last_assistant_message string preferred (transcript untouched) ·
+ *   non-string or absent field → transcript fallback
  */
 
 const SESSION = 'OUTPUT_SESSION';
@@ -74,6 +76,47 @@ describe('check-output.run', () => {
 
     it('should return null', () => {
       expect(output).toBe(null);
+    });
+  });
+
+  describe('when the event carries last_assistant_message', () => {
+    let banned, clean;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const base = { session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' };
+      banned = run({ ...base, last_assistant_message: 'we truly leverage synergy' }, sandbox.env);
+      clean = run(
+        { ...base, transcript_path: bannedTranscript(sandbox), last_assistant_message: 'The tests pass.' },
+        sandbox.env
+      );
+    });
+
+    it('should check that field and never read the transcript', () => {
+      expect(banned.decision).toBe('block');
+      expect(banned.reason).toContain('"leverage" ×1');
+      expect(clean).toBe(null); // transcript has banned text; the field wins
+    });
+  });
+
+  describe('when last_assistant_message is not a string', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          transcript_path: bannedTranscript(sandbox),
+          last_assistant_message: { role: 'assistant', content: [] }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should fall back to the transcript', () => {
+      expect(output.decision).toBe('block');
     });
   });
 

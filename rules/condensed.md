@@ -8,7 +8,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - One idea per sentence. Most sentences under 20 words.
 - Prefer active voice with a named actor. Use passive voice when the actor is unknown or irrelevant.
 - Prefer simple tenses when they preserve the intended time and state.
-- One word, one meaning, per document.
+- Use one term for each concept. Do not use that term for a different concept in the same document.
 - Concrete verbs and nouns over abstractions.
 - Noun clusters: three words maximum.
 - Give each paragraph one topic.

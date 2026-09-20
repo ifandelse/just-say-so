@@ -1,14 +1,10 @@
 // PreToolUse logic: gate Write/Edit-style tools on the banned-term list.
 // Returns the hook output object, or null for silence.
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../config.js';
 import { loadBanned, loadMessages, fill } from '../rules.js';
 import { findViolations, formatViolations } from '../matcher.js';
 import { matchesAny } from '../glob.js';
-
-const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-export const ALLOW_CLI = path.join(PKG_ROOT, 'src', 'cli', 'allow.js');
 
 // The plugin's own config files: the project .just-say-so.json and the
 // global ~/.config/just-say-so/config.json.
@@ -44,10 +40,9 @@ export function run(input, env = process.env) {
   const toolInput = input.tool_input ?? {};
   const filePath = toolInput.file_path ?? toolInput.notebook_path ?? '';
 
-  // Editing the plugin's own config would let the model exempt itself from
-  // the gate, and scanning the edit would deadlock (the config names the
-  // banned words). Neither: force an interactive confirmation, before the
-  // exclude globs so nothing can route around it.
+  // The config file names the banned words, so scanning it would deadlock;
+  // and a config change deserves a look before it lands. A courtesy
+  // confirmation covers both — this is visibility, not a security boundary.
   if (filePath && isOwnConfig(filePath)) {
     const messages = loadMessages(config);
     return {
@@ -76,13 +71,13 @@ export function run(input, env = process.env) {
   const detail = formatViolations(hard, soft, messages.advisoryLabel);
 
   if (hard.length > 0 && bc.mode === 'block') {
-    const allowCommand = `node "${ALLOW_CLI}" "${hard[0].term}"`;
+    // The model picks the collocation — it wrote the text and can see whether
+    // the flagged word sits inside a domain term. The hook can't.
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason:
-          `${intro}\n${detail}\n${messages.rewriteInstruction} ${fill(messages.escapeHatch, { allowCommand })}`
+        permissionDecisionReason: `${intro}\n${detail}\n${messages.rewriteInstruction} ${messages.escapeHatch}`
       }
     };
   }

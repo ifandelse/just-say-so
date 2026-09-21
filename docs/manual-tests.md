@@ -1,6 +1,8 @@
 # Manual test plan
 
-Live verification of the installed plugin. The unit suite proves the scripts produce correct JSON; these tests prove the harness delivers the JSON where we think it does. Two scenarios (7, 10) also resolve questions the vendor docs left open.
+Live verification of the installed plugin. The unit suite proves the scripts produce correct JSON; these tests prove the harness delivers the JSON where we think it does.
+
+Run `scripts/verify-installed-plugin.sh` first: it replays the plugin-logic layer (26 checks, including the live-run fixes) against the installed copy in seconds. The scenarios below then cover only what a script cannot — hook firing, dialogs, context landing in transcripts.
 
 ## How to observe what happened
 

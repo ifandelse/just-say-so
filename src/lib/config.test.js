@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadConfig, merge, globalConfigPath, findProjectConfig, DEFAULTS } from '../../src/lib/config.js';
+import { loadConfig, merge, globalConfigPath, findProjectConfig, DEFAULTS } from './config.js';
 
 /*
  * Branch map — src/lib/config.js

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { findViolations, termRegex, formatViolations } from '../../src/lib/matcher.js';
+import { findViolations, termRegex, formatViolations } from './matcher.js';
 
 /*
  * Branch map — src/lib/matcher.js

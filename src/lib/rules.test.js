@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readRules, loadBanned, loadMessages, fill } from '../../src/lib/rules.js';
-import { DEFAULTS, merge } from '../../src/lib/config.js';
-import { findViolations } from '../../src/lib/matcher.js';
+import { readRules, loadBanned, loadMessages, fill } from './rules.js';
+import { DEFAULTS, merge } from './config.js';
+import { findViolations } from './matcher.js';
 
 /*
  * Branch map — src/lib/rules.js

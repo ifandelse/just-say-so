@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { globToRegExp, matchesGlob, matchesAny } from '../../src/lib/glob.js';
+import { globToRegExp, matchesGlob, matchesAny } from './glob.js';
 
 /*
  * Branch map — src/lib/glob.js

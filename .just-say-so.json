@@ -8,6 +8,7 @@
       "**/*.min.*",
       "rules/**",
       "test/**",
+      "**/*.test.js",
       "README.md",
       "adapters/README.md",
       "src/lib/matcher.js"

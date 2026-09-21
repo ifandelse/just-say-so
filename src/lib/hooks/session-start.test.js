@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { run } from '../../src/lib/hooks/session-start.js';
-import { readSession, writeSession, stateDir } from '../../src/lib/state.js';
-import { makeSandbox } from '../helpers/sandbox.js';
+import { run } from './session-start.js';
+import { readSession, writeSession, stateDir } from '../state.js';
+import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/session-start.js

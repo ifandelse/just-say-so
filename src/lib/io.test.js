@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Readable } from 'node:stream';
-import { readStdinJson, emit, runHook } from '../../src/lib/io.js';
+import { readStdinJson, emit, runHook } from './io.js';
 
 /*
  * Branch map — src/lib/io.js

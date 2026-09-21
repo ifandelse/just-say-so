@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { contextSize, lastAssistantText } from '../../src/lib/transcript.js';
-import { writeTranscript } from '../helpers/sandbox.js';
+import { contextSize, lastAssistantText } from './transcript.js';
+import { writeTranscript } from '../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/transcript.js

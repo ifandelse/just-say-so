@@ -144,7 +144,7 @@ A new `describe` block is warranted only when it exercises a **different branch*
 
 ## File Structure and Naming
 
-- File naming: module name + `.test.js`, mirrored under `test/lib/`, `test/hooks/`, `test/integration/`.
+- File naming: module name + `.test.js`, co-located next to the module (`src/lib/matcher.js` → `src/lib/matcher.test.js`). Integration tests live in `test/integration/`; shared fixtures in `test/helpers/`.
 - Hierarchical describes: outer = module, middle = exported function, inner = "when X" scenario. Max 3 levels.
 - `describe` carries the "when"; `it` carries the "should". Don't repeat conditions in both.
 

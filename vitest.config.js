@@ -7,8 +7,9 @@ export default defineConfig({
       include: ['src/**'],
       // The stdin shims and the CLI run as child processes in the
       // integration tests, which v8 coverage cannot observe. Their logic
-      // lives in src/lib/hooks/ and is unit-tested there.
-      exclude: ['src/hooks/**', 'src/cli/**'],
+      // lives in src/lib/hooks/ and is unit-tested there. Test files are
+      // co-located with their modules, so exclude them from coverage too.
+      exclude: ['src/hooks/**', 'src/cli/**', '**/*.test.js'],
       thresholds: {
         lines: 100
       }

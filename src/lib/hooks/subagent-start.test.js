@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { run } from '../../src/lib/hooks/subagent-start.js';
-import { makeSandbox } from '../helpers/sandbox.js';
+import { run } from './subagent-start.js';
+import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/subagent-start.js

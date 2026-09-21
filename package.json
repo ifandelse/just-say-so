@@ -26,7 +26,8 @@
     "rules",
     "skills",
     "src",
-    "adapters"
+    "adapters",
+    "!src/**/*.test.js"
   ],
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.1",

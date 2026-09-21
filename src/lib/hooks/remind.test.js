@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { run } from '../../src/lib/hooks/remind.js';
-import { readSession, writeSession } from '../../src/lib/state.js';
-import { makeSandbox, writeTranscript } from '../helpers/sandbox.js';
+import { run } from './remind.js';
+import { readSession, writeSession } from '../state.js';
+import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/remind.js

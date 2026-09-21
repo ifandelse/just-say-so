@@ -16,7 +16,7 @@ function sessionFile(sessionId, env) {
   return path.join(stateDir(env), 'sessions', safe + '.json');
 }
 
-const FRESH = { promptCount: 0, contextAtLastReminder: null, pendingNotes: [] };
+const FRESH = { promptCount: 0, contextAtLastReminder: null, pendingNotes: [], projectDir: null };
 
 export function readSession(sessionId, env = process.env) {
   try {

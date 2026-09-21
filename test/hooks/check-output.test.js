@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { run } from '../../src/lib/hooks/check-output.js';
-import { readSession } from '../../src/lib/state.js';
+import { readSession, writeSession } from '../../src/lib/state.js';
 import { makeSandbox, writeTranscript } from '../helpers/sandbox.js';
 
 /*
@@ -9,7 +11,9 @@ import { makeSandbox, writeTranscript } from '../helpers/sandbox.js';
  *   clean text → null · hard + block → decision block · hard + warn → null + note queued ·
  *   pending notes capped at 3 · missing session_id → "unknown" ·
  *   text source: last_assistant_message string preferred (transcript untouched) ·
- *   non-string or absent field → transcript fallback
+ *   non-string or absent field → transcript fallback ·
+ *   config anchor: event cwd finds no project config → recorded projectDir used ·
+ *   no recorded projectDir either → defaults apply (off → null)
  */
 
 const SESSION = 'OUTPUT_SESSION';
@@ -137,6 +141,40 @@ describe('check-output.run', () => {
           '  - "synergy" ×1\n' +
           'Rewrite the reply per the communication rules.'
       });
+    });
+  });
+
+  describe('when the event cwd finds no project config', () => {
+    let withRecorded, withoutRecorded;
+
+    beforeEach(() => {
+      // Project config only — the sandbox global file is never written.
+      const sandbox = makeSandbox();
+      fs.writeFileSync(
+        path.join(sandbox.work, '.just-say-so.json'),
+        JSON.stringify({ outputCheck: { mode: 'block' } })
+      );
+      const event = {
+        session_id: SESSION,
+        cwd: '/nope/elsewhere', // a Stop event's cwd, seen live
+        last_assistant_message: 'we leverage synergy'
+      };
+      writeSession(SESSION, { projectDir: sandbox.work }, sandbox.env);
+      withRecorded = run(event, sandbox.env);
+
+      const bare = makeSandbox();
+      fs.writeFileSync(
+        path.join(bare.work, '.just-say-so.json'),
+        JSON.stringify({ outputCheck: { mode: 'block' } })
+      );
+      withoutRecorded = run(event, bare.env);
+    });
+
+    it('should fall back to the recorded project directory, and to defaults without one', () => {
+      expect({
+        withRecordedDecision: withRecorded?.decision,
+        withoutRecorded
+      }).toEqual({ withRecordedDecision: 'block', withoutRecorded: null });
     });
   });
 

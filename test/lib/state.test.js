@@ -14,7 +14,7 @@ import { stateDir, readSession, writeSession, resetSession, cleanupSessions } fr
  *                    unlink failure → caught
  */
 
-const FRESH = { promptCount: 0, contextAtLastReminder: null, pendingNotes: [] };
+const FRESH = { promptCount: 0, contextAtLastReminder: null, pendingNotes: [], projectDir: null };
 
 function tmpEnv() {
   return { JUST_SAY_SO_STATE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'jss-state-')) };

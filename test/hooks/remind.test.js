@@ -22,10 +22,11 @@ function promptEvent(sandbox, extra = {}) {
 
 describe('remind.run', () => {
   describe('when prompts mode has not reached the interval', () => {
-    let outputs, state;
+    let outputs, state, work;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
+      work = sandbox.work;
       outputs = [1, 2, 3, 4].map(() => run(promptEvent(sandbox), sandbox.env));
       state = readSession(SESSION, sandbox.env);
     });
@@ -35,6 +36,10 @@ describe('remind.run', () => {
         outputs: [null, null, null, null],
         promptCount: 4
       });
+    });
+
+    it('should record the project directory for hooks whose events lack one', () => {
+      expect(state.projectDir).toBe(work);
     });
   });
 

@@ -12,8 +12,12 @@ import { makeSandbox } from '../helpers/sandbox.js';
  *   file_path present: exclude match → null · include set and not matched → null ·
  *                      include set and matched → proceeds
  *   file_path absent → glob checks skipped, target = tool name
- *   extractText: Write · Edit (new_string only) · MultiEdit (joined) · NotebookEdit ·
- *                default → '' → null · empty text → null
+ *   config anchoring: file's own directory finds the project config even when
+ *                     the event's cwd points elsewhere · relative globs measure
+ *                     from the config file's directory
+ *   extractText: Write · Edit (diff of old/new: copied anchor text skipped,
+ *                straddled word widened to boundary) · MultiEdit (joined) ·
+ *                NotebookEdit · default → '' → null · empty text → null
  *   violations: none → null · hard + default (warn) → additionalContext ·
  *               hard + block → deny with allow-skill suggestion ·
  *               soft-only + block → additionalContext ·
@@ -220,6 +224,85 @@ describe('check-banned.run', () => {
             '(for example "robust regression", not "robust").'
         }
       });
+    });
+  });
+
+  describe('when the event cwd points outside the project', () => {
+    let denied, excluded;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      fs.writeFileSync(
+        path.join(sandbox.work, '.just-say-so.json'),
+        JSON.stringify({ bannedCheck: { mode: 'block', exclude: ['docs/**'] } })
+      );
+      fs.mkdirSync(path.join(sandbox.work, 'docs'), { recursive: true });
+      const base = (file) => ({
+        session_id: SESSION,
+        cwd: '/nope/elsewhere', // a subagent's cwd, seen live
+        tool_name: 'Write',
+        tool_input: { file_path: path.join(sandbox.work, file), content: 'a robust plan' }
+      });
+      denied = run(base('notes.md'), sandbox.env);
+      excluded = run(base('docs/notes.md'), sandbox.env);
+    });
+
+    it('should find the project config from the file path and measure globs from the project root', () => {
+      expect({
+        deniedDecision: denied?.hookSpecificOutput.permissionDecision,
+        excludedIsNull: excluded === null
+      }).toEqual({ deniedDecision: 'deny', excludedIsNull: true });
+    });
+  });
+
+  describe('when an Edit appends clean text anchored on a banned line', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Edit',
+          tool_input: {
+            file_path: path.join(sandbox.work, 'notes.md'),
+            old_string: 'We leverage robust synergy to streamline everything.',
+            new_string: 'We leverage robust synergy to streamline everything.\nThe tests pass.'
+          }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should scan only the appended text and stay silent', () => {
+      expect(output).toBe(null);
+    });
+  });
+
+  describe('when an Edit completes a banned word across the cut', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Edit',
+          tool_input: {
+            file_path: path.join(sandbox.work, 'notes.md'),
+            old_string: 'a ro plan',
+            new_string: 'a robust plan'
+          }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should widen to the word boundary and still flag it', () => {
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('"robust" ×1');
     });
   });
 

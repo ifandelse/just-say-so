@@ -38,7 +38,7 @@ describe('session-start.run', () => {
     });
 
     it('should reset the session counters', () => {
-      expect(state).toEqual({ promptCount: 0, contextAtLastReminder: null, pendingNotes: [] });
+      expect(state).toEqual({ promptCount: 0, contextAtLastReminder: null, pendingNotes: [], projectDir: null });
     });
   });
 

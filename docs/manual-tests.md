@@ -9,8 +9,15 @@ Injected context is invisible in the normal UI, so every scenario names its grou
 - **Ask the model.** "What communication rules are you following? Quote their heading." A briefed model quotes `## Communication rules — reminder`.
 - **Grep the transcript.** Sessions live under `~/.claude/projects/<encoded-cwd>/`. Each hook run produces TWO records: a `hook_success` log entry holding the hook's raw stdout (diagnostics, not delivered to the model) and a `hook_additional_context` entry (the actual delivery). The model's replies can also quote the rules heading. So count deliveries, not the heading:
   `grep -c '"type":"hook_additional_context"' <session>.jsonl`
-- **Read the state file.** The prompt counter lives in `just-say-so/sessions/<session-id>.json`, under `~/.local/state/` — or under the plugin's data directory if the harness sets `CLAUDE_PLUGIN_DATA`. Finding it is itself test 0b.
+- **Read the state file.** Claude Code sets `CLAUDE_PLUGIN_DATA`, so state lives at `~/.claude/plugins/data/just-say-so-just-say-so/state/sessions/<session-id>.json` (confirmed live; the `~/.local/state/` path is the fallback for harnesses without that variable).
 - **Watch hooks fire.** `claude --debug` prints hook execution lines.
+
+Facts the 2026-09-20 run established about Claude Code's recording:
+
+- A deny does NOT produce hook records — the reason arrives as the blocked call's tool result. Grep for `just-say-so: banned terms` instead.
+- `/clear` mints a NEW session id. Counters "reset" because the new id starts fresh state; the old state file is orphaned until the cleanup sweep.
+- Subagent transcripts live at `<project dir>/<session-id>/subagents/agent-*.jsonl`. The `SubagentStart` briefing delivery appears there, not in the main session file.
+- Silent hook runs (no output) leave no transcript records at all.
 
 Config changes apply on the next hook fire — `loadConfig` runs per invocation, so editing `.just-say-so.json` mid-session works without a restart. Use `/clear` between phases to reset counters cleanly.
 
@@ -81,4 +88,12 @@ Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
 ## Recording results
 
-Mark each scenario pass/fail with the ground-truth evidence. Failures worth immediate attention: 12 (drives a fallback design), 9's permission prompt (frontmatter expansion), and anything in Phase B (core behavior).
+Mark each scenario pass/fail with the ground-truth evidence.
+
+## Results — 2026-09-20 run (plugin 0.1.1)
+
+12 clean passes; scenarios 12 (subagent briefing) and 9 (skill frontmatter expansion) resolved their open questions affirmatively. Three findings, all fixed in 0.1.2:
+
+1. **Test 8 partial.** Edits that append by anchor-replacement copy the old line into `new_string`, so pre-existing banned words tripped the gate. Fixed: the checker now diffs `old_string`/`new_string` and scans only the added text, widened to word boundaries.
+2. **Test 13 fail.** Backgrounded-subagent events carried a `cwd` outside the project; config discovery found nothing and block mode silently degraded to warn. Fixed: config discovery anchors on the written file's own directory, and relative globs measure from the config file's directory.
+3. **Test 14 partial.** Stop events carried the same bad `cwd`; the chat check silently loaded no config. Fixed: the prompt hook records the project directory in session state, and the Stop hook falls back to it. Residual: a Stop that fires before any prompt in a session has no recorded directory.

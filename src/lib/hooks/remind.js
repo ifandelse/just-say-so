@@ -10,6 +10,9 @@ export function run(input, env = process.env) {
   const sessionId = input.session_id ?? 'unknown';
   const state = readSession(sessionId, env);
   state.promptCount = (state.promptCount ?? 0) + 1;
+  // Prompt events carry a trustworthy cwd; record it so hooks whose events
+  // don't (Stop, seen live) can still find the project config.
+  if (input.cwd) state.projectDir = input.cwd;
 
   const mode = config.reminder.mode;
   let fire = false;

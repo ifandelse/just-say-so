@@ -157,7 +157,7 @@ Only the Claude Code adapter exists today. This table shows what each harness's 
 5. Codex delivers edits as patch strings. The adapter must parse out added lines first.
 6. Codex parses `"ask"` but does not act on it.
 7. Gemini's `AfterAgent` rejects the model's reply text outright — the only harness with a pre-display chat gate.
-8. Claude Code documents the `SubagentStart` event; the reachable docs truncate before its output schema, so confirm the injection lands in a live session before relying on it.
+8. Verified live (2026-09-20): the injection lands in the subagent's own transcript, and the briefed subagent's prose followed the rules.
 9. Codex lists `SubagentStart` among its events, but nothing documents whether that event accepts injected context.
 10. Gemini's documented event set has no subagent events at all.
 

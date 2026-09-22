@@ -85,6 +85,8 @@ When you want different behavior, create one or both of these files:
 
 Both files use the same JSON shape, and each one can set only the fields you care about. When the same field appears in more than one place, the project file wins over your personal file, and your personal file wins over the built-in defaults. Sections combine field by field. Lists and single values replace the whole default — so a custom `exclude` list replaces the default list, and you repeat any default entries you want to keep.
 
+One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config file path, and that file's fields beat every other layer, project file included. Precedence is a property of the layer, never of where a file sits on disk: defaults ← personal ← project ← forced. Use it when a run must guarantee its policy — see [Single-prompt runs (CI)](#single-prompt-runs-ci).
+
 ```jsonc
 {
   "reminder": {
@@ -133,6 +135,23 @@ Non-interactive runs (for example `anthropics/claude-code-action`) submit one pr
 
 - `outputCheck.mode: "warn"` delivers its report two ways: a note injected at the next user prompt, and the same report on the Stop hook's stderr. A single-prompt run has no next prompt, so the stderr line in the job log is the only visible copy.
 - `reminder.mode: "off"` stops the interval reminders, not the session-start injection — `onSessionStart` applies regardless of `reminder.mode`. So `{ "reminder": { "mode": "off", "onSessionStart": ["startup"] } }` injects the rules once at the start and never repeats: the right shape for a single-prompt run.
+
+To run CI stricter than developers' machines, commit a config for it and point the forced layer at that file:
+
+```yaml
+env:
+  JUST_SAY_SO_FORCE_CONFIG: ${{ github.workspace }}/.github/just-say-so.ci.json
+```
+
+```json
+{
+  "reminder": { "mode": "off", "onSessionStart": ["startup"] },
+  "bannedCheck": { "mode": "warn" },
+  "outputCheck": { "mode": "block" }
+}
+```
+
+Fields the forced file sets win over the project file, so a mode committed to `.just-say-so.json` can never weaken the CI policy. Fields it leaves out fall through normally — the project's shared word lists still apply.
 
 ### Bring your own rules
 

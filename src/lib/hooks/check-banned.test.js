@@ -9,6 +9,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *   mode off → null · tool not listed → null
  *   own-config gate: .just-say-so.json → ask · just-say-so.json → ask ·
  *                    the JUST_SAY_SO_CONFIG target → ask ·
+ *                    the JUST_SAY_SO_FORCE_CONFIG target → ask ·
  *                    unrelated config.json → normal scan · gate skipped when mode off
  *   file_path present: exclude match → null · include set and not matched → null ·
  *                      include set and matched → proceeds
@@ -66,7 +67,7 @@ describe('check-banned.run', () => {
   });
 
   describe('when the model edits the plugin\'s own config files', () => {
-    let projectConfig, personalConfig, envConfig;
+    let projectConfig, personalConfig, envConfig, forcedConfig;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
@@ -94,9 +95,18 @@ describe('check-banned.run', () => {
         },
         sandbox.env
       );
+      forcedConfig = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Write',
+          tool_input: { file_path: path.join(sandbox.work, 'ci.json'), content: '{}' }
+        },
+        { ...sandbox.env, JUST_SAY_SO_FORCE_CONFIG: path.join(sandbox.work, 'ci.json') }
+      );
     });
 
-    it('should force a confirmation prompt for all three, regardless of content', () => {
+    it('should force a confirmation prompt for all four, regardless of content', () => {
       const expected = (name) => ({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -106,10 +116,11 @@ describe('check-banned.run', () => {
             'Allow only if you asked for this change.'
         }
       });
-      expect({ projectConfig, personalConfig, envConfig }).toEqual({
+      expect({ projectConfig, personalConfig, envConfig, forcedConfig }).toEqual({
         projectConfig: expected('.just-say-so.json'),
         personalConfig: expected('just-say-so.json'),
-        envConfig: expected('config.json')
+        envConfig: expected('config.json'),
+        forcedConfig: expected('ci.json')
       });
     });
   });

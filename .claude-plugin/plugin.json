@@ -2,7 +2,7 @@
   "name": "just-say-so",
   "displayName": "Just Say So",
   "description": "Keeps model output aligned with your communication rules: interval reminders, post-compaction re-injection, and a banned-word gate on tool output.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": {
     "name": "Jim Cowart"
   },

@@ -8,6 +8,7 @@ import { loadConfig, merge, globalConfigPath, findProjectConfig, DEFAULTS } from
  * Branch map — src/lib/config.js
  *   merge: over not an object → base · nested object → recurse · array/scalar → replace
  *   globalConfigPath: JUST_SAY_SO_CONFIG set · XDG_CONFIG_HOME set · neither → home default
+ *   loadConfig: JUST_SAY_SO_FORCE_CONFIG set → merges over the project layer
  *   findProjectConfig: found in cwd · found by walking up · not found → null · no cwd → null
  *   loadConfig: no files → defaults · global only · project over global · malformed JSON → ignored
  */
@@ -172,6 +173,34 @@ describe('config', () => {
 
       it('should let the project value win while keeping the global one it did not touch', () => {
         expect(result.reminder).toEqual({ ...DEFAULTS.reminder, mode: 'prompts', everyTokens: 9000 });
+      });
+    });
+
+    describe('when a forced config is set alongside global and project files', () => {
+      let result;
+
+      beforeEach(() => {
+        const dir = tmpdir();
+        const globalFile = path.join(dir, 'config.json');
+        const forcedFile = path.join(dir, 'ci.json');
+        fs.writeFileSync(globalFile, JSON.stringify({ reminder: { everyPrompts: 3 } }));
+        fs.writeFileSync(
+          path.join(dir, '.just-say-so.json'),
+          JSON.stringify({ outputCheck: { mode: 'off' }, bannedCheck: { disableWords: ['ninja'] } })
+        );
+        fs.writeFileSync(forcedFile, JSON.stringify({ outputCheck: { mode: 'block' } }));
+        result = loadConfig(dir, {
+          JUST_SAY_SO_CONFIG: globalFile,
+          JUST_SAY_SO_FORCE_CONFIG: forcedFile
+        });
+      });
+
+      it('should let the forced fields beat the project while untouched fields fall through', () => {
+        expect({
+          outputMode: result.outputCheck.mode,
+          disableWords: result.bannedCheck.disableWords,
+          everyPrompts: result.reminder.everyPrompts
+        }).toEqual({ outputMode: 'block', disableWords: ['ninja'], everyPrompts: 3 });
       });
     });
 

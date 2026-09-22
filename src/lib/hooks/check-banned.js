@@ -7,11 +7,14 @@ import { findViolations, formatViolations } from '../matcher.js';
 import { matchesAny } from '../glob.js';
 
 // The plugin's own config files: the project .just-say-so.json, the personal
-// just-say-so.json, or wherever JUST_SAY_SO_CONFIG points.
+// just-say-so.json, or wherever JUST_SAY_SO_CONFIG / JUST_SAY_SO_FORCE_CONFIG
+// point.
 function isOwnConfig(filePath, env) {
   const base = path.basename(filePath);
   if (base === '.just-say-so.json' || base === 'just-say-so.json') return true;
-  return path.resolve(filePath) === path.resolve(globalConfigPath(env));
+  const resolved = path.resolve(filePath);
+  if (resolved === path.resolve(globalConfigPath(env))) return true;
+  return Boolean(env.JUST_SAY_SO_FORCE_CONFIG) && resolved === path.resolve(env.JUST_SAY_SO_FORCE_CONFIG);
 }
 
 function isWordChar(ch) {

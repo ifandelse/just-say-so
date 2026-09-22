@@ -78,5 +78,8 @@ export function loadConfig(cwd, env = process.env) {
   let config = merge(DEFAULTS, readJson(globalConfigPath(env)));
   const projectFile = cwd ? findProjectConfig(cwd) : null;
   if (projectFile) config = merge(config, readJson(projectFile));
+  // The forced layer beats everything — CI points it at a committed file so
+  // a mode in the project config can never silently weaken the CI policy.
+  if (env.JUST_SAY_SO_FORCE_CONFIG) config = merge(config, readJson(env.JUST_SAY_SO_FORCE_CONFIG));
   return config;
 }

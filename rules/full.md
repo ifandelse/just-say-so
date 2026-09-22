@@ -24,6 +24,7 @@ dictionary and minus its part-of-speech restrictions.
 - Noun clusters: three words maximum. Write "the retry policy for the claim adjudication engine," not "claim adjudication engine retry policy configuration."
 - Give each paragraph one topic. Keep most paragraphs under six sentences.
 - Keep articles and relative pronouns. Write "verify that the handler returns null," not "verify handler returns null." Do not drop function words to save space.
+- End paragraphs with a fact or an instruction, never a flourish. The last sentence of an argument is where trained habit inserts an invented metaphor, personified code ("the config lies," "the field is a trap"), or the same point restated in stronger words. If the closing sentence adds no information, delete it.
 
 ### Banned
 
@@ -36,4 +37,4 @@ dictionary and minus its part-of-speech restrictions.
 
 ### Final check
 
-Delete any sentence whose removal loses nothing.
+Delete any sentence whose removal loses nothing. Check the last sentence of each paragraph first — flourish concentrates there.

@@ -12,6 +12,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - Concrete verbs and nouns over abstractions.
 - Noun clusters: three words maximum.
 - Give each paragraph one topic.
+- End paragraphs with a fact, not a flourish. No invented metaphors, no personified code, no closing restatement.
 - Keep articles and relative pronouns. Do not drop function words to save space.
 - These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them.
 - Banned: any format of "it's not {x}, it's {y}".

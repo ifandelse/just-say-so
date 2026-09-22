@@ -88,6 +88,22 @@ Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
 **15. Warn queue.** Switch `outputCheck.mode` to `"warn"`, repeat. Expect: the reply stands, and your NEXT prompt gets the queued note injected (transcript grep: `your last reply contains banned terms`).
 
+## Phase F — published text via gh (0.2.0)
+
+Edit `.just-say-so.json`: `{ "bannedCheck": { "mode": "block", "addons": ["gh"] } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)
+
+**16. Plain-form control.** Ask: "Run this command: `gh pr comment 42 --body \"We leverage robust synergy.\"`". Expect: DENIED before execution, with `gh pr comment` named in the violation list. Ground truth: `claude --debug` shows check-banned firing for the Bash call; the transcript contains `just-say-so: banned terms in gh pr comment`. This control must pass before scenario 17 means anything — if it fails, the addon config or the hook wiring is broken, not the heredoc handling.
+
+**17. Heredoc-piped form.** Ask the model to run:
+
+```
+cat <<'EOF' | gh pr comment 42 --body-file -
+We leverage robust synergy.
+EOF
+```
+
+**This is the live test of whether the harness's `if: "Bash(gh *)"` filter matches a pipeline whose gh command follows a heredoc — the docs say subcommands in pipelines are parsed, but never show a heredoc example.** Expect: DENIED, same as the control — once the hook spawns, the in-hook trigger matches `gh pr comment` anywhere in the command text, so the only unknown is whether the hook spawns at all. Ground truth: `claude --debug` shows check-banned firing for this Bash call. If the deny is absent AND the debug output shows no hook execution, the `if` filter dropped the heredoc form: record it, and the fix is choosing between removing `if` from the Bash entry in `hooks.json` (every Bash call pays the spawn, coverage complete) or documenting the heredoc form as a known gap in the README next to `--body-file`.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

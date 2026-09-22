@@ -67,6 +67,29 @@ describe('hook protocol', () => {
     });
   });
 
+  describe('when a banned gh command goes through the spawned gate in block mode', () => {
+    let result;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      result = spawnHook(
+        'check-banned.js',
+        {
+          session_id: 'PROTO_SESSION',
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'gh pr comment 42 --body "We leverage synergy."' }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should exit 0 and emit the deny decision', () => {
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe('deny');
+    });
+  });
+
   describe('when a banned reply hits the spawned output check in warn mode', () => {
     let result;
 
@@ -113,7 +136,8 @@ describe('hook protocol', () => {
     });
 
     it('should point every command at a file that exists', () => {
-      expect(scriptPaths.length).toBe(SCRIPTS.length);
+      // three PreToolUse entries (file tools, Bash, MCP) share check-banned.js
+      expect(new Set(scriptPaths).size).toBe(SCRIPTS.length);
       expect(scriptPaths.map((p) => fs.existsSync(p))).toEqual(scriptPaths.map(() => true));
     });
   });

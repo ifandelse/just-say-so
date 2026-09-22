@@ -11,7 +11,7 @@ The `just-say-so` communication rules were adapted from the [ASD-STE100 standard
 There are three behaviors:
 
 1. **It reminds the agent of the rules on a schedule.** Rules stated once at session start lose force as the context grows. `just-say-so` re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) at an interval you control.
-2. **It checks the text the agent writes to files** against a banned-term list, then warns (default) or blocks. This comparison — text in, violations out — is _the checker_, and the rest of this document calls it that.
+2. **It checks the text the agent writes to files** against a banned-term list, then warns (default) or blocks. This comparison — text in, violations out — is _the checker_, and the rest of this document calls it that. Opt-in settings point the same checker at text the agent publishes through `gh` commands and MCP tools — see [Checking published text](#checking-published-text-gh-and-mcp-tools).
 3. **It can verify chat replies too, after the fact** — off by default. The rules themselves always apply to chat; the reminders keep them in force. This switch controls only whether the checker also scans each finished reply for banned terms.
 
 The plugin does this through hooks: commands your harness runs at fixed points, such as "the user submitted a prompt" or "the agent is about to edit a file."
@@ -21,7 +21,7 @@ The plugin does this through hooks: commands your harness runs at fixed points, 
 | `UserPromptSubmit`      | Injects the condensed rules every 5 prompts, or every 4,000 tokens of context growth (both configurable). Never blocks your prompt.                                                                                                              |
 | `SessionStart`          | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction.                                                                                                                                  |
 | `SubagentStart`         | Injects the condensed rules into each subagent when it spawns. Subagents start with fresh context and never see the main session's reminders — without this, they'd discover the rules only by violating them.                                    |
-| `PreToolUse`            | Runs the checker on text the agent is adding through file tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). Default: warn — the write lands and the agent gets the violation list. `block` mode rejects the write; the agent rewrites first. |
+| `PreToolUse`            | Runs the checker on text the agent is adding through file tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). Default: warn — the write lands and the agent gets the violation list. `block` mode rejects the write; the agent rewrites first. With `addons` or `mcpTools` set, the same gate covers `gh` publishing commands and named MCP tools. |
 | `Stop` (off by default) | Runs the checker on the agent's final chat reply. `block` forces a rewrite; `warn` queues a note for the next prompt and prints the report to stderr.                                                                                            |
 
 You also get three commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
@@ -100,7 +100,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
   },
   "bannedCheck": {
     "mode": "warn", // "warn" | "block" | "off" — warn by default, like a linter; block is the hard gate
-    "tools": ["Write", "Edit", "MultiEdit", "NotebookEdit"],
+    "addons": [], // opt-in coverage bundles — "gh" is the only one so far
+    "mcpTools": [], // MCP tool-name patterns to check, for example "mcp__confluence__*"
     "exclude": [
       "**/package*.json",
       "**/*.lock",
@@ -128,6 +129,24 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
 ```
 
 The `exclude` and `include` lists take glob patterns — path wildcards where `*` matches within one directory level and `**` matches across levels. A pattern without a slash matches the file's name anywhere (`*.md`). A pattern with a slash matches the absolute path, and also the path relative to the project (`docs/**`).
+
+### Checking published text (gh and MCP tools)
+
+The file gate catches what the agent writes to disk. PR comments and Confluence pages go out through `gh` commands and MCP tools instead, and by default nothing checks them. Two opt-in settings close that:
+
+`"addons": ["gh"]` covers the gh commands that publish prose: `create`, `comment`, `edit`, and `review` under `gh pr`; `create`, `comment`, and `edit` under `gh issue`; `create` and `edit` under `gh release`. When one of those appears anywhere in a Bash command — compound commands included — the checker scans the entire command text. It does not look for a `--body` flag first: a triggered command with no prose scans clean at no cost, and prose hides in more flags than `--body` (a `--title`, for example).
+
+`"mcpTools": ["mcp__confluence__*", "mcp__jira__*"]` names the MCP tools to check, with `*` wildcards. On a matching call, the checker scans every string argument, nested fields included. You name the tool; you never have to know which argument carries the body. The trade-off is an occasional flag on a non-prose field such as an ID or a query — `disableWords` and `allowPhrases` handle those.
+
+`bannedCheck.mode` governs these the same way it governs file writes, and the timing matters more here. In `block`, the deny lands before the tool runs, so a flagged comment never reaches GitHub. In `warn`, the call proceeds, the text is published, and the agent gets the report after the fact. If you turned this on because your agent publishes, use `block`.
+
+Known gaps, on purpose:
+
+- `gh api` can publish too, and the checker ignores it. It is a raw API tool; covering it means parsing arbitrary API calls forever.
+- A `--body-file` body is not in the command text. In most workflows the agent wrote that file moments earlier through a file tool, where the checker already scanned it.
+- On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands — the `if` filter in the hook wiring arrived in that release. The results are identical; older versions pay a small startup cost per command.
+
+Upgrading from 0.1.x: `bannedCheck.tools` is gone. It accepted tool names and ignored them — the hook wiring is fixed at install, so no config field can widen coverage. To narrow file coverage, use `exclude`: for example `"exclude": ["**/*.ipynb"]`.
 
 ### Single-prompt runs (CI)
 

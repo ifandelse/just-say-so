@@ -16,7 +16,8 @@ export const DEFAULTS = {
   },
   bannedCheck: {
     mode: 'warn', // "warn" | "block" | "off" — warn by default, like a linter; block is the opt-in hard gate
-    tools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
+    addons: [], // opt-in coverage bundles; "gh" is the only shipped one
+    mcpTools: [], // MCP tool-name patterns to check, e.g. "mcp__confluence__*"
     exclude: ['**/package*.json', '**/*.lock', '**/node_modules/**', '**/*.min.*'],
     include: [],
     disableWords: [],

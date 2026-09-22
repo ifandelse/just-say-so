@@ -1,10 +1,15 @@
-// PreToolUse logic: gate Write/Edit-style tools on the banned-term list.
+// PreToolUse logic: gate the file tools, opted-in gh publishing commands,
+// and user-named MCP tools on the banned-term list.
 // Returns the hook output object, or null for silence.
 import path from 'node:path';
 import { loadConfig, findProjectConfig, globalConfigPath } from '../config.js';
 import { loadBanned, loadMessages, fill } from '../rules.js';
 import { findViolations, formatViolations } from '../matcher.js';
 import { matchesAny } from '../glob.js';
+import { matchGhTrigger, matchesMcpTool, collectStrings } from '../addons.js';
+import { readSession } from '../state.js';
+
+const FILE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 // The plugin's own config files: the project .just-say-so.json, the personal
 // just-say-so.json, or wherever JUST_SAY_SO_CONFIG / JUST_SAY_SO_FORCE_CONFIG
@@ -43,7 +48,8 @@ function addedText(oldString, newString) {
   return b.slice(start, endB);
 }
 
-// Only text the model is adding gets checked.
+// Only text the model is adding gets checked. The dispatch in run()
+// guarantees toolName is one of FILE_TOOLS here.
 function extractText(toolName, toolInput) {
   switch (toolName) {
     case 'Write':
@@ -52,15 +58,81 @@ function extractText(toolName, toolInput) {
       return addedText(toolInput.old_string, toolInput.new_string);
     case 'MultiEdit':
       return (toolInput.edits ?? []).map((e) => addedText(e.old_string, e.new_string)).join('\n');
-    case 'NotebookEdit':
-      return toolInput.new_source ?? '';
     default:
-      return '';
+      return toolInput.new_source ?? '';
   }
 }
 
+// Bash and MCP events carry no file path to anchor config discovery on, and
+// their cwd can point outside the project (seen live on subagent events).
+// Fall back to the project directory the prompt hook recorded.
+function commandAnchor(input, env) {
+  if (findProjectConfig(input.cwd)) return input.cwd;
+  const recorded = readSession(input.session_id ?? 'unknown', env).projectDir;
+  if (recorded && findProjectConfig(recorded)) return recorded;
+  return input.cwd;
+}
+
+// Shared tail for every covered tool: scan, then deny or advise per mode.
+function verdict(text, target, config, bc) {
+  const { hard, soft } = findViolations(text, loadBanned(config));
+  if (hard.length === 0 && soft.length === 0) return null;
+
+  const messages = loadMessages(config);
+  const intro = fill(messages.bannedIntro, { target });
+  const detail = formatViolations(hard, soft, messages.advisoryLabel);
+
+  if (hard.length > 0 && bc.mode === 'block') {
+    // The model picks the collocation — it wrote the text and can see whether
+    // the flagged word sits inside a domain term. The hook can't.
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          `${intro}\n${detail}\n${messages.rewriteInstruction} ${messages.escapeHatch}`
+      }
+    };
+  }
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      additionalContext: `${intro}\n${detail}\n${messages.warnInstruction}`
+    }
+  };
+}
+
+// gh commands and MCP tools publish text humans read; in block mode the deny
+// lands before anything goes out — the only moment the text is still private.
+function runCommandCheck(toolName, toolInput, input, env) {
+  const config = loadConfig(commandAnchor(input, env), env);
+  const bc = config.bannedCheck;
+  if (bc.mode === 'off') return null;
+
+  let text, target;
+  if (toolName === 'Bash') {
+    if (!(bc.addons ?? []).includes('gh')) return null;
+    target = matchGhTrigger(toolInput.command);
+    if (!target) return null;
+    text = String(toolInput.command);
+  } else {
+    if (!matchesMcpTool(toolName, bc.mcpTools)) return null;
+    text = collectStrings(toolInput).join('\n');
+    target = toolName;
+  }
+  if (!text) return null;
+  return verdict(text, target, config, bc);
+}
+
 export function run(input, env = process.env) {
+  const toolName = String(input.tool_name ?? '');
   const toolInput = input.tool_input ?? {};
+
+  if (toolName === 'Bash' || toolName.startsWith('mcp__')) {
+    return runCommandCheck(toolName, toolInput, input, env);
+  }
+  if (!FILE_TOOLS.includes(toolName)) return null;
+
   const filePath = toolInput.file_path ?? toolInput.notebook_path ?? '';
 
   // Anchor config discovery on the file being written, not the event's cwd:
@@ -70,7 +142,6 @@ export function run(input, env = process.env) {
   const config = loadConfig(anchor, env);
   const bc = config.bannedCheck;
   if (bc.mode === 'off') return null;
-  if (!(bc.tools ?? []).includes(input.tool_name)) return null;
 
   // The config file names the banned words, so scanning it would deadlock;
   // and a config change deserves a look before it lands. A courtesy
@@ -95,33 +166,7 @@ export function run(input, env = process.env) {
     if ((bc.include ?? []).length > 0 && !matchesAny(filePath, bc.include, globBase)) return null;
   }
 
-  const text = extractText(input.tool_name, toolInput);
+  const text = extractText(toolName, toolInput);
   if (!text) return null;
-
-  const { hard, soft } = findViolations(text, loadBanned(config));
-  if (hard.length === 0 && soft.length === 0) return null;
-
-  const messages = loadMessages(config);
-  const target = filePath ? path.basename(filePath) : input.tool_name;
-  const intro = fill(messages.bannedIntro, { target });
-  const detail = formatViolations(hard, soft, messages.advisoryLabel);
-
-  if (hard.length > 0 && bc.mode === 'block') {
-    // The model picks the collocation — it wrote the text and can see whether
-    // the flagged word sits inside a domain term. The hook can't.
-    return {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason:
-          `${intro}\n${detail}\n${messages.rewriteInstruction} ${messages.escapeHatch}`
-      }
-    };
-  }
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      additionalContext: `${intro}\n${detail}\n${messages.warnInstruction}`
-    }
-  };
+  return verdict(text, filePath ? path.basename(filePath) : toolName, config, bc);
 }

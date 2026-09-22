@@ -19,6 +19,25 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh *)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
+          }
+        ]
       }
     ],
     "SessionStart": [

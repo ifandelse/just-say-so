@@ -2,11 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './check-banned.js';
+import { writeSession } from '../state.js';
 import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/check-banned.js
- *   mode off → null · tool not listed → null
+ *   mode off → null (file path and command path) · uncovered tool → null
  *   own-config gate: .just-say-so.json → ask · just-say-so.json → ask ·
  *                    the JUST_SAY_SO_CONFIG target → ask ·
  *                    the JUST_SAY_SO_FORCE_CONFIG target → ask ·
@@ -17,9 +18,15 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *   config anchoring: file's own directory finds the project config even when
  *                     the event's cwd points elsewhere · relative globs measure
  *                     from the config file's directory
+ *   Bash: gh addon off → null · no publishing trigger → null · trigger + hard →
+ *         verdict with the matched phrase as target
+ *   MCP: no pattern match → null · pattern match + hard → verdict with the tool
+ *        name as target · all-non-string input → null
+ *   command anchoring: event cwd finds no project config → recorded projectDir ·
+ *                      nothing recorded → defaults apply
  *   extractText: Write · Edit (diff of old/new: copied anchor text skipped,
  *                straddled word widened to boundary) · MultiEdit (joined) ·
- *                NotebookEdit · default → '' → null · empty text → null
+ *                NotebookEdit · empty text → null
  *   violations: none → null · hard + default (warn) → additionalContext ·
  *               hard + block → deny with allow-skill suggestion ·
  *               soft-only + block → additionalContext ·
@@ -52,13 +59,15 @@ describe('check-banned.run', () => {
     });
   });
 
-  describe('when the tool is not in the configured list', () => {
+  describe('when a tool the checker does not cover fires', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
-      const event = writeEvent(sandbox, 'notes.md', 'a robust plan');
-      output = run({ ...event, tool_name: 'Bash' }, sandbox.env);
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Grep', tool_input: { pattern: 'robust' } },
+        sandbox.env
+      );
     });
 
     it('should return null', () => {
@@ -182,19 +191,15 @@ describe('check-banned.run', () => {
   });
 
   describe('when the tool input carries no text', () => {
-    let emptyWrite, unknownTool;
+    let emptyWrite;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { tools: ['Write', 'Task'] } });
+      const sandbox = makeSandbox();
       emptyWrite = run(writeEvent(sandbox, 'notes.md', ''), sandbox.env);
-      unknownTool = run(
-        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Task', tool_input: { prompt: 'robust' } },
-        sandbox.env
-      );
     });
 
-    it('should return null for empty content and for tools with no known text field', () => {
-      expect({ emptyWrite, unknownTool }).toEqual({ emptyWrite: null, unknownTool: null });
+    it('should return null for empty content', () => {
+      expect(emptyWrite).toBe(null);
     });
   });
 
@@ -492,6 +497,172 @@ describe('check-banned.run', () => {
             '  - advisories (replace with a measurement or a concrete consequence): "very" ×1\n' +
             'The call was allowed; fix the flagged text per the communication rules.'
         }
+      });
+    });
+  });
+
+  describe('when a gh publishing command has violations and the addon is on', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'] } });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'gh pr comment 42 --body "a robust plan"' }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should warn with the matched phrase as the target', () => {
+      expect(output).toEqual({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          additionalContext:
+            'just-say-so: banned terms in gh pr comment:\n' +
+            '  - "robust" ×1\n' +
+            'The call was allowed; fix the flagged text per the communication rules.'
+        }
+      });
+    });
+  });
+
+  describe('when a gh command inside a compound command hits block mode', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'git add . && gh pr create --title "Robust improvements"' }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should deny before the command publishes anything', () => {
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain(
+        'just-say-so: banned terms in gh pr create:'
+      );
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('"robust" ×1');
+    });
+  });
+
+  describe('when Bash commands miss the gate conditions', () => {
+    let addonOff, noTrigger, modeOff;
+
+    beforeEach(() => {
+      const bare = makeSandbox();
+      const withAddon = makeSandbox({ bannedCheck: { addons: ['gh'] } });
+      const off = makeSandbox({ bannedCheck: { mode: 'off', addons: ['gh'] } });
+      const event = (sandbox, command) => ({
+        session_id: SESSION,
+        cwd: sandbox.work,
+        tool_name: 'Bash',
+        tool_input: { command }
+      });
+      addonOff = run(event(bare, 'gh pr comment 42 --body "a robust plan"'), bare.env);
+      noTrigger = run(event(withAddon, 'gh pr view 42 --json body'), withAddon.env);
+      modeOff = run(event(off, 'gh pr comment 42 --body "a robust plan"'), off.env);
+    });
+
+    it('should return null when the addon is off, the command does not publish, or the mode is off', () => {
+      expect({ addonOff, noTrigger, modeOff }).toEqual({ addonOff: null, noTrigger: null, modeOff: null });
+    });
+  });
+
+  describe('when the Bash event cwd points outside the project', () => {
+    let withRecorded, withoutRecorded;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      fs.writeFileSync(
+        path.join(sandbox.work, '.just-say-so.json'),
+        JSON.stringify({ bannedCheck: { mode: 'block', addons: ['gh'] } })
+      );
+      const event = {
+        session_id: SESSION,
+        cwd: '/nope/elsewhere', // a subagent's cwd, seen live
+        tool_name: 'Bash',
+        tool_input: { command: 'gh pr comment 42 --body "a robust plan"' }
+      };
+      writeSession(SESSION, { projectDir: sandbox.work }, sandbox.env);
+      withRecorded = run(event, sandbox.env);
+
+      const bare = makeSandbox();
+      withoutRecorded = run(event, bare.env);
+    });
+
+    it('should fall back to the recorded project directory, and to defaults without one', () => {
+      expect({
+        withRecordedDecision: withRecorded?.hookSpecificOutput.permissionDecision,
+        withoutRecorded
+      }).toEqual({ withRecordedDecision: 'deny', withoutRecorded: null });
+    });
+  });
+
+  describe('when a named MCP tool sends violations in a nested field', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({
+        bannedCheck: { mode: 'block', mcpTools: ['mcp__confluence__*'] }
+      });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'mcp__confluence__createPage',
+          tool_input: { space: 'ENG', page: { title: 'Notes', body: 'a robust plan' } }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should deny with the tool name as the target', () => {
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain(
+        'just-say-so: banned terms in mcp__confluence__createPage:'
+      );
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('"robust" ×1');
+    });
+  });
+
+  describe('when MCP calls miss the gate conditions', () => {
+    let unlisted, noPatterns, noStrings;
+
+    beforeEach(() => {
+      const withPatterns = makeSandbox({ bannedCheck: { mcpTools: ['mcp__confluence__*'] } });
+      const bare = makeSandbox();
+      const event = (sandbox, toolName, toolInput) => ({
+        session_id: SESSION,
+        cwd: sandbox.work,
+        tool_name: toolName,
+        tool_input: toolInput
+      });
+      unlisted = run(
+        event(withPatterns, 'mcp__slack__postMessage', { text: 'a robust plan' }),
+        withPatterns.env
+      );
+      noPatterns = run(
+        event(bare, 'mcp__confluence__createPage', { body: 'a robust plan' }),
+        bare.env
+      );
+      noStrings = run(event(withPatterns, 'mcp__confluence__createPage', { count: 3 }), withPatterns.env);
+    });
+
+    it('should return null for unlisted tools, empty patterns, and string-free input', () => {
+      expect({ unlisted, noPatterns, noStrings }).toEqual({
+        unlisted: null,
+        noPatterns: null,
+        noStrings: null
       });
     });
   });

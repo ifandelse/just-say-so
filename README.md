@@ -30,6 +30,17 @@ You also get three commands. They work in environments without hooks (like deskt
 - `/just-say-so:remind` — inject the condensed reminder now.
 - `/just-say-so:allow <term>` — permit a term the checker flagged, by writing it to the project's `.just-say-so.json`. A single word becomes a whole-word exemption; a multiword phrase is exempted only as that phrase.
 
+### Checking text from scripts
+
+The hooks only see tool calls. For text that never passes through one — a PR body, a generated comment, any file in CI — run the checker directly:
+
+```
+node "<plugin dir>/src/cli/check.js" [--format text|json] <file...>
+echo "$PR_BODY" | node "<plugin dir>/src/cli/check.js" -
+```
+
+Exit codes: 0 clean, 1 banned terms found, 2 usage or read errors. Advisory terms appear in reports but never change the exit code. Config resolves from each file's directory (stdin uses the working directory), and `bannedCheck.exclude`/`include` apply as usual. `bannedCheck.mode` is ignored: this command reports and sets the exit code; the caller decides what that means.
+
 ## Install (Claude Code)
 
 ```

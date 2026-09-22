@@ -22,7 +22,7 @@ The plugin does this through hooks: commands your harness runs at fixed points, 
 | `SessionStart`          | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction.                                                                                                                                  |
 | `SubagentStart`         | Injects the condensed rules into each subagent when it spawns. Subagents start with fresh context and never see the main session's reminders — without this, they'd discover the rules only by violating them.                                    |
 | `PreToolUse`            | Runs the checker on text the agent is adding through file tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). Default: warn — the write lands and the agent gets the violation list. `block` mode rejects the write; the agent rewrites first. |
-| `Stop` (off by default) | Runs the checker on the agent's final chat reply. `block` forces a rewrite; `warn` queues a note for the next prompt.                                                                                                                            |
+| `Stop` (off by default) | Runs the checker on the agent's final chat reply. `block` forces a rewrite; `warn` queues a note for the next prompt and prints the report to stderr.                                                                                            |
 
 You also get three commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
 
@@ -80,7 +80,7 @@ The copy needs no install step: zero npm dependencies, Node ≥ 18.
 
 When you want different behavior, create one or both of these files:
 
-1. `~/.config/just-say-so/config.json` — your personal defaults. These apply in every project.
+1. `~/.config/just-say-so/just-say-so.json` — your personal defaults. These apply in every project. Set the `JUST_SAY_SO_CONFIG` environment variable to read this layer from a different path instead.
 2. `.just-say-so.json` in a project's root — settings for that one project. `just-say-so` finds this file by walking up from the working directory, so it also applies when you work in a subdirectory.
 
 Both files use the same JSON shape, and each one can set only the fields you care about. When the same field appears in more than one place, the project file wins over your personal file, and your personal file wins over the built-in defaults. Sections combine field by field. Lists and single values replace the whole default — so a custom `exclude` list replaces the default list, and you repeat any default entries you want to keep.
@@ -127,6 +127,13 @@ Both files use the same JSON shape, and each one can set only the fields you car
 
 The `exclude` and `include` lists take glob patterns — path wildcards where `*` matches within one directory level and `**` matches across levels. A pattern without a slash matches the file's name anywhere (`*.md`). A pattern with a slash matches the absolute path, and also the path relative to the project (`docs/**`).
 
+### Single-prompt runs (CI)
+
+Non-interactive runs (for example `anthropics/claude-code-action`) submit one prompt and end. Two behaviors matter there:
+
+- `outputCheck.mode: "warn"` delivers its report two ways: a note injected at the next user prompt, and the same report on the Stop hook's stderr. A single-prompt run has no next prompt, so the stderr line in the job log is the only visible copy.
+- `reminder.mode: "off"` stops the interval reminders, not the session-start injection — `onSessionStart` applies regardless of `reminder.mode`. So `{ "reminder": { "mode": "off", "onSessionStart": ["startup"] } }` injects the rules once at the start and never repeats: the right shape for a single-prompt run.
+
 ### Bring your own rules
 
 You might hate my rules, fair enough. To plug your own ruleset in, point `rules.fullPath` and `rules.condensedPath` at your own markdown, and edit the banned list through `disableWords` and `additions`. All the hooks, commands, and config machinery stay the same.
@@ -143,7 +150,7 @@ Matching is case-insensitive. Word boundaries treat hyphens as part of the word,
 
 The checker (the banned-term comparison from "What it does") makes two kinds of exceptions: allowed phrases and advisory-only terms.
 
-An **allowed phrase** is a phrase you list under `bannedCheck.allowPhrases` — in your project's `.just-say-so.json`, or in `~/.config/just-say-so/config.json` to allow it in every project. A banned term that appears inside one does not count as a violation. Use an allowed phrase when a banned word is correct in one specific phrase. For example, "robust regression" passes while bare "robust" stays flagged. When the word is a normal term across your whole project, use `bannedCheck.disableWords` instead: that removes the word from the checker entirely.
+An **allowed phrase** is a phrase you list under `bannedCheck.allowPhrases` — in your project's `.just-say-so.json`, or in `~/.config/just-say-so/just-say-so.json` to allow it in every project. A banned term that appears inside one does not count as a violation. Use an allowed phrase when a banned word is correct in one specific phrase. For example, "robust regression" passes while bare "robust" stays flagged. When the word is a normal term across your whole project, use `bannedCheck.disableWords` instead: that removes the word from the checker entirely.
 
 An **advisory-only term** reports but never blocks, even in block mode. You do not configure these — the plugin ships them, marked `contextual` in [rules/banned.json](rules/banned.json), and there is no config knob to create your own. The empty intensifiers (very, truly, crucial, vital) work this way because the rules ban them only when unquantified, and the checker cannot judge that condition. To silence one entirely, add it to `bannedCheck.disableWords`. I may make this configurable in future releases.
 

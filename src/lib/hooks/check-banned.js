@@ -1,17 +1,17 @@
 // PreToolUse logic: gate Write/Edit-style tools on the banned-term list.
 // Returns the hook output object, or null for silence.
 import path from 'node:path';
-import { loadConfig, findProjectConfig } from '../config.js';
+import { loadConfig, findProjectConfig, globalConfigPath } from '../config.js';
 import { loadBanned, loadMessages, fill } from '../rules.js';
 import { findViolations, formatViolations } from '../matcher.js';
 import { matchesAny } from '../glob.js';
 
-// The plugin's own config files: the project .just-say-so.json and the
-// global ~/.config/just-say-so/config.json.
-function isOwnConfig(filePath) {
+// The plugin's own config files: the project .just-say-so.json, the personal
+// just-say-so.json, or wherever JUST_SAY_SO_CONFIG points.
+function isOwnConfig(filePath, env) {
   const base = path.basename(filePath);
-  if (base === '.just-say-so.json') return true;
-  return base === 'config.json' && path.basename(path.dirname(filePath)) === 'just-say-so';
+  if (base === '.just-say-so.json' || base === 'just-say-so.json') return true;
+  return path.resolve(filePath) === path.resolve(globalConfigPath(env));
 }
 
 function isWordChar(ch) {
@@ -72,7 +72,7 @@ export function run(input, env = process.env) {
   // The config file names the banned words, so scanning it would deadlock;
   // and a config change deserves a look before it lands. A courtesy
   // confirmation covers both — this is visibility, not a security boundary.
-  if (filePath && isOwnConfig(filePath)) {
+  if (filePath && isOwnConfig(filePath, env)) {
     const messages = loadMessages(config);
     return {
       hookSpecificOutput: {

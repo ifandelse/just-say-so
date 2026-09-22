@@ -58,7 +58,7 @@ export function merge(base, over) {
 export function globalConfigPath(env = process.env) {
   if (env.JUST_SAY_SO_CONFIG) return env.JUST_SAY_SO_CONFIG;
   const base = env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  return path.join(base, 'just-say-so', 'config.json');
+  return path.join(base, 'just-say-so', 'just-say-so.json');
 }
 
 // Nearest .just-say-so.json from cwd upward wins.

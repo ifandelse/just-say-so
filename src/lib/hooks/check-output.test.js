@@ -8,7 +8,8 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 /*
  * Branch map — src/lib/hooks/check-output.js
  *   mode off → null · stop_hook_active → null · no assistant text → null ·
- *   clean text → null · hard + block → decision block · hard + warn → null + note queued ·
+ *   clean text → null · hard + block → decision block ·
+ *   hard + warn → stderr report + note queued ·
  *   pending notes capped at 3 · missing session_id → "unknown" ·
  *   text source: last_assistant_message string preferred (transcript untouched) ·
  *   non-string or absent field → transcript fallback ·
@@ -187,8 +188,17 @@ describe('check-output.run', () => {
       state = readSession('unknown', sandbox.env);
     });
 
-    it('should stay silent and queue one note for the next prompt', () => {
-      expect({ output, noteCount: state.pendingNotes.length }).toEqual({ output: null, noteCount: 1 });
+    it('should return the report as stderr and queue one note for the next prompt', () => {
+      expect({ output, noteCount: state.pendingNotes.length }).toEqual({
+        output: {
+          stderr:
+            'just-say-so: your last reply contains banned terms:\n' +
+            '  - "leverage" ×1 — use a concrete verb: use, apply, rely on\n' +
+            '  - "synergy" ×1\n' +
+            'Rewrite the reply per the communication rules.'
+        },
+        noteCount: 1
+      });
     });
   });
 

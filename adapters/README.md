@@ -10,7 +10,7 @@ An adapter provides three behaviors, reusing `src/lib/`:
 2. **Rules commands** — a user-invocable command that injects `readRules('full' | 'condensed', config)`. `node src/cli/print-rules.js [full|condensed]` prints the resolved text for any command format.
 3. **Banned-term gate** — on the harness's pre-tool-use event, run `findViolations(extractedText, loadBanned(config))` and translate the result into that harness's deny/feedback shape.
 
-Config comes from the same files (`~/.config/just-say-so/config.json`, `.just-say-so.json`), so one config drives every harness.
+Config comes from the same files (`~/.config/just-say-so/just-say-so.json`, `.just-say-so.json`), so one config drives every harness.
 
 ## Landscape
 

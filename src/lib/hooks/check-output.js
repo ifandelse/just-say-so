@@ -1,7 +1,9 @@
 // Stop logic: check the final assistant message for banned terms. Off by
 // default — chat prose never passes through PreToolUse, and this closes that
 // gap for users who want it. "block" forces a rewrite; "warn" queues a note
-// that the remind hook delivers with the next prompt.
+// that the remind hook delivers with the next prompt, and also returns the
+// report as `stderr` for the shim to print — a single-prompt run (CI) has no
+// next prompt, so the log line is the only visible copy there.
 // Returns the hook output object, or null for silence.
 import { loadConfig, findProjectConfig } from '../config.js';
 import { loadBanned, loadMessages } from '../rules.js';
@@ -49,5 +51,5 @@ export function run(input, env = process.env) {
   const state = readSession(sessionId, env);
   state.pendingNotes = [...(state.pendingNotes ?? []), message].slice(-MAX_PENDING_NOTES);
   writeSession(sessionId, state, env);
-  return null;
+  return { stderr: message };
 }

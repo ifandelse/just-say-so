@@ -67,6 +67,24 @@ describe('hook protocol', () => {
     });
   });
 
+  describe('when a banned reply hits the spawned output check in warn mode', () => {
+    let result;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      result = spawnHook(
+        'check-output.js',
+        { session_id: 'PROTO_SESSION', cwd: sandbox.work, last_assistant_message: 'we leverage synergy' },
+        sandbox.env
+      );
+    });
+
+    it('should exit 0, print the report to stderr, and keep stdout empty', () => {
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: '' });
+      expect(result.stderr).toContain('just-say-so: your last reply contains banned terms:');
+    });
+  });
+
   describe('when every script receives garbage stdin', () => {
     let results;
 

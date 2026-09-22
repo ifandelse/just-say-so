@@ -67,7 +67,7 @@ describe('config', () => {
       });
 
       it('should build the path under it', () => {
-        expect(result).toBe('/xdg/just-say-so/config.json');
+        expect(result).toBe('/xdg/just-say-so/just-say-so.json');
       });
     });
 
@@ -79,7 +79,7 @@ describe('config', () => {
       });
 
       it('should default under the home directory', () => {
-        expect(result).toBe(path.join(os.homedir(), '.config', 'just-say-so', 'config.json'));
+        expect(result).toBe(path.join(os.homedir(), '.config', 'just-say-so', 'just-say-so.json'));
       });
     });
   });

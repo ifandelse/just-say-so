@@ -7,7 +7,8 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
 /*
  * Branch map — src/lib/hooks/check-banned.js
  *   mode off → null · tool not listed → null
- *   own-config gate: .just-say-so.json → ask · just-say-so/config.json → ask ·
+ *   own-config gate: .just-say-so.json → ask · just-say-so.json → ask ·
+ *                    the JUST_SAY_SO_CONFIG target → ask ·
  *                    unrelated config.json → normal scan · gate skipped when mode off
  *   file_path present: exclude match → null · include set and not matched → null ·
  *                      include set and matched → proceeds
@@ -65,7 +66,7 @@ describe('check-banned.run', () => {
   });
 
   describe('when the model edits the plugin\'s own config files', () => {
-    let projectConfig, globalConfig;
+    let projectConfig, personalConfig, envConfig;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
@@ -73,18 +74,29 @@ describe('check-banned.run', () => {
         writeEvent(sandbox, '.just-say-so.json', '{"bannedCheck":{"disableWords":["robust"]}}'),
         sandbox.env
       );
-      globalConfig = run(
+      personalConfig = run(
         {
           session_id: SESSION,
           cwd: sandbox.work,
           tool_name: 'Write',
-          tool_input: { file_path: path.join(sandbox.work, 'just-say-so', 'config.json'), content: '{}' }
+          tool_input: { file_path: path.join(sandbox.work, 'anywhere', 'just-say-so.json'), content: '{}' }
+        },
+        sandbox.env
+      );
+      // the sandbox configFile has a name the basename check never matches —
+      // only the JUST_SAY_SO_CONFIG path comparison can gate it
+      envConfig = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Write',
+          tool_input: { file_path: sandbox.configFile, content: '{}' }
         },
         sandbox.env
       );
     });
 
-    it('should force a confirmation prompt for both, regardless of content', () => {
+    it('should force a confirmation prompt for all three, regardless of content', () => {
       const expected = (name) => ({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -94,9 +106,10 @@ describe('check-banned.run', () => {
             'Allow only if you asked for this change.'
         }
       });
-      expect({ projectConfig, globalConfig }).toEqual({
+      expect({ projectConfig, personalConfig, envConfig }).toEqual({
         projectConfig: expected('.just-say-so.json'),
-        globalConfig: expected('config.json')
+        personalConfig: expected('just-say-so.json'),
+        envConfig: expected('config.json')
       });
     });
   });

@@ -26,7 +26,7 @@ Config changes apply on the next hook fire — `loadConfig` runs per invocation,
 ## Phase 0 — preflight
 
 1. Make a scratch project: `mkdir -p ~/tmp/jss-test && cd ~/tmp/jss-test && git init -q`.
-2. Check whether `~/.config/just-say-so/config.json` exists. If it does, note its contents — project config must override any key it sets, or a phase below will behave differently than written.
+2. Check whether `~/.config/just-say-so/just-say-so.json` exists. If it does, note its contents — project config must override any key it sets, or a phase below will behave differently than written.
 3. Start `claude` in the scratch dir. Confirm the five events are registered *by this plugin*, using any of these, easiest first:
    - `/plugin` → select just-say-so → the "Installed components" section lists the hook events the plugin registered. Expect all five: `UserPromptSubmit`, `PreToolUse`, `SessionStart`, `SubagentStart`, `Stop`.
    - `/hooks` → each entry shows the command it runs; the just-say-so entries contain the plugin's cache path (`.../plugins/cache/just-say-so/.../src/hooks/<name>.js`).

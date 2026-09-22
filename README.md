@@ -45,6 +45,24 @@ claude --plugin-dir /path/to/just-say-so
 
 Requires `node` (≥18) on your PATH. The plugin has zero npm dependencies.
 
+### Pinning a version in CI
+
+`anthropics/claude-code-action` installs plugins from a marketplace URL or directory path. Neither form carries a branch, tag, or commit, so every run installs whatever sits on this repo's default branch. If your repository requires pinned dependencies, that is not enough.
+
+Until the action supports refs, pin by vendoring — copying the plugin into your repository:
+
+1. Copy `.claude-plugin/`, `hooks/`, `rules/`, `skills/`, and `src/` from a tagged release into your repository, for example under `.github/plugins/just-say-so/`.
+2. Point the action at that directory:
+
+   ```yaml
+   with:
+     plugin_marketplaces: ${{ github.workspace }}/.github/plugins/just-say-so
+   ```
+
+3. Record the tag you copied. To upgrade later, diff your copy against the new tag — for example `git diff v0.1.2 v0.1.3` in a clone of this repo — and apply what changed.
+
+The copy needs no install step: zero npm dependencies, Node ≥ 18.
+
 ## Configuration
 
 `just-say-so` works with no configuration. Install it and the defaults shown below apply.
@@ -174,6 +192,12 @@ npm run test:coverage  # enforces 100% line coverage on src/lib/**
 ```
 
 Test conventions live in [.ai/UnitTestGeneration.md](.ai/UnitTestGeneration.md). Hook logic sits in `src/lib/hooks/` as pure `run(input, env)` functions; the scripts in `src/hooks/` are stdin shims around them, exercised by the integration tests.
+
+### Releases
+
+Every shipped behavior change bumps the version in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` — versions are install cache keys. Every released version gets a git tag (`v0.1.2`).
+
+Stability promise for vendored copies: within a minor series (0.1.x), import paths and function signatures under `src/lib/` do not change. A script that calls `findViolations()` or `loadConfig()` from a copied tree stays safe across patch upgrades. Before 1.0, a minor bump (0.2.0) may change anything — the tag diff shows what moved.
 
 ## License
 

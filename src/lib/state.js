@@ -16,7 +16,18 @@ function sessionFile(sessionId, env) {
   return path.join(stateDir(env), 'sessions', safe + '.json');
 }
 
-const FRESH = { promptCount: 0, contextAtLastReminder: null, pendingNotes: [], projectDir: null };
+const FRESH = {
+  promptCount: 0,
+  contextAtLastReminder: null,
+  pendingNotes: [],
+  projectDir: null,
+  // Per-file record of error-level Vale alerts in lines this session added,
+  // keyed by absolute path — the Stop gate checks these, and only these.
+  valeFiles: {},
+  // Alert keys from the last Stop block: when a rewrite leaves the set
+  // unchanged, the gate stands aside instead of burning the block budget.
+  lastStopBlock: null
+};
 
 export function readSession(sessionId, env = process.env) {
   try {

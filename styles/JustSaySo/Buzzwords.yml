@@ -1,0 +1,18 @@
+# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+
+extends: existence
+message: "Banned buzzword: '%s'. Use a precise domain term or delete it."
+level: error
+ignorecase: true
+nonword: true
+tokens:
+  - "(?<![\\w-])robust(?![\\w-])"
+  - "(?<![\\w-])seamless(?![\\w-])"
+  - "(?<![\\w-])holistic(?![\\w-])"
+  - "(?<![\\w-])streamline(?![\\w-])"
+  - "(?<![\\w-])empower(?![\\w-])"
+  - "(?<![\\w-])cutting[\\s\\u00A0-]+edge(?![\\w-])"
+  - "(?<![\\w-])game[\\s\\u00A0-]+changing(?![\\w-])"
+  - "(?<![\\w-])synergy(?![\\w-])"
+  - "(?<![\\w-])delve(?![\\w-])"
+  - "(?<![\\w-])belt[\\s\\u00A0-]+and[\\s\\u00A0-]+suspenders(?![\\w-])"

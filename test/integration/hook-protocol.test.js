@@ -3,17 +3,25 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeSandbox } from '../helpers/sandbox.js';
+import { makeSandbox, withFakeVale } from '../helpers/sandbox.js';
 
 /*
- * Integration: the JSON-over-stdin protocol of the four entry scripts.
- * The logic branches live in test/hooks/; this tier proves the process
- * contract — stdout JSON, exit 0 always, resilience to garbage input —
- * and that hooks.json points at files that exist.
+ * Integration: the JSON-over-stdin protocol of the entry scripts.
+ * The logic branches live next to the lib modules; this tier proves the
+ * process contract — stdout JSON, exit 0 always, resilience to garbage
+ * input — and that hooks.json points at files that exist. Vale is a fake
+ * binary on PATH (test/helpers/sandbox.js); nothing here needs the real one.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SCRIPTS = ['remind.js', 'check-banned.js', 'session-start.js', 'subagent-start.js', 'check-output.js'];
+const SCRIPTS = [
+  'remind.js',
+  'pre-gate.js',
+  'check-vale.js',
+  'session-start.js',
+  'subagent-start.js',
+  'check-output.js'
+];
 
 function spawnHook(script, input, env) {
   return spawnSync(process.execPath, [path.join(ROOT, 'src', 'hooks', script)], {
@@ -44,26 +52,26 @@ describe('hook protocol', () => {
     });
   });
 
-  describe('when a banned Write goes through the spawned gate in block mode', () => {
+  describe('when a config edit goes through the spawned pre-gate', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      const sandbox = makeSandbox();
       result = spawnHook(
-        'check-banned.js',
+        'pre-gate.js',
         {
           session_id: 'PROTO_SESSION',
           cwd: sandbox.work,
           tool_name: 'Write',
-          tool_input: { file_path: path.join(sandbox.work, 'notes.md'), content: 'We leverage synergy.' }
+          tool_input: { file_path: path.join(sandbox.work, '.just-say-so.json'), content: '{}' }
         },
         sandbox.env
       );
     });
 
-    it('should exit 0 and emit the deny decision', () => {
+    it('should exit 0 and emit the ask decision', () => {
       expect(result.status).toBe(0);
-      expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
     });
   });
 
@@ -71,9 +79,9 @@ describe('hook protocol', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = withFakeVale(makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } }));
       result = spawnHook(
-        'check-banned.js',
+        'pre-gate.js',
         {
           session_id: 'PROTO_SESSION',
           cwd: sandbox.work,
@@ -90,11 +98,39 @@ describe('hook protocol', () => {
     });
   });
 
+  describe('when a written file goes through the spawned post-write check', () => {
+    let result;
+
+    beforeEach(() => {
+      const sandbox = withFakeVale(makeSandbox());
+      const file = path.join(sandbox.work, 'notes.md');
+      fs.writeFileSync(file, 'We leverage synergy.\n');
+      result = spawnHook(
+        'check-vale.js',
+        {
+          session_id: 'PROTO_SESSION',
+          cwd: sandbox.work,
+          tool_name: 'Write',
+          tool_input: { file_path: file, content: 'We leverage synergy.\n' }
+        },
+        sandbox.env
+      );
+    });
+
+    it('should exit 0 and hand the model the facts without blocking', () => {
+      expect(result.status).toBe(0);
+      const out = JSON.parse(result.stdout);
+      expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUse');
+      expect(out.hookSpecificOutput.additionalContext).toContain('leverage');
+      expect(out.hookSpecificOutput.permissionDecision).toBeUndefined();
+    });
+  });
+
   describe('when a banned reply hits the spawned output check in warn mode', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      const sandbox = withFakeVale(makeSandbox({ outputCheck: { mode: 'warn' } }));
       result = spawnHook(
         'check-output.js',
         { session_id: 'PROTO_SESSION', cwd: sandbox.work, last_assistant_message: 'we leverage synergy' },
@@ -104,7 +140,7 @@ describe('hook protocol', () => {
 
     it('should exit 0, print the report to stderr, and keep stdout empty', () => {
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: '' });
-      expect(result.stderr).toContain('just-say-so: your last reply contains banned terms:');
+      expect(result.stderr).toContain('just-say-so: Vale reports errors in your last reply:');
     });
   });
 
@@ -136,7 +172,7 @@ describe('hook protocol', () => {
     });
 
     it('should point every command at a file that exists', () => {
-      // three PreToolUse entries (file tools, Bash, MCP) share check-banned.js
+      // three PreToolUse entries (file tools, Bash, MCP) share pre-gate.js
       expect(new Set(scriptPaths).size).toBe(SCRIPTS.length);
       expect(scriptPaths.map((p) => fs.existsSync(p))).toEqual(scriptPaths.map(() => true));
     });

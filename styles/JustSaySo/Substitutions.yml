@@ -1,0 +1,10 @@
+# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+nonword: true
+swap:
+  "(?<![\\w-])utilize(?![\\w-])": "use"
+  "(?<![\\w-])in[\\s\\u00A0-]+order[\\s\\u00A0-]+to(?![\\w-])": "to"

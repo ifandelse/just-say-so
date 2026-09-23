@@ -2,7 +2,7 @@
 
 Live verification of the installed plugin. The unit suite proves the scripts produce correct JSON; these tests prove the harness delivers the JSON where we think it does.
 
-Run `scripts/verify-installed-plugin.sh` first: it replays the plugin-logic layer (26 checks, including the live-run fixes) against the installed copy in seconds. The scenarios below then cover only what a script cannot — hook firing, dialogs, context landing in transcripts.
+Run `scripts/verify-installed-plugin.sh` first: it replays the plugin-logic layer (28 checks, including the live-run fixes and the Vale engine paths) against the installed copy in seconds. The scenarios below then cover only what a script cannot — hook firing, dialogs, context landing in transcripts. The checks need `vale` on PATH; the script says so and skips those scenarios without it.
 
 ## How to observe what happened
 
@@ -16,7 +16,7 @@ Injected context is invisible in the normal UI, so every scenario names its grou
 
 Facts the 2026-09-20 run established about Claude Code's recording:
 
-- A deny does NOT produce hook records — the reason arrives as the blocked call's tool result. Grep for `just-say-so: banned terms` instead.
+- A deny does NOT produce hook records — the reason arrives as the blocked call's tool result. Denies now come only from the gh/MCP pre-gate; grep for `just-say-so: Vale alerts in text published by` instead.
 - `/clear` mints a NEW session id. Counters "reset" because the new id starts fresh state; the old state file is orphaned until the cleanup sweep.
 - Subagent transcripts live at `<project dir>/<session-id>/subagents/agent-*.jsonl`. The `SubagentStart` briefing delivery appears there, not in the main session file.
 - Silent hook runs (no output) leave no transcript records at all.
@@ -27,8 +27,8 @@ Config changes apply on the next hook fire — `loadConfig` runs per invocation,
 
 1. Make a scratch project: `mkdir -p ~/tmp/jss-test && cd ~/tmp/jss-test && git init -q`.
 2. Check whether `~/.config/just-say-so/just-say-so.json` exists. If it does, note its contents — project config must override any key it sets, or a phase below will behave differently than written.
-3. Start `claude` in the scratch dir. Confirm the five events are registered *by this plugin*, using any of these, easiest first:
-   - `/plugin` → select just-say-so → the "Installed components" section lists the hook events the plugin registered. Expect all five: `UserPromptSubmit`, `PreToolUse`, `SessionStart`, `SubagentStart`, `Stop`.
+3. Start `claude` in the scratch dir. Confirm the six events are registered *by this plugin*, using any of these, easiest first:
+   - `/plugin` → select just-say-so → the "Installed components" section lists the hook events the plugin registered. Expect all six: `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `SessionStart`, `SubagentStart`, `Stop`.
    - `/hooks` → each entry shows the command it runs; the just-say-so entries contain the plugin's cache path (`.../plugins/cache/just-say-so/.../src/hooks/<name>.js`).
    - `claude --debug` → send one prompt and watch the debug output print each hook execution, command included. This also proves the hooks fire, not just that they're registered.
 4. **(0b)** After your first prompt, locate the session state file (see above). Record where it landed — this tells us which env vars the installed plugin actually receives.
@@ -37,9 +37,9 @@ Config changes apply on the next hook fire — `loadConfig` runs per invocation,
 
 **1. Startup injection.** First prompt in a fresh session: ask what communication rules the model is following. Expect the condensed heading quoted back. Ground truth: transcript grep count = 1.
 
-**2. Warn mode (default).** Ask: "Write notes.md containing exactly: We leverage robust synergy to streamline everything." Expect: the file IS written (warn does not block), and the model sees the violation list — it will typically acknowledge the feedback or offer a rewrite. Ground truth: file exists with the banned text; transcript contains `just-say-so: banned terms in notes.md`.
+**2. Warn mode (default).** Ask: "Write notes.md containing exactly: We leverage robust synergy to streamline everything." Expect: the file IS written (the check runs after the write), the model sees the Vale alerts for its added lines, and you see a one-line summary in the UI (`just-say-so: Vale: 3 error(s)...`). Ground truth: file exists with the banned text; transcript contains `just-say-so: Vale reports`.
 
-**3. Default excludes.** Ask the model to add `"robust-websocket": "^1.0.0"` to a `package.json`. Expect: no warning at all — the file is excluded and the hyphenated name would not match anyway.
+**3. Fallback-config exemptions.** Ask the model to add `"robust": "^2.0.0"` to a `package.json`. Expect: no feedback at all — the shipped Vale config exempts dependency manifests, and hyphenated names like `robust-websocket` would not match anyway.
 
 **4. Reminder cadence (default 5).** Send trivial prompts and after the 5th, check the transcript grep count incremented. Faster version: skip to Phase B where the interval is 2.
 
@@ -60,13 +60,15 @@ Run `/clear` to reset the counter (this also re-injects the rules — that's sce
 
 **6. Two-prompt reminder.** Send two trivial prompts. Ground truth: transcript grep count grows by one on the second; state file `promptCount` is even.
 
-**7. Block + rewrite.** Repeat the scenario-2 request. Expect: the write is DENIED, the model reports the violation list, rewrites clean text, and retries. The deny message suggests `/just-say-so:allow "<collocation>"` to you. Ground truth: final file contains no banned terms.
+**7. Block mode: the Stop gate.** Repeat the scenario-2 request. Expect: the write LANDS (block no longer rejects writes), the model gets the alert facts, and when it tries to end the turn, the Stop hook blocks with the outstanding errors until the model fixes the file. Ground truth: final file contains no banned terms; the transcript shows the `decision: "block"` reason naming the file. If the model "fixes" without fixing, the second block repeats; if the alert set is unchanged after a rewrite, the gate reports once (`not blocking again`) and lets the turn end — note which path you saw.
 
-**8. Edit scope.** With `notes.md` still containing banned words from scenario 2 (recreate by hand if needed), ask the model to append one clean sentence. Expect: no block — only added text is checked.
+**8. Edit scope.** With `notes.md` containing banned words (recreate by hand so the session never wrote them), ask the model to append one clean sentence. Expect: no feedback and no gate — alerts outside the lines the edit added are filtered, and the gate only tracks errors this session's edits produced.
 
-**9. The allow flow.** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt (the skill pre-approves its own CLI call — if a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter; note it). Ground truth: `.just-say-so.json` gains `bannedCheck.allowPhrases: ["robust regression"]`. Then ask for a file containing "We fit a robust regression model." — passes. Ask for "a robust pipeline" — blocked.
+**9. The allow flow (config route).** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt (the skill pre-approves its own CLI call — if a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter; note it). With no `.vale.ini` in the scratch repo, the term goes to `.just-say-so.json` → `bannedCheck.allowPhrases`. Then ask for a file containing "We fit a robust regression model." — no alert. Ask for "a robust pipeline" — alert.
 
-**10. The ask gate.** Say: "Add 'synergy' to disableWords in .just-say-so.json." Expect: a confirmation prompt citing just-say-so before the edit lands, even if you're in auto-accept mode. Approve it; verify the file.
+**9b. The allow flow (vocabulary route).** Create a `.vale.ini` with `StylesPath = styles` and `Vocab = Test`, run `/just-say-so:allow "blast radius"`. Ground truth: `styles/config/vocabularies/Test/accept.txt` gains the line.
+
+**10. The ask gate.** Say: "Add 'synergy' to disableWords in .just-say-so.json." Expect: a confirmation prompt citing the policy file before the edit lands, even if you're in auto-accept mode. Approve it; verify the file. Repeat with "add a rule to .vale.ini" and with the vocabulary `accept.txt` — same prompt.
 
 ## Phase C — token mode
 
@@ -78,21 +80,21 @@ Edit `.just-say-so.json`: `"reminder": { "mode": "tokens", "everyTokens": 3000 }
 
 **12. Subagent briefing.** Ask: "Use a subagent to write summary.md describing this folder." Ground truth: grep the *subagent's* transcript (the additional `.jsonl` files in the same project directory) for the reminder heading. **This is the live test of whether `SubagentStart` honors `additionalContext` — the docs truncate before its output schema.** If the heading is absent from the subagent transcript, the injection is ignored and we fall back to briefing on first `PreToolUse`.
 
-**13. Subagent enforcement.** Ask a subagent to write a file containing "seamless synergy". Expect the same block/deny behavior as the main agent — `PreToolUse` fires inside subagents.
+**13. Subagent enforcement.** Ask a subagent to write a file containing "seamless synergy". Expect: the subagent receives the Vale alert facts after its write (grep the subagent transcript for `just-say-so: Vale reports`). **This is the live test of whether a subagent's `PostToolUse` event reports the main session id.** If it does, the state file gains the written path under `valeFiles`, and in block mode the main turn's Stop gate blocks until the file is fixed. If subagent events report their own session id, the gate misses subagent-written files — record that as a gap.
 
 ## Phase E — chat reply check (off by default)
 
 Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
-**14. Stop gate.** Say: "Reply with exactly this sentence: we leverage synergy." Expect: the model finishes, the Stop hook bounces the reply with the violation list, and the model continues with a rewrite. It will not loop — the hook ignores its own rewrite pass. Note the UX; this is why the feature ships off.
+**14. Reply check, block.** Say: "Reply with exactly this sentence: we leverage synergy." Expect: the model finishes, the Stop hook bounces the reply with the Vale alerts, and the model continues with a rewrite. If the rewrite still carries the same alerts, the hook reports once (`not blocking again`) instead of looping. Note the UX; this is why the feature ships off.
 
-**15. Warn queue.** Switch `outputCheck.mode` to `"warn"`, repeat. Expect: the reply stands, and your NEXT prompt gets the queued note injected (transcript grep: `your last reply contains banned terms`).
+**15. Warn queue.** Switch `outputCheck.mode` to `"warn"`, repeat. Expect: the reply stands, and your NEXT prompt gets the queued note injected (transcript grep: `Vale reports errors in your last reply`).
 
 ## Phase F — published text via gh (0.2.0)
 
 Edit `.just-say-so.json`: `{ "bannedCheck": { "mode": "block", "addons": ["gh"] } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)
 
-**16. Plain-form control.** Ask: "Run this command: `gh pr comment 42 --body \"We leverage robust synergy.\"`". Expect: DENIED before execution, with `gh pr comment` named in the violation list. Ground truth: `claude --debug` shows check-banned firing for the Bash call; the transcript contains `just-say-so: banned terms in gh pr comment`. This control must pass before scenario 17 means anything — if it fails, the addon config or the hook wiring is broken, not the heredoc handling.
+**16. Plain-form control.** Ask: "Run this command: `gh pr comment 42 --body \"We leverage robust synergy.\"`". Expect: DENIED before execution, with `gh pr comment` named in the violation list. Ground truth: `claude --debug` shows pre-gate firing for the Bash call; the transcript contains `just-say-so: Vale alerts in text published by gh pr comment`. This control must pass before scenario 17 means anything — if it fails, the addon config or the hook wiring is broken, not the heredoc handling.
 
 **17. Heredoc-piped form.** Ask the model to run:
 
@@ -102,11 +104,19 @@ We leverage robust synergy.
 EOF
 ```
 
-**This is the live test of whether the harness's `if: "Bash(gh *)"` filter matches a pipeline whose gh command follows a heredoc — the docs say subcommands in pipelines are parsed, but never show a heredoc example.** Expect: DENIED, same as the control — once the hook spawns, the in-hook trigger matches `gh pr comment` anywhere in the command text, so the only unknown is whether the hook spawns at all. Ground truth: `claude --debug` shows check-banned firing for this Bash call. If the deny is absent AND the debug output shows no hook execution, the `if` filter dropped the heredoc form: record it, and the fix is choosing between removing `if` from the Bash entry in `hooks.json` (every Bash call pays the spawn, coverage complete) or documenting the heredoc form as a known gap in the README next to `--body-file`.
+**This is the live test of whether the harness's `if: "Bash(gh *)"` filter matches a pipeline whose gh command follows a heredoc — the docs say subcommands in pipelines are parsed, but never show a heredoc example.** Expect: DENIED, same as the control — once the hook spawns, the in-hook trigger matches `gh pr comment` anywhere in the command text, so the only unknown is whether the hook spawns at all. Ground truth: `claude --debug` shows pre-gate firing for this Bash call. If the deny is absent AND the debug output shows no hook execution, the `if` filter dropped the heredoc form: record it, and the fix is choosing between removing `if` from the Bash entry in `hooks.json` (every Bash call pays the spawn, coverage complete) or documenting the heredoc form as a known gap in the README next to `--body-file`.
+
+## Phase G — Vale engine specifics (0.3.0)
+
+**18. Missing binary notice.** Make `vale` unreachable by renaming it (`mv "$(command -v vale)" "$(command -v vale)_off"`) — a stripped PATH also loses node on a Homebrew machine, so renaming is the reliable route. Start a session. Expect one system line at session start naming the missing binary; the checks then skip every write, and nothing breaks. Rename the binary back afterwards.
+
+**19. Project `.vale.ini` wins.** Drop a `.vale.ini` in the scratch repo with `MinAlertLevel = suggestion`, a style of your choice, and a `[*.chat.md]` section. Ground truth: alerts in check feedback now name your styles' rules, not only `JustSaySo.*`.
 
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.
+
+Scenario texts above were rewritten 2026-09-23 for the Vale engine (0.3.0): the file check moved to PostToolUse, block mode moved to the Stop gate, and the message strings changed. The results below predate that and record the 0.1.x/0.2.x behavior they tested.
 
 ## Results — 2026-09-20 run (plugin 0.1.1)
 

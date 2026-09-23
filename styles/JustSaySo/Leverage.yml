@@ -1,0 +1,9 @@
+# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+
+extends: existence
+message: "Banned buzzword: '%s'. Use a concrete verb: use, apply, rely on."
+level: error
+ignorecase: true
+nonword: true
+tokens:
+  - "(?<![\\w-])leverage(?![\\w-])"

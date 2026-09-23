@@ -1,8 +1,8 @@
 {
   "name": "just-say-so",
   "displayName": "Just Say So",
-  "description": "Keeps model output aligned with your communication rules: interval reminders, post-compaction re-injection, and a banned-word gate on tool output.",
-  "version": "0.2.0",
+  "description": "Keeps model output aligned with your communication rules: interval reminders, post-compaction re-injection, and Vale-backed checks on written files, published text, and replies.",
+  "version": "0.3.0",
   "author": {
     "name": "Jim Cowart"
   },

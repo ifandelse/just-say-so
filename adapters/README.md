@@ -1,6 +1,8 @@
 # Adapters
 
-just-say-so separates payload from delivery. The payload — `rules/*.md`, `rules/banned.json`, and the logic in `src/lib/` — assumes no harness. The Claude Code adapter (`hooks/`, `src/hooks/`, `skills/`) is the first delivery mechanism. This document records what an adapter for another harness needs, based on research verified 2026-09.
+just-say-so separates payload from delivery. The payload — `rules/*.md`, `rules/banned.json`, the `JustSaySo` Vale style generated from it, and the logic in `src/lib/` — assumes no harness. The Claude Code adapter (`hooks/`, `src/hooks/`, `skills/`) is the first delivery mechanism. This document records what an adapter for another harness needs, based on research verified 2026-09.
+
+⚠️ The research below predates the Vale engine (0.2.x checker design: a pre-write banned-term scan on `PreToolUse`). The current design runs Vale on `PostToolUse` for files, gates the turn at `Stop`, and keeps `PreToolUse` only for the policy-file confirmation and the gh/MCP pre-publication check. The per-harness event findings still hold; re-map them to the new events before building an adapter.
 
 ## The contract
 

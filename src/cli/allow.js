@@ -12,10 +12,11 @@ if (!term) {
 
 try {
   const result = addAllowTerm(term, process.cwd());
+  const where = result.method === 'vocabulary' ? 'the Vale vocabulary' : result.list;
   console.log(
     result.added
-      ? `just-say-so: added "${result.term}" to ${result.list} in ${result.file}`
-      : `just-say-so: "${result.term}" is already in ${result.list} (${result.file})`
+      ? `just-say-so: added "${result.term}" to ${where} (${result.file})`
+      : `just-say-so: "${result.term}" is already in ${where} (${result.file})`
   );
 } catch (err) {
   console.error(`just-say-so: could not update config: ${err.message}`);

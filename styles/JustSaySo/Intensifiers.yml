@@ -1,0 +1,12 @@
+# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+
+extends: existence
+message: "Empty intensifier: '%s'. Replace it with a measurement or a concrete consequence."
+level: suggestion
+ignorecase: true
+nonword: true
+tokens:
+  - "(?<![\\w-])very(?![\\w-])"
+  - "(?<![\\w-])truly(?![\\w-])"
+  - "(?<![\\w-])crucial(?![\\w-])"
+  - "(?<![\\w-])vital(?![\\w-])"

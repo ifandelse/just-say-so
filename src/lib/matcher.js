@@ -14,11 +14,17 @@ function normalize(text) {
 const BEFORE = '(?<![\\w-])';
 const AFTER = '(?![\\w-])';
 
-// One regex builder for words and phrases: tokens split on space/hyphen and
+// One pattern builder for words and phrases: tokens split on space/hyphen and
 // rejoined tolerant of either, so "load bearing" also catches "load-bearing".
-export function termRegex(term) {
+// Exported as a source string so the Vale style generator can emit the exact
+// same semantics — the two checkers must not drift.
+export function termPattern(term) {
   const tokens = normalize(term).split(/[\s-]+/).filter(Boolean).map(escapeRegExp);
-  return new RegExp(BEFORE + tokens.join('[\\s\\u00A0-]+') + AFTER, 'gi');
+  return BEFORE + tokens.join('[\\s\\u00A0-]+') + AFTER;
+}
+
+export function termRegex(term) {
+  return new RegExp(termPattern(term), 'gi');
 }
 
 function matchSpans(text, regex) {

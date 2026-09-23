@@ -33,7 +33,7 @@ dictionary and minus its part-of-speech restrictions.
 - Filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to").
 - Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence.
 - Restating the question, re-summarizing what was just said, or repeating a point in new words.
-- Hedging as padding (may/might/could). If uncertain, state what is uncertain and why.
+- Banned hedge frames: "It's important to note," "This may seem X, but," stacked hedges. Bare may/might/could are allowed when they state real uncertainty or permission. If uncertain, state what is uncertain and why. Checked by ai-tells HedgingPhrases, DefensiveHedges, StackedHedges.
 
 ### Final check
 

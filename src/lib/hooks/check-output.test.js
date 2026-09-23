@@ -1,70 +1,135 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
+vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
+
 import { run } from './check-output.js';
 import { readSession, writeSession } from '../state.js';
 import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/check-output.js
- *   mode off → null · stop_hook_active → null · no assistant text → null ·
- *   clean text → null · hard + block → decision block ·
- *   hard + warn → stderr report + note queued ·
- *   pending notes capped at 3 · missing session_id → "unknown" ·
- *   text source: last_assistant_message string preferred (transcript untouched) ·
- *   non-string or absent field → transcript fallback ·
- *   config anchor: event cwd finds no project config → recorded projectDir used ·
- *   no recorded projectDir either → defaults apply (off → null)
+ *   both modes off → null · anchor falls back to recorded projectDir ·
+ *   reply: last_assistant_message preferred · transcript fallback · no text →
+ *     no reply errors · vale broken → treated clean · exemptions apply ·
+ *     errors only (warnings never gate the reply)
+ *   warn: stderr + pendingNotes queued, capped at 3
+ *   block (reply): decision block with outputIntro
+ *   gate (bannedCheck block): outstanding errors re-lint → remaining block
+ *     with file paths · fixed → record cleared, no block · vale broken →
+ *     skip file, keep record · empty record pruned · budget caps a
+ *     pre-existing twin · warn reply + gate block → gate blocks alone
+ *   stand-down: stop_hook_active + identical keys → systemMessage, no block ·
+ *     different keys → block again · clean pass clears lastStopBlock
  */
 
 const SESSION = 'OUTPUT_SESSION';
 
-function bannedTranscript(sandbox) {
-  return writeTranscript(sandbox.work, 'reply.jsonl', [
-    { type: 'assistant', message: { id: 'MSG', content: [{ type: 'text', text: 'we leverage synergy' }] } }
-  ]);
+function respond(alertsByBase) {
+  mockSpawnSync.mockImplementation((_cmd, args) => {
+    if (args[0] === 'ls-dirs') return { status: 0, stdout: '' };
+    const target = args[args.length - 1];
+    const alerts = alertsByBase[path.basename(target)] ?? [];
+    return { status: alerts.length ? 1 : 0, stdout: JSON.stringify({ [target]: alerts }) };
+  });
+}
+
+function errorAlert(over = {}) {
+  return {
+    Check: 'JustSaySo.Buzzwords',
+    Severity: 'error',
+    Line: 1,
+    Span: [1, 7],
+    Match: 'synergy',
+    Message: "Banned buzzword: 'synergy'.",
+    ...over
+  };
+}
+
+function gateRecord(file, key = 'JustSaySo.Buzzwords|synergy') {
+  return { valeFiles: { [file]: { outstanding: [{ key, line: 1 }] } } };
 }
 
 describe('check-output.run', () => {
-  describe('when the check is off', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('when both checks are off', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
-      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: bannedTranscript(sandbox) }, sandbox.env);
-    });
-
-    it('should return null', () => {
-      expect(output).toBe(null);
-    });
-  });
-
-  describe('when our own rewrite request already fired', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
       output = run(
-        { session_id: SESSION, cwd: sandbox.work, transcript_path: bannedTranscript(sandbox), stop_hook_active: true },
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'we ship synergy' },
         sandbox.env
       );
     });
 
-    it('should return null instead of looping', () => {
-      expect(output).toBe(null);
+    it('should return null without linting', () => {
+      expect(output).toBeNull();
+      expect(mockSpawnSync).not.toHaveBeenCalled();
     });
   });
 
-  describe('when the transcript has no assistant text', () => {
+  describe('when the reply has errors in warn mode', () => {
+    let output, state, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should return the report as stderr', () => {
+      expect(output.stderr).toContain('just-say-so: Vale reports errors in your last reply:');
+      expect(output.stderr).toContain('synergy');
+    });
+
+    it('should queue the note for the next prompt', () => {
+      expect(state.pendingNotes).toHaveLength(1);
+    });
+  });
+
+  describe('when warn notes pile past the cap', () => {
+    let state, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      writeSession(SESSION, { pendingNotes: ['ONE', 'TWO', 'THREE'] }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy again' }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should keep only the newest three', () => {
+      expect(state.pendingNotes).toHaveLength(3);
+      expect(state.pendingNotes[0]).toBe('TWO');
+    });
+  });
+
+  describe('when the reply has errors in block mode', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
+        sandbox.env
+      );
     });
 
-    it('should return null', () => {
-      expect(output).toBe(null);
+    it('should block with the rewrite instruction', () => {
+      expect(output.decision).toBe('block');
+      expect(output.reason).toContain('just-say-so: Vale reports errors in your last reply:');
+      expect(output.reason).toContain('Rewrite the reply per the communication rules.');
     });
   });
 
@@ -73,149 +138,281 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      const transcript = writeTranscript(sandbox.work, 'reply.jsonl', [
-        { type: 'assistant', message: { id: 'MSG', content: [{ type: 'text', text: 'The tests pass.' }] } }
-      ]);
-      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: transcript }, sandbox.env);
-    });
-
-    it('should return null', () => {
-      expect(output).toBe(null);
-    });
-  });
-
-  describe('when the event carries last_assistant_message', () => {
-    let banned, clean;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      const base = { session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' };
-      banned = run({ ...base, last_assistant_message: 'we truly leverage synergy' }, sandbox.env);
-      clean = run(
-        { ...base, transcript_path: bannedTranscript(sandbox), last_assistant_message: 'The tests pass.' },
+      respond({});
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'The tests pass.' },
         sandbox.env
       );
     });
 
-    it('should check that field and never read the transcript', () => {
-      expect(banned.decision).toBe('block');
-      expect(banned.reason).toContain('"leverage" ×1');
-      expect(clean).toBe(null); // transcript has banned text; the field wins
+    it('should return null', () => {
+      expect(output).toBeNull();
     });
   });
 
-  describe('when last_assistant_message is not a string', () => {
+  describe('when only the transcript carries the reply', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      output = run(
-        {
-          session_id: SESSION,
-          cwd: sandbox.work,
-          transcript_path: bannedTranscript(sandbox),
-          last_assistant_message: { role: 'assistant', content: [] }
-        },
-        sandbox.env
-      );
+      const transcript = writeTranscript(sandbox.work, 'reply.jsonl', [
+        { type: 'assistant', message: { id: 'MSG', content: [{ type: 'text', text: 'we ship synergy' }] } }
+      ]);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: transcript }, sandbox.env);
     });
 
-    it('should fall back to the transcript', () => {
+    it('should fall back to the transcript text and block', () => {
       expect(output.decision).toBe('block');
     });
   });
 
-  describe('when block mode finds banned terms in the reply', () => {
+  describe('when there is no reply text at all', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: bannedTranscript(sandbox) }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' }, sandbox.env);
     });
 
-    it('should block the stop with the violation list', () => {
-      expect(output).toEqual({
-        decision: 'block',
-        reason:
-          'just-say-so: your last reply contains banned terms:\n' +
-          '  - "leverage" ×1 — use a concrete verb: use, apply, rely on\n' +
-          '  - "synergy" ×1\n' +
-          'Rewrite the reply per the communication rules.'
-      });
+    it('should return null', () => {
+      expect(output).toBeNull();
     });
   });
 
-  describe('when the event cwd finds no project config', () => {
-    let withRecorded, withoutRecorded;
+  describe('when vale is broken during the reply check', () => {
+    let output;
 
     beforeEach(() => {
-      // Project config only — the sandbox global file is never written.
-      const sandbox = makeSandbox();
-      fs.writeFileSync(
-        path.join(sandbox.work, '.just-say-so.json'),
-        JSON.stringify({ outputCheck: { mode: 'block' } })
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      mockSpawnSync.mockReturnValue({ error: new Error('ENOENT'), status: null });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
+        sandbox.env
       );
-      const event = {
-        session_id: SESSION,
-        cwd: '/nope/elsewhere', // a Stop event's cwd, seen live
-        last_assistant_message: 'we leverage synergy'
-      };
-      writeSession(SESSION, { projectDir: sandbox.work }, sandbox.env);
-      withRecorded = run(event, sandbox.env);
-
-      const bare = makeSandbox();
-      fs.writeFileSync(
-        path.join(bare.work, '.just-say-so.json'),
-        JSON.stringify({ outputCheck: { mode: 'block' } })
-      );
-      withoutRecorded = run(event, bare.env);
     });
 
-    it('should fall back to the recorded project directory, and to defaults without one', () => {
-      expect({
-        withRecordedDecision: withRecorded?.decision,
-        withoutRecorded
-      }).toEqual({ withRecordedDecision: 'block', withoutRecorded: null });
+    it('should treat the reply as clean', () => {
+      expect(output).toBeNull();
     });
   });
 
-  describe('when warn mode finds banned terms in the reply', () => {
-    let output, state;
+  describe('when an allowed phrase covers the reply match', () => {
+    let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
-      output = run({ cwd: sandbox.work, transcript_path: bannedTranscript(sandbox) }, sandbox.env); // no session_id
-      state = readSession('unknown', sandbox.env);
-    });
-
-    it('should return the report as stderr and queue one note for the next prompt', () => {
-      expect({ output, noteCount: state.pendingNotes.length }).toEqual({
-        output: {
-          stderr:
-            'just-say-so: your last reply contains banned terms:\n' +
-            '  - "leverage" ×1 — use a concrete verb: use, apply, rely on\n' +
-            '  - "synergy" ×1\n' +
-            'Rewrite the reply per the communication rules.'
-        },
-        noteCount: 1
+      const sandbox = makeSandbox({
+        outputCheck: { mode: 'block' },
+        bannedCheck: { allowPhrases: ['robust regression'] }
       });
+      const reply = 'the robust regression suite passed';
+      const start = reply.indexOf('robust') + 1;
+      respond({ 'reply.chat.md': [errorAlert({ Match: 'robust', Span: [start, start + 5] })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: reply }, sandbox.env);
+    });
+
+    it('should return null', () => {
+      expect(output).toBeNull();
     });
   });
 
-  describe('when warnings pile past the cap', () => {
-    let state;
+  describe('when the session gate finds a recorded error still present', () => {
+    let output, state, sandbox, file;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
-      const transcript = bannedTranscript(sandbox);
-      for (let i = 0; i < 5; i++) {
-        run({ session_id: SESSION, cwd: sandbox.work, transcript_path: transcript }, sandbox.env);
-      }
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\n');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      respond({ 'doc.md': [errorAlert({ Span: [6, 12] })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should keep only the newest three notes', () => {
-      expect(state.pendingNotes).toHaveLength(3);
+    it('should block and name the file', () => {
+      expect(output.decision).toBe('block');
+      expect(output.reason).toContain('error-level Vale alerts remain in files this session wrote:');
+      expect(output.reason).toContain(file);
+    });
+
+    it('should remember the blocked alert set', () => {
+      expect(state.lastStopBlock).toContain('JustSaySo.Buzzwords|synergy');
+    });
+  });
+
+  describe('when the recorded errors are fixed', () => {
+    let output, state, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'clean\n');
+      writeSession(SESSION, { ...gateRecord(file), lastStopBlock: 'STALE' }, sandbox.env);
+      respond({});
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should not block, clear the record, and forget the last block', () => {
+      expect(output).toBeNull();
+      expect(state.valeFiles).toEqual({});
+      expect(state.lastStopBlock).toBeNull();
+    });
+  });
+
+  describe('when vale breaks during the gate re-lint', () => {
+    let output, state, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      mockSpawnSync.mockReturnValue({ error: new Error('ENOENT'), status: null });
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should never block on stale records and keep them for later', () => {
+      expect(output).toBeNull();
+      expect(state.valeFiles[file].outstanding).toHaveLength(1);
+    });
+  });
+
+  describe('when a record holds no outstanding errors', () => {
+    let state, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      writeSession(SESSION, { valeFiles: { [file]: { outstanding: [] } } }, sandbox.env);
+      respond({});
+      run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should prune the empty record', () => {
+      expect(state.valeFiles).toEqual({});
+    });
+  });
+
+  describe('when the file holds a pre-existing twin of the recorded error', () => {
+    let output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'synergy\nsynergy\n');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      respond({ 'doc.md': [errorAlert({ Line: 1 }), errorAlert({ Line: 2 })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+    });
+
+    it('should gate only as many as were recorded', () => {
+      const listed = output.reason.split('\n').filter((l) => l.includes('JustSaySo.Buzzwords'));
+      expect(listed).toHaveLength(1);
+    });
+  });
+
+  describe('when a rewrite leaves the blocked alert set unchanged', () => {
+    let first, output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\n');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      respond({ 'doc.md': [errorAlert({ Span: [6, 12] })] });
+      first = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      output = run({ session_id: SESSION, cwd: sandbox.work, stop_hook_active: true }, sandbox.env);
+    });
+
+    it('should block the first pass', () => {
+      expect(first.decision).toBe('block');
+    });
+
+    it('should stand down with a system message instead of blocking again', () => {
+      expect(output.decision).toBeUndefined();
+      expect(output.systemMessage).toContain('not blocking again');
+    });
+  });
+
+  describe('when a rewrite changes the alert set but errors remain', () => {
+    let output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy and delve\n');
+      writeSession(
+        SESSION,
+        {
+          valeFiles: {
+            [file]: {
+              outstanding: [
+                { key: 'JustSaySo.Buzzwords|synergy', line: 1 },
+                { key: 'JustSaySo.Buzzwords|delve', line: 1 }
+              ]
+            }
+          },
+          lastStopBlock: JSON.stringify([`${file}|JustSaySo.Buzzwords|delve`, `${file}|JustSaySo.Buzzwords|synergy`])
+        },
+        sandbox.env
+      );
+      respond({ 'doc.md': [errorAlert({ Span: [6, 12] })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work, stop_hook_active: true }, sandbox.env);
+    });
+
+    it('should block again on the smaller set', () => {
+      expect(output.decision).toBe('block');
+    });
+  });
+
+  describe('when the reply warns while the gate blocks', () => {
+    let output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ outputCheck: { mode: 'warn' }, bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\n');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      respond({
+        'reply.chat.md': [errorAlert({ Match: 'delve', Message: "Banned buzzword: 'delve'." })],
+        'doc.md': [errorAlert({ Span: [6, 12] })]
+      });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'we delve in' },
+        sandbox.env
+      );
+    });
+
+    it('should block on the gate alone', () => {
+      expect(output.decision).toBe('block');
+      expect(output.reason).not.toContain('your last reply');
+    });
+  });
+
+  describe('when the event cwd has no project config but one was recorded', () => {
+    let output, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox();
+      const projectDir = fs.mkdtempSync(path.join(sandbox.work, 'proj-'));
+      fs.writeFileSync(path.join(projectDir, '.just-say-so.json'), JSON.stringify({ outputCheck: { mode: 'block' } }));
+      writeSession(SESSION, { projectDir }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: fs.mkdtempSync(path.join(sandbox.work, 'elsewhere-')),
+          last_assistant_message: 'synergy wins'
+        },
+        sandbox.env
+      );
+    });
+
+    it('should anchor on the recorded project and block', () => {
+      expect(output.decision).toBe('block');
     });
   });
 });

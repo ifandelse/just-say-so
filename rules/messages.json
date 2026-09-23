@@ -1,11 +1,21 @@
 {
-  "$comment": "Every user-facing sentence the hooks emit. Override any subset via rules.messagesPath in config — unlisted keys keep these shipped defaults. {target} is filled at runtime.",
+  "$comment": "Every user-facing sentence the hooks emit. Override any subset via rules.messagesPath in config — unlisted keys keep these shipped defaults. {target}, {counts}, and {cap} are filled at runtime.",
   "bannedIntro": "just-say-so: banned terms in {target}:",
   "rewriteInstruction": "Rewrite the flagged text per the communication rules, then retry the tool call.",
   "escapeHatch": "If a flagged term is a precise domain term in this project, suggest that the user run: /just-say-so:allow \"<collocation>\" — quote the flagged term as it appears in the text (for example \"robust regression\", not \"robust\").",
   "warnInstruction": "The call was allowed; fix the flagged text per the communication rules.",
   "advisoryLabel": "advisories (replace with a measurement or a concrete consequence)",
-  "configAskReason": "just-say-so: this edits the just-say-so config ({target}). Allow only if you asked for this change.",
-  "outputIntro": "just-say-so: your last reply contains banned terms:",
-  "outputRewrite": "Rewrite the reply per the communication rules."
+  "configAskReason": "just-say-so: this edits a just-say-so/Vale policy file ({target}). Allow only if you asked for this change.",
+  "outputIntro": "just-say-so: Vale reports errors in your last reply:",
+  "outputRewrite": "Rewrite the reply per the communication rules.",
+  "valeCounts": "{errors} error(s), {warnings} warning(s), {suggestions} suggestion(s)",
+  "valeEditIntro": "just-say-so: Vale reports {counts} in the lines this edit added to {target}:",
+  "valeWholeFileIntro": "just-say-so: Vale reports {counts} in {target} (whole file — this write created or replaced it):",
+  "valeFixInstruction": "Fix the errors before finishing. Treat warnings and suggestions as advice.",
+  "valeSystemLine": "just-say-so: Vale: {counts} in {target}.",
+  "valeTruncated": "(report truncated — run vale on the file for the full list)",
+  "valeMissing": "just-say-so: checks are configured but the vale binary is missing from PATH, or is not errata-ai vale. Install it (brew install vale) or set bannedCheck.mode and outputCheck.mode to \"off\".",
+  "publishIntro": "just-say-so: Vale alerts in text published by {target}:",
+  "stopGateIntro": "just-say-so: error-level Vale alerts remain in files this session wrote:",
+  "stopGateStandDown": "just-say-so: the same Vale errors remain after a rewrite; not blocking again. Fix them before committing."
 }

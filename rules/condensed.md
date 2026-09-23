@@ -18,6 +18,6 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - Banned: any format of "it's not {x}, it's {y}".
 - Banned filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to").
 - Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence.
-- Hedging as padding (may/might/could). If uncertain, state what is uncertain and why.
+- Banned hedge frames ("It's important to note," "This may seem X, but," stacked hedges). Bare may/might/could are allowed for real uncertainty or permission. If uncertain, state what is uncertain and why.
 - Restating the question, re-summarizing what was just said, or repeating a point in new words.
 - Delete any sentence whose removal loses nothing.

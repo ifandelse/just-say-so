@@ -27,6 +27,10 @@ export const DEFAULTS = {
   outputCheck: {
     mode: 'off' // "off" | "warn" | "block"
   },
+  vale: {
+    config: null, // path to a .vale.ini; default: nearest above the checked file, else the shipped fallback
+    levels: 'suggestion' // lowest alert level passed to the model at edit time: "error" | "warning" | "suggestion"
+  },
   rules: {
     fullPath: null,
     condensedPath: null,

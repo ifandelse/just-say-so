@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/pre-gate.js\""
           }
         ]
       },
@@ -26,7 +26,7 @@
           {
             "type": "command",
             "if": "Bash(gh *)",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/pre-gate.js\""
           }
         ]
       },
@@ -35,7 +35,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-banned.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/pre-gate.js\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/check-vale.js\""
           }
         ]
       }

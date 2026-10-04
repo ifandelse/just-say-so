@@ -9,7 +9,7 @@
 import path from 'node:path';
 import { loadConfig, findProjectConfig, globalConfigPath } from '../config.js';
 import { loadMessages, fill } from '../rules.js';
-import { matchGhTrigger, matchesMcpTool, collectStrings } from '../addons.js';
+import { extractGhTexts, matchesMcpTool, collectStrings } from '../addons.js';
 import { readSession } from '../state.js';
 import {
   resolveValeConfig,
@@ -51,55 +51,114 @@ function countsLine(messages, alerts) {
   return fill(messages.valeCounts, { errors: c.error, warnings: c.warning, suggestions: c.suggestion });
 }
 
-// gh commands and MCP tools publish text humans read. The fragment lints
-// under the `*.chat.md` name, selecting the reduced chat section of the
-// config, so document-level rules stay out of a fragment's way.
+// A value the extractor refused to guess at needs an answer. The config
+// decides ("ask" is the default). When the harness mode already answers
+// permission questions automatically, an "ask" has nobody to answer it —
+// a `claude -p` run denies it outright — so the configured "ask" becomes
+// "allow", and the warning note stays visible in the hook output.
+const AUTO_PERMISSION_MODES = ['bypassPermissions', 'dontAsk', 'auto'];
+
+function unresolvedPolicy(bc, input) {
+  const configured = bc.unresolved ?? 'ask';
+  if (configured !== 'ask') return configured;
+  return AUTO_PERMISSION_MODES.includes(input.permission_mode) ? 'allow' : 'ask';
+}
+
+// gh commands and MCP tools publish text humans read. The check lints the
+// extracted payloads, never the raw command: flags and paths are shell
+// syntax, and a punctuation rule reads `--body` as prose and false-denies.
+// Each payload lints alone under the `*.chat.md` name, selecting the
+// reduced chat section of the config, so document-level rules stay out of
+// a fragment's way and line numbers match the payload.
 function runPublishCheck(toolName, toolInput, input, env) {
   const anchor = commandAnchor(input, env);
   const config = loadConfig(anchor, env);
   const bc = config.bannedCheck;
   if (bc.mode === 'off') return null;
 
-  let text, target;
+  let payloads, unresolved, target;
   if (toolName === 'Bash') {
     if (!(bc.addons ?? []).includes('gh')) return null;
-    target = matchGhTrigger(toolInput.command);
-    if (!target) return null;
-    text = String(toolInput.command);
+    const extracted = extractGhTexts(toolInput.command);
+    if (!extracted) return null;
+    ({ payloads, unresolved, target } = extracted);
   } else {
     if (!matchesMcpTool(toolName, bc.mcpTools)) return null;
-    text = collectStrings(toolInput).join('\n');
+    const text = collectStrings(toolInput).join('\n');
+    payloads = text ? [{ label: toolName, text }] : [];
+    unresolved = [];
     target = toolName;
   }
-  if (!text) return null;
+  if (payloads.length === 0 && unresolved.length === 0) return null;
 
   const configPath = resolveValeConfig(anchor, config);
-  const raw = lintText(text, { name: 'fragment.chat.md', configPath, env });
-  if (raw === null) return null; // vale missing or broken: silent, session-start told the user
-
-  const lines = text.split('\n');
-  const alerts = applyConfigExemptions(raw, bc, (_file, line) => lines[line - 1] ?? null);
-  const visible = alerts.filter((a) => severityRank(a.Severity) <= severityRank(config.vale.levels));
-  if (visible.length === 0) return null;
+  const visible = [];
+  for (const payload of payloads) {
+    const raw = lintText(payload.text, { name: 'fragment.chat.md', configPath, env });
+    if (raw === null) return null; // vale missing or broken: silent, session-start told the user
+    const lines = payload.text.split('\n');
+    const alerts = applyConfigExemptions(raw, bc, (_file, line) => lines[line - 1] ?? null);
+    for (const a of alerts) {
+      if (severityRank(a.Severity) <= severityRank(config.vale.levels)) {
+        visible.push({ ...a, file: payload.label });
+      }
+    }
+  }
 
   const messages = loadMessages(config);
   const intro = fill(messages.publishIntro, { target });
-  const detail = formatAlerts(visible, { truncatedNote: messages.valeTruncated });
+  const detail = formatAlerts(visible, { truncatedNote: messages.valeTruncated, withFile: true });
+  const constructs = unresolved.map((u) => `${u.label} (${u.reason})`).join(', ');
+  const unresolvedNote = unresolved.length > 0 ? fill(messages.publishUnresolvedNote, { constructs }) : '';
   const hasErrors = visible.some((a) => a.Severity === 'error');
 
-  if (hasErrors && bc.mode === 'block') {
+  if (bc.mode === 'block' && hasErrors) {
+    const parts = [intro, detail, `${messages.rewriteInstruction} ${messages.escapeHatch}`];
+    if (unresolvedNote) parts.push(unresolvedNote);
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `${intro}\n${detail}\n${messages.rewriteInstruction} ${messages.escapeHatch}`
+        permissionDecisionReason: parts.join('\n')
       }
     };
   }
+
+  if (bc.mode === 'block' && unresolved.length > 0) {
+    const policy = unresolvedPolicy(bc, input);
+    if (policy === 'deny') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: fill(messages.publishUnresolvedDeny, { target, constructs })
+        }
+      };
+    }
+    if (policy === 'ask') {
+      const parts = [fill(messages.publishUnresolvedAsk, { target, constructs })];
+      if (visible.length > 0) parts.push(intro, detail);
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: parts.join('\n')
+        }
+      };
+    }
+    // policy "allow" falls through to the advisory output below
+  }
+
+  if (visible.length === 0 && unresolved.length === 0) return null;
+
+  const parts = [];
+  if (visible.length > 0) parts.push(intro, detail);
+  if (unresolvedNote) parts.push(unresolvedNote);
+  parts.push(messages.warnInstruction);
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
-      additionalContext: `${intro}\n${detail}\n${messages.warnInstruction}`
+      additionalContext: parts.join('\n')
     },
     systemMessage: fill(messages.valeSystemLine, { counts: countsLine(messages, visible), target })
   };

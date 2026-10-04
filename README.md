@@ -154,6 +154,9 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "mode": "warn", // "warn" | "block" | "off" — warn: edit-time advice only; block adds the Stop gate and the pre-publication deny
     "addons": [], // opt-in coverage bundles — "gh" is the only one so far
     "mcpTools": [], // MCP tool-name patterns to check, for example "mcp__confluence__*"
+    "unresolved": "ask", // a published value the checker cannot read: "ask" | "allow" | "deny"
+    // ("ask" acts as "allow" under automatic-permission harness modes — see
+    // Checking published text)
     "disableWords": [], // drop every Vale alert whose matched text is this term
     "allowPhrases": [], // phrases that neutralize alerts inside them — for example
     // "robust regression" passes while bare "robust" stays flagged
@@ -181,7 +184,9 @@ Which files get checked is Vale's decision now, made in `.vale.ini`: a `[glob]` 
 
 The file gate catches what the agent writes to disk. PR comments and Confluence pages go out through `gh` commands and MCP tools instead, and by default nothing checks them. Two opt-in settings close that:
 
-`"addons": ["gh"]` covers the gh commands that publish prose: `create`, `comment`, `edit`, and `review` under `gh pr`; `create`, `comment`, and `edit` under `gh issue`; `create` and `edit` under `gh release`. When one of those appears anywhere in a Bash command — compound commands included — the checker scans the entire command text. It does not look for a `--body` flag first: a triggered command with no prose scans clean at no cost, and prose hides in more flags than `--body` (a `--title`, for example).
+`"addons": ["gh"]` covers the gh commands that publish prose: `create`, `comment`, `edit`, and `review` under `gh pr`, `gh issue`, and `gh release`, plus `gh api` calls that write a prose field (`-f`/`-F`/`--field`/`--raw-field` with the key `body`, `title`, `description`, or `notes`). When one of those appears anywhere in a Bash command — compound commands included — the checker extracts the text the command publishes and lints only that: `--title`, `--body`, and `--notes` values, the contents of a `--body-file`/`--notes-file`/`@file` reference (read at check time), each as its own fragment with its own line numbers. The command string itself is never linted; flags and paths are shell syntax, and a punctuation rule would read `--body` as prose and deny every flagged command.
+
+A value the extractor cannot read — a `$(...)` substitution, a variable, backticks, stdin, a heredoc, `gh api --input` — is **unresolved**: the checker refuses to guess what the shell will produce. `bannedCheck.unresolved` decides what happens in block mode: `"ask"` (the default) raises a permission prompt naming the construct, `"allow"` lets the call through with an "Unchecked values" note in the hook output, and `"deny"` rejects the call. Under a harness permission mode that answers prompts automatically (`bypassPermissions`, `dontAsk`, `auto`), a configured `"ask"` acts as `"allow"` — a prompt nobody answers is a deny in a headless run, and that false deny is worse than a visible warning. Headless pipelines that want strictness set `"unresolved": "deny"`, typically through `JUST_SAY_SO_FORCE_CONFIG`.
 
 `"mcpTools": ["mcp__confluence__*", "mcp__jira__*"]` names the MCP tools to check, with `*` wildcards. On a matching call, the checker scans every string argument, nested fields included. You name the tool; you never have to know which argument carries the body. The trade-off is an occasional flag on a non-prose field such as an ID or a query — `disableWords` and `allowPhrases` handle those.
 
@@ -191,8 +196,8 @@ Timing matters more here than at file writes. In `block`, the deny lands before 
 
 Known gaps, on purpose:
 
-- `gh api` can publish too, and the checker ignores it. It is a raw API tool; covering it means parsing arbitrary API calls forever.
-- A `--body-file` body is not in the command text. In most workflows the agent wrote that file moments earlier through a file tool, where the checker already scanned it.
+- `gh api` is covered only when a field flag names a prose key. Arbitrary endpoints and `--input` request bodies stay out of scope; `--input` routes to the unresolved path instead.
+- A `--body-file` is read at check time and can change before the command runs. Every pre-commit-style checker shares that gap.
 - On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands — the `if` filter in the hook wiring arrived in that release. The results are identical; older versions pay a small startup cost per command.
 
 Upgrading from 0.2.x: the checker engine is Vale now. `bannedCheck.mode: "block"` no longer rejects a file write before it happens. Block mode now works at the Stop hook for files, and still denies `gh`/MCP publishing before the call runs. `exclude`, `include`, and `additions` moved to CLI-only — scope the hooks' file coverage with `.vale.ini` sections, and ship custom terms as Vale rules or a vocabulary `reject.txt`. Upgrading from 0.1.x: `bannedCheck.tools` is gone — the hook wiring is fixed at install, so no config field can widen coverage.

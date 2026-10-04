@@ -423,8 +423,11 @@ describe('pre-gate.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'], allowPhrases: ['robust regression'] } });
-      const command = 'gh pr comment 1 --body "the robust regression suite"';
-      const start = command.indexOf('robust') + 1; // Vale spans are 1-based columns
+      // The check lints the extracted --body value, so the span anchors to
+      // the payload text, never to the command string.
+      const body = 'the robust regression suite';
+      const command = `gh pr comment 1 --body "${body}"`;
+      const start = body.indexOf('robust') + 1; // Vale spans are 1-based columns
       lintResponder([errorAlert({ Match: 'robust', Span: [start, start + 5], Line: 1 })]);
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command } },
@@ -462,6 +465,126 @@ describe('pre-gate.run', () => {
 
     it('should anchor on the recorded project and honor its block mode', () => {
       expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+    });
+  });
+});
+
+describe('pre-gate publish check with extracted payloads', () => {
+  describe('when a flag-heavy command publishes a clean body file', () => {
+    it('should stay silent (the command string is never linted)', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const body = path.join(sandbox.work, 'body.md');
+      fs.writeFileSync(body, 'clean words\n');
+      lintResponder([]);
+      const output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: `cd ${sandbox.work} && gh pr edit 197 --body-file ${body} && gh pr view 197 --json body --jq '.body'` }
+        },
+        sandbox.env
+      );
+      expect(output).toBeNull();
+    });
+  });
+
+  describe('when a dirty body file publishes in block mode', () => {
+    it('should deny and label the alert with the flag', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const body = path.join(sandbox.work, 'body.md');
+      fs.writeFileSync(body, 'pure synergy\n');
+      lintResponder([errorAlert()]);
+      const output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: `gh pr edit 197 --body-file ${body}` }
+        },
+        sandbox.env
+      );
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('--body-file');
+    });
+  });
+
+  describe('when the body is a command substitution in block mode', () => {
+    const input = (extra = {}) => ({
+      session_id: SESSION,
+      cwd: makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'], ...extra.bc } }).work,
+      tool_name: 'Bash',
+      tool_input: { command: 'gh pr edit 197 --body "$(cat body.md)"' },
+      ...extra.input
+    });
+
+    it('should ask by default', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      lintResponder([]);
+      const output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 1 --body "$(cat b)"' } },
+        sandbox.env
+      );
+      expect(output.hookSpecificOutput.permissionDecision).toBe('ask');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('shell expansion');
+    });
+
+    it('should allow with a note under an automatic-permission mode', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      lintResponder([]);
+      const output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'gh pr edit 1 --body "$(cat b)"' },
+          permission_mode: 'bypassPermissions'
+        },
+        sandbox.env
+      );
+      expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+      expect(output.hookSpecificOutput.additionalContext).toContain('Unchecked values');
+    });
+
+    it('should deny when unresolved is configured to deny', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'], unresolved: 'deny' } });
+      lintResponder([]);
+      const output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 1 --body "$(cat b)"' } },
+        sandbox.env
+      );
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('unresolved');
+    });
+  });
+
+  describe('when a covered command has no text flags', () => {
+    it('should stay silent', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      lintResponder([]);
+      const output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 5 --add-label bug' } },
+        sandbox.env
+      );
+      expect(output).toBeNull();
+    });
+  });
+
+  describe('when gh api writes a prose field in block mode', () => {
+    it('should deny on a dirty field value', () => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      lintResponder([errorAlert()]);
+      const output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'gh api -X PATCH repos/o/r/pulls/7 -f body="pure synergy"' }
+        },
+        sandbox.env
+      );
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('gh api');
     });
   });
 });

@@ -17,6 +17,11 @@ export const DEFAULTS = {
   bannedCheck: {
     mode: 'warn', // "warn" | "block" | "off" — warn by default, like a linter; block is the opt-in hard gate
     addons: [], // opt-in coverage bundles; "gh" is the only shipped one
+    // A published value the extractor cannot read (an expansion, stdin, a
+    // heredoc): "ask" prompts the user; "allow" and "deny" answer without
+    // one. Under an automatic-permission harness mode, "ask" acts as
+    // "allow" — a prompt nobody answers is a deny in headless runs.
+    unresolved: 'ask', // "ask" | "allow" | "deny"
     mcpTools: [], // MCP tool-name patterns to check, e.g. "mcp__confluence__*"
     exclude: ['**/package*.json', '**/*.lock', '**/node_modules/**', '**/*.min.*'],
     include: [],

@@ -16,6 +16,9 @@
   "valeTruncated": "(report truncated — run vale on the file for the full list)",
   "valeMissing": "just-say-so: checks are configured but the vale binary is missing from PATH, or is not errata-ai vale. Install it (brew install vale) or set bannedCheck.mode and outputCheck.mode to \"off\".",
   "publishIntro": "just-say-so: Vale alerts in text published by {target}:",
+  "publishUnresolvedAsk": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. Allow only if the published text follows the communication rules. Put the text in a flag value or a file to get it checked.",
+  "publishUnresolvedDeny": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. bannedCheck.unresolved is \"deny\". Put the text in a flag value or a file the checker can read, then retry.",
+  "publishUnresolvedNote": "Unchecked values: {constructs}.",
   "stopGateIntro": "just-say-so: error-level Vale alerts remain in files this session wrote:",
   "stopGateStandDown": "just-say-so: the same Vale errors remain after a rewrite; not blocking again. Fix them before committing."
 }

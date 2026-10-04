@@ -1,6 +1,6 @@
 {
   "name": "just-say-so",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "My LLM communication rules as a plugin. Reading agent text is like grasping an oil slick. These rules tame that.",
   "type": "module",
   "license": "MIT",
@@ -33,5 +33,8 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.1",
     "vitest": "^5.0.1"
+  },
+  "bin": {
+    "just-say-so-staged": "src/cli/check-staged.js"
   }
 }

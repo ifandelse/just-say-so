@@ -66,6 +66,26 @@ echo "$PR_BODY" | node "<plugin dir>/src/cli/check.js" -
 
 The exit code is 0 for clean text, 1 for banned terms, and 2 for usage or read errors. Advisory terms appear in reports and never change the exit code. The command matches against [rules/banned.json](rules/banned.json), the same data that generates the `JustSaySo` style. Config resolves from each file's directory, and stdin uses the working directory. `bannedCheck.exclude`, `include`, and `additions` apply only here. The command ignores `bannedCheck.mode`. It reports and sets the exit code; what happens next is up to the calling script.
 
+### Checking staged text (pre-commit and CI)
+
+The in-session hooks gate the agent. The commit gate covers every committer, agent or human, with or without the plugin:
+
+```
+node "<repo or plugin dir>/src/cli/check-staged.js"              # pre-commit: staged Markdown
+node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everything a branch added
+```
+
+The staged run lints the index content, not the working tree, so a partially staged file is judged on what will land. Alerts are kept on the lines the commit adds, plus whole-file rules (`extends: metric`, and `occurrence` rules with a document-wide scope) whenever the file changed, since those report at line 1 regardless of where the edit landed. `--base <ref>` applies the same filter to the lines a branch added since its merge-base with `<ref>`. Exit codes match `check.js`: 0 clean or advisory only, 1 an error-level alert remains, 2 git or vale failed in a way that makes the filter untrustworthy. Skip one commit with `JUST_SAY_SO_PRECOMMIT=0 git commit ...`. Without `vale` on PATH the check skips with a notice, so adopting the gate never bricks commits on a bare machine.
+
+Config resolution is the same as every other check: the nearest `.vale.ini`, else the shipped fallback. `bannedCheck.disableWords` and `allowPhrases` apply, so the gate agrees with what the hooks allow.
+
+Two consumption routes, by preference:
+
+1. **The [pre-commit framework](https://pre-commit.com)** — this repo ships [.pre-commit-hooks.yaml](.pre-commit-hooks.yaml); pin the `vale-staged` hook at a tag and the framework clones the script at that rev.
+2. **Husky or plain `.git/hooks`** — add this repo as a dev dependency from a tag (`"just-say-so": "github:ifandelse/just-say-so#v0.4.0"`, zero transitive dependencies) and call `node_modules/.bin/just-say-so-staged` from the hook. The lockfile is the pin.
+
+Running it out of the Claude plugin cache also works, and is the wrong route: the path is machine-specific and version-suffixed, and it silently exempts every committer who lacks the plugin.
+
 ## Install (Claude Code)
 
 ### Prerequisites

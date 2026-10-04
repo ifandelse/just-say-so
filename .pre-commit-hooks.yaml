@@ -1,0 +1,20 @@
+# Hook definition for the pre-commit framework (https://pre-commit.com).
+# Consuming repos pin this repository at a tag, the framework clones it at
+# that rev, and the hook runs the staged check with the repo's own
+# .vale.ini (or the shipped fallback when there is none):
+#
+#   repos:
+#     - repo: https://github.com/ifandelse/just-say-so
+#       rev: v0.4.0
+#       hooks:
+#         - id: vale-staged
+#
+# The consumer installs vale and node; without vale the check skips with a
+# notice, so adopting the hook never bricks commits on a bare machine.
+- id: vale-staged
+  name: Vale on staged added lines (just-say-so)
+  description: Lint staged Markdown with Vale; error-level alerts on added lines fail the commit.
+  entry: just-say-so-staged
+  language: node
+  files: \.(md|mdx|markdown)$
+  pass_filenames: false

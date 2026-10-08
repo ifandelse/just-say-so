@@ -138,9 +138,12 @@ describe('hook protocol', () => {
       );
     });
 
-    it('should exit 0, print the report to stderr, and keep stdout empty', () => {
-      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: '' });
-      expect(result.stderr).toContain('just-say-so: Vale reports errors in your last reply:');
+    it('should exit 0 with nothing on stdout or stderr', () => {
+      expect({ status: result.status, stdout: result.stdout, stderr: result.stderr }).toEqual({
+        status: 0,
+        stdout: '',
+        stderr: ''
+      });
     });
   });
 

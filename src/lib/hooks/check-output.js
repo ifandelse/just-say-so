@@ -6,18 +6,19 @@
 // the outstanding set was recorded per edit, so the user's WIP and a legacy
 // file's old errors never enter it. A rewrite that leaves the alert set
 // unchanged stands the gate down instead of burning the harness's block
-// budget. "warn" queues a note the remind hook delivers with the next
-// prompt, and also returns the report as stderr for the shim to print — a
-// single-prompt run (CI) has no next prompt, so the log line is the only
-// visible copy there.
+// budget. Reply "warn" records per-rule counts in session state and returns
+// nothing: the next rules injection reports them, so the engineer never
+// sees a rewrite of a reply they already read. "warn" without a scheduled
+// reminder is idle (replyCheckMode) and skips the lint.
 // Returns the hook output object, or null for silence.
 import path from 'node:path';
 import { loadConfig, findProjectConfig } from '../config.js';
 import { loadMessages } from '../rules.js';
 import { lastAssistantText } from '../transcript.js';
 import { readSession, writeSession } from '../state.js';
-import { alertKey } from './check-vale.js';
+import { replyCheckMode, recordReplyAlerts } from '../reply-alerts.js';
 import {
+  alertKey,
   resolveValeConfig,
   lintText,
   lintPath,
@@ -25,8 +26,6 @@ import {
   fileLineReader,
   formatAlerts
 } from '../vale.js';
-
-const MAX_PENDING_NOTES = 3;
 
 function checkReply(input, config, configPath, env) {
   const text =
@@ -98,16 +97,21 @@ export function run(input, env = process.env) {
     if (recorded && findProjectConfig(recorded)) configAnchor = recorded;
   }
   const config = loadConfig(configAnchor, env);
-  const outputMode = config.outputCheck.mode;
+  const replyMode = replyCheckMode(config);
+  const replyOn = replyMode === 'warn' || replyMode === 'block';
   const gateOn = config.bannedCheck.mode === 'block';
-  if (outputMode === 'off' && !gateOn) return null;
+  if (!replyOn && !gateOn) return null;
 
   const state = readSession(sessionId, env);
   const messages = loadMessages(config);
   const configPath = resolveValeConfig(configAnchor, config);
   let stateChanged = false;
 
-  const replyErrors = outputMode === 'off' ? [] : checkReply(input, config, configPath, env);
+  const replyErrors = replyOn ? checkReply(input, config, configPath, env) : [];
+  if (replyMode === 'warn' && replyErrors.length > 0) {
+    state.replyAlerts = recordReplyAlerts(state.replyAlerts, replyErrors);
+    stateChanged = true;
+  }
 
   let gateRemaining = [];
   if (gateOn) {
@@ -117,7 +121,7 @@ export function run(input, env = process.env) {
     stateChanged = stateChanged || gate.changed;
   }
 
-  const blockAlerts = [...(outputMode === 'block' ? replyErrors : []), ...gateRemaining];
+  const blockAlerts = [...(replyMode === 'block' ? replyErrors : []), ...gateRemaining];
 
   if (blockAlerts.length > 0) {
     const keys = JSON.stringify(blockAlerts.map((a) => `${a.file}|${alertKey(a)}`).sort());
@@ -131,7 +135,7 @@ export function run(input, env = process.env) {
     writeSession(sessionId, state, env);
 
     const parts = [];
-    if (outputMode === 'block' && replyErrors.length > 0) {
+    if (replyMode === 'block' && replyErrors.length > 0) {
       parts.push(`${messages.outputIntro}\n${formatAlerts(replyErrors, { truncatedNote: messages.valeTruncated })}`);
     }
     if (gateRemaining.length > 0) {
@@ -146,13 +150,6 @@ export function run(input, env = process.env) {
   if (state.lastStopBlock) {
     state.lastStopBlock = null;
     stateChanged = true;
-  }
-
-  if (outputMode === 'warn' && replyErrors.length > 0) {
-    const message = `${messages.outputIntro}\n${formatAlerts(replyErrors, { truncatedNote: messages.valeTruncated })}\n${messages.outputRewrite}`;
-    state.pendingNotes = [...(state.pendingNotes ?? []), message].slice(-MAX_PENDING_NOTES);
-    writeSession(sessionId, state, env);
-    return { stderr: message };
   }
 
   if (stateChanged) writeSession(sessionId, state, env);

@@ -5,7 +5,7 @@
 #
 #   repos:
 #     - repo: https://github.com/ifandelse/just-say-so
-#       rev: v0.4.0
+#       rev: v0.5.0
 #       hooks:
 #         - id: vale-staged
 #
@@ -13,8 +13,8 @@
 # notice, so adopting the hook never bricks commits on a bare machine.
 - id: vale-staged
   name: Vale on staged added lines (just-say-so)
-  description: Lint staged Markdown with Vale; error-level alerts on added lines fail the commit.
+  description: Lint staged Markdown and HTML with Vale; error-level alerts on added lines fail the commit.
   entry: just-say-so-staged
   language: node
-  files: \.(md|mdx|markdown)$
+  files: \.(md|mdx|markdown|html|htm)$
   pass_filenames: false

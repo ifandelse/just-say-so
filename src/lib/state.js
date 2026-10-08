@@ -19,7 +19,9 @@ function sessionFile(sessionId, env) {
 const FRESH = {
   promptCount: 0,
   contextAtLastReminder: null,
-  pendingNotes: [],
+  // Reply-check counts for outputCheck "warn", keyed by rule|match; the next
+  // rules injection reports and clears them.
+  replyAlerts: {},
   projectDir: null,
   // Per-file record of error-level Vale alerts in lines this session added,
   // keyed by absolute path — the Stop gate checks these, and only these.

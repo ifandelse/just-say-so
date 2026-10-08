@@ -5,7 +5,7 @@ import path from 'node:path';
 const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
-import { run, alertKey } from './check-vale.js';
+import { run } from './check-vale.js';
 import { readSession, writeSession } from '../state.js';
 import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
@@ -305,18 +305,6 @@ describe('check-vale.run', () => {
 
     it('should fall back to whole-file scope', () => {
       expect(output.hookSpecificOutput.additionalContext).toContain('whole file');
-    });
-  });
-
-  describe('alertKey', () => {
-    let key;
-
-    beforeEach(() => {
-      key = alertKey({ Check: 'JustSaySo.Buzzwords', Match: 'SynErgy' });
-    });
-
-    it('should fold case so edits that re-case a match still count as the same error', () => {
-      expect(key).toBe('JustSaySo.Buzzwords|synergy');
     });
   });
 });

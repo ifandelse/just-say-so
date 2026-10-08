@@ -15,7 +15,8 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *   reply: last_assistant_message preferred · transcript fallback · no text →
  *     no reply errors · vale broken → treated clean · exemptions apply ·
  *     errors only (warnings never gate the reply)
- *   warn: stderr + pendingNotes queued, capped at 3
+ *   warn: counts recorded, nothing returned · counts accumulate · warn with
+ *     the reminder off → idle, no lint
  *   block (reply): decision block with outputIntro
  *   gate (bannedCheck block): outstanding errors re-lint → remaining block
  *     with file paths · fixed → record cleared, no block · vale broken →
@@ -87,30 +88,57 @@ describe('check-output.run', () => {
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should return the report as stderr', () => {
-      expect(output.stderr).toContain('just-say-so: Vale reports errors in your last reply:');
-      expect(output.stderr).toContain('synergy');
+    it('should return nothing', () => {
+      expect(output).toBeNull();
     });
 
-    it('should queue the note for the next prompt', () => {
-      expect(state.pendingNotes).toHaveLength(1);
+    it('should record the alert as a per-rule count', () => {
+      expect(state.replyAlerts).toEqual({
+        'JustSaySo.Buzzwords|synergy': {
+          check: 'JustSaySo.Buzzwords',
+          match: 'synergy',
+          message: "Banned buzzword: 'synergy'.",
+          count: 1
+        }
+      });
     });
   });
 
-  describe('when warn notes pile past the cap', () => {
+  describe('when a second warn-mode reply repeats the rule', () => {
     let state, sandbox;
 
     beforeEach(() => {
       sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
-      writeSession(SESSION, { pendingNotes: ['ONE', 'TWO', 'THREE'] }, sandbox.env);
       respond({ 'reply.chat.md': [errorAlert()] });
+      run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy again' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should keep only the newest three', () => {
-      expect(state.pendingNotes).toHaveLength(3);
-      expect(state.pendingNotes[0]).toBe('TWO');
+    it('should accumulate the count', () => {
+      expect(state.replyAlerts['JustSaySo.Buzzwords|synergy'].count).toBe(2);
+    });
+  });
+
+  describe('when warn mode has no reminder to deliver through', () => {
+    let output, state, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ outputCheck: { mode: 'warn' }, reminder: { mode: 'off' } });
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should skip the lint and record nothing', () => {
+      expect({ output, replyAlerts: state.replyAlerts, linted: mockSpawnSync.mock.calls.length }).toEqual({
+        output: null,
+        replyAlerts: {},
+        linted: 0
+      });
     });
   });
 
@@ -386,9 +414,10 @@ describe('check-output.run', () => {
       );
     });
 
-    it('should block on the gate alone', () => {
+    it('should block on the gate alone and still record the reply count', () => {
       expect(output.decision).toBe('block');
       expect(output.reason).not.toContain('your last reply');
+      expect(readSession(SESSION, sandbox.env).replyAlerts['JustSaySo.Buzzwords|delve'].count).toBe(1);
     });
   });
 

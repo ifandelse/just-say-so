@@ -12,6 +12,7 @@ import { readSession, writeSession } from '../state.js';
 import { addedRanges, inRanges } from '../edit-ranges.js';
 import { isPolicyFile } from './pre-gate.js';
 import {
+  alertKey,
   resolveValeConfig,
   lintPath,
   applyConfigExemptions,
@@ -22,10 +23,6 @@ import {
 } from '../vale.js';
 
 const FILE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
-
-export function alertKey(a) {
-  return `${a.Check}|${String(a.Match).toLowerCase()}`;
-}
 
 function countsLine(messages, alerts) {
   const c = countBySeverity(alerts);

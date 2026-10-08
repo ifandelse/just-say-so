@@ -138,13 +138,15 @@ if [ "$HAVE_VALE" -eq 1 ]; then
   run_hook check-output.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"last_assistant_message\":\"we leverage synergy\"}"
   contains '"decision":"block"' && contains 'leverage' && ! contains 'synergy'; check 'block flags leverage, honors disableWords' $?
   new_env s8
-  printf '%s' '{"outputCheck":{"mode":"warn"}}' > "$W/.just-say-so.json"
+  printf '%s' '{"outputCheck":{"mode":"warn"},"reminder":{"everyPrompts":1}}' > "$W/.just-say-so.json"
   run_hook check-output.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"last_assistant_message\":\"we leverage this\"}"
   [ -z "$OUT" ]; check 'warn keeps stdout empty at Stop' $?
   run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
-  contains 'Vale reports errors in your last reply'; check 'the next prompt delivers the queued note' $?
+  contains 'Recent replies broke these rules' && contains 'Leverage \"leverage\" (1)'; check 'the next reminder carries the reply report' $?
+  run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
+  ! contains 'Recent replies broke these rules'; check 'the report clears after delivery' $?
 else
-  for label in 'reply block + disableWords' 'warn stdout empty' 'warn queue delivery'; do skip "$label"; done
+  for label in 'reply block + disableWords' 'warn stdout empty' 'warn report delivery' 'warn report clears'; do skip "$label"; done
 fi
 
 echo '— token mode'

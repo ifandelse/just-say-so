@@ -7,6 +7,7 @@ const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
 import {
+  alertKey,
   shippedConfigPath,
   findValeConfig,
   resolveValeConfig,
@@ -557,6 +558,18 @@ describe('vale', () => {
         expect(result).toContain('…');
         expect(result).not.toContain('x'.repeat(80));
       });
+    });
+  });
+
+  describe('alertKey', () => {
+    let key;
+
+    beforeEach(() => {
+      key = alertKey({ Check: 'JustSaySo.Buzzwords', Match: 'SynErgy' });
+    });
+
+    it('should fold case so edits that re-case a match still count as the same error', () => {
+      expect(key).toBe('JustSaySo.Buzzwords|synergy');
     });
   });
 });

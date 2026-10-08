@@ -88,7 +88,13 @@ Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
 **14. Reply check, block.** Say: "Reply with exactly this sentence: we leverage synergy." Expect: the model finishes, the Stop hook bounces the reply with the Vale alerts, and the model continues with a rewrite. If the rewrite still carries the same alerts, the hook reports once (`not blocking again`) instead of looping. Note the UX; this is why the feature ships off.
 
-**15. Warn queue.** Switch `outputCheck.mode` to `"warn"`, repeat. Expect: the reply stands, and your NEXT prompt gets the queued note injected (transcript grep: `Vale reports errors in your last reply`).
+**15. Warn report (0.5.0).** Switch `outputCheck.mode` to `"warn"` with `reminder.everyPrompts` at 3, repeat. Expect: the reply stands, nothing prints, and the next prompt gets nothing either. On the third prompt the reminder fires with the report under the rules (transcript grep: `Recent replies broke these rules`), naming `JustSaySo.Buzzwords "leverage"` and `"synergy"` with counts. The session state file (`~/.local/state/just-say-so/sessions/<id>.json` or `$CLAUDE_PLUGIN_DATA/state/...`) shows `replyAlerts` filled before the reminder and `{}` after.
+
+**15a. The model stays quiet (0.5.0, resolves an open question).** Continue from 15. On the prompt that carries the report, ask an unrelated question. Expect: the answer neither acknowledges the report ("Noted, I'll avoid...") nor revises or repeats the earlier reply. Record the exact wording if it does; the instruction text is `replyReportInstruction` in `rules/messages.json`, and the fix is there, not in code.
+
+**15b. Report rides compaction.** Continue from 15 with counts waiting (stay under the interval). Run `/compact`. Expect: the post-compaction injection carries the report (transcript grep as above), and the state file shows `replyAlerts: {}` afterwards.
+
+**15c. Idle notice.** Set `reminder.mode` to `"off"` with `outputCheck.mode` still `"warn"`. Start a session. Expect one system line: `The reply check is idle.` A flagged reply then records nothing (state file stays `replyAlerts: {}`).
 
 ## Phase F — published text via gh (0.2.0)
 

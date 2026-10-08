@@ -17,7 +17,7 @@ import { stateDir, readSession, writeSession, resetSession, cleanupSessions } fr
 const FRESH = {
   promptCount: 0,
   contextAtLastReminder: null,
-  pendingNotes: [],
+  replyAlerts: {},
   projectDir: null,
   valeFiles: {},
   lastStopBlock: null
@@ -116,7 +116,7 @@ describe('state', () => {
 
       beforeEach(() => {
         const env = tmpEnv();
-        writeSession('BUSY', { promptCount: 42, pendingNotes: ['NOTE'] }, env);
+        writeSession('BUSY', { promptCount: 42, replyAlerts: { 'X|y': { count: 1 } } }, env);
         resetSession('BUSY', env);
         result = readSession('BUSY', env);
       });

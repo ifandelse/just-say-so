@@ -4,19 +4,19 @@
 
 LLM-generated prose is not fit for human consumption. They speak to us as if we hold multiple PhDs. And yet, at the same time, their verbal shorthand feels like you've shown up late to a conversation.
 
-`just-say-so` packages the rules I've used to tackle this problem, and it attempts to address one of the most frustrating aspects of working with agents in long conversations: attention decay. If you're using a coding harness (like Claude Code), you've already experienced this when the model forgets key things (like how to talk to you) and has to be reminded frequently. `just-say-so` plugs into your harness's hooks and can be configured to remind the agent either by turn count or token count, and to ensure the agent is reminded after compaction.
+`just-say-so` packages the rules I use to tackle this problem. It also targets one of the most frustrating aspects of long agent conversations: attention decay. In a coding harness like Claude Code, the model forgets key things, such as how to talk to you, and you remind it again and again. `just-say-so` plugs into your harness's hooks. You configure it to remind the agent by turn count or by token count, and it reminds the agent again after compaction.
 
-The `just-say-so` communication rules were adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), but they do not adhere to the 900-word-dictionary that ASD-STE100 is limited to.
+I adapted the `just-say-so` communication rules from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English). The rules do not adopt the 900-word dictionary that limits ASD-STE100.
 
 ## What it does
 
 There are three behaviors:
 
 1. **It reminds the agent of the rules on a schedule.** Rules stated once at session start lose force as the context grows. `just-say-so` re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) at an interval you control.
-2. **It checks the text the agent writes.** The checker is [Vale](https://vale.sh), the prose linter. After the agent writes a file, a hook runs Vale on that file. The agent receives the alerts for the lines it added. These alerts never block the write, because the write already happened. In `block` mode, a Stop hook blocks the end of the turn while error-level alerts remain in the files the agent wrote this session. Opt-in settings extend the check to text the agent publishes through `gh` commands and MCP tools; that check runs before the tool call, because publication cannot be undone (see [Checking published text](#checking-published-text-gh-and-mcp-tools)).
-3. **It can verify chat replies too, after the fact** (off by default). The rules themselves always apply to chat; the reminders keep them in force. This switch controls only whether Vale also lints each finished reply.
+2. **It checks the text the agent writes.** The checker is [Vale](https://vale.sh), the prose linter. After the agent writes a file, a hook runs Vale on that file. The agent receives the alerts for the lines it added. These alerts never block the write, because the write already happened. In `block` mode, a Stop hook blocks the end of the turn while error-level alerts remain in the files the agent wrote this session. Opt-in settings extend the check to text the agent publishes through `gh` commands and MCP tools. That check runs before the tool call, because nothing can un-publish a comment (see [Checking published text](#checking-published-text-gh-and-mcp-tools)).
+3. **It can verify chat replies too, after the fact** (off by default). The rules themselves always apply to chat, and the reminders keep them in force. This switch controls only whether Vale also lints each finished reply. In `warn` mode the result never interrupts anyone. The hook counts the broken rules, and the next scheduled reminder includes a short report of rule names and counts.
 
-The plugin does this through hooks: commands your harness runs at fixed points, such as "the user submitted a prompt" or "the agent just wrote a file."
+The plugin does this through hooks. A hook is a command your harness runs at a fixed point, such as "the user submitted a prompt" or "the agent just wrote a file."
 
 | Hook               | What it does                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -24,8 +24,8 @@ The plugin does this through hooks: commands your harness runs at fixed points, 
 | `SessionStart`     | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction. Also says so, once, when checks are on but the `vale` binary is missing.                                                                                                                                                                                 |
 | `SubagentStart`    | Injects the condensed rules into each subagent when it spawns. Subagents start with fresh context and never see the main session's reminders — without this, they'd discover the rules only by violating them.                                                                                                                                                           |
 | `PreToolUse`       | A confirmation prompt before the agent edits a policy file (`.just-say-so.json`, `.vale.ini`, a vocabulary `accept.txt`), plus the pre-publication check for `gh` commands and named MCP tools. In `block` mode the check denies the call before the text is published.                                                                                                  |
-| `PostToolUse`      | Runs Vale on the file a tool just wrote (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). Alerts outside the lines this edit added are filtered out — on a legacy file, the agent answers for its own additions, not the file's history. Errors are recorded for the Stop gate.                                                                                            |
-| `Stop`             | In `bannedCheck.mode: "block"`, the session gate: re-lint the recorded files and block the turn while their errors remain. When a rewrite leaves the same alerts, the gate reports once and lets the turn end. Also the reply check (`outputCheck`, off by default): `block` forces a rewrite; `warn` queues a note for the next prompt and prints the report to stderr. |
+| `PostToolUse`      | Runs Vale on the file a tool just wrote (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). The hook drops alerts outside the lines this edit added, so on a legacy file the agent answers only for its own additions. The hook records errors for the Stop gate.                                                                                            |
+| `Stop`             | In `bannedCheck.mode: "block"`, the session gate: re-lint the recorded files and block the turn while their errors remain. When a rewrite leaves the same alerts, the gate reports once and lets the turn end. Also the reply check (`outputCheck`, off by default): `block` forces a rewrite; `warn` records per-rule counts, which ride the next reminder as a report.                   |
 
 You also get three commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
 
@@ -41,9 +41,9 @@ A check resolves its Vale config in this order, and the first match applies:
 
 1. `vale.config` in the just-say-so config — an explicit path.
 2. The nearest `.vale.ini` above the checked file, the walk Vale itself does.
-3. The shipped fallback ([vale/fallback.ini](vale/fallback.ini)), which loads the `JustSaySo` style alone. The plugin works out of the box and gets stronger in repos that adopt Vale.
+3. The shipped fallback ([vale/fallback.ini](vale/fallback.ini)), which loads the `JustSaySo` style alone. The plugin works without a `.vale.ini`, and a repo that adds one brings its own styles into the check.
 
-Severity is the policy language. `error` alerts block (at the Stop gate, at the `gh`/MCP deny, and in your CI); `warning` and `suggestion` arrive at edit time as advice and never block. Set a rule's level in `.vale.ini` to move it between those tiers. `vale.levels` sets the lowest level the agent sees at edit time.
+Severity is the policy language. `error` alerts block, at the Stop gate, at the `gh`/MCP deny, and in your CI. `warning` and `suggestion` alerts arrive at edit time as advice and never block. Set a rule's level in `.vale.ini` to move it between those tiers. `vale.levels` sets the lowest level the agent sees at edit time.
 
 Chat replies and published fragments lint under the filename `*.chat.md`. Give your `.vale.ini` a `[*.chat.md]` section with lexical and sentence-level rules only, and document-level rules (heading style, paragraph length) stay out of text that has no document.
 
@@ -57,7 +57,7 @@ The `vale` binary is a prerequisite for the checks — see [Prerequisites](#prer
 
 ### Checking text from scripts
 
-The hooks check tool calls, and some text never arrives through one: a PR body in CI, or a file another pipeline generates. For that text, run `vale` with your config. Where a vale install is unavailable, the plugin ships a dependency-free fallback checker:
+The hooks see text only when a tool call carries it. Some text never passes through a tool call, such as a PR body that CI assembles or a file that another pipeline generates. To check that text, run `vale` with your config. When `vale` is unavailable, the plugin ships a dependency-free fallback checker:
 
 ```
 node "<plugin dir>/src/cli/check.js" [--format text|json] <file...>
@@ -68,31 +68,60 @@ The exit code is 0 for clean text, 1 for banned terms, and 2 for usage or read e
 
 ### Checking staged text (pre-commit and CI)
 
-The in-session hooks gate the agent. The commit gate covers every committer, agent or human, with or without the plugin:
+The hooks above run only inside a Claude Code session. Text reaches a repository in other ways too. A teammate commits by hand, an agent writes a file through a shell command, or a pipeline generates one. The commit gate covers those paths. It runs Vale on the lines a commit adds, and it fails the commit when any of those lines has an error-level alert. It needs `git`, `node`, and `vale`. It does not need the plugin, so every committer meets the same policy.
+
+The gate has two modes:
 
 ```
-node "<repo or plugin dir>/src/cli/check-staged.js"              # pre-commit: staged Markdown
-node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everything a branch added
+node "<repo or plugin dir>/src/cli/check-staged.js"              # pre-commit: what you are about to commit
+node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everything a branch added since main
 ```
 
-The staged run lints the index content, not the working tree, so a partially staged file is judged on what will land. Alerts are kept on the lines the commit adds, plus whole-file rules (`extends: metric`, and `occurrence` rules with a document-wide scope) whenever the file changed, since those report at line 1 regardless of where the edit landed. `--base <ref>` applies the same filter to the lines a branch added since its merge-base with `<ref>`. Exit codes match `check.js`: 0 clean or advisory only, 1 an error-level alert remains, 2 git or vale failed in a way that makes the filter untrustworthy. Skip one commit with `JUST_SAY_SO_PRECOMMIT=0 git commit ...`. Without `vale` on PATH the check skips with a notice, so adopting the gate never bricks commits on a bare machine.
+**What it checks.** Markdown and HTML files: `.md`, `.mdx`, `.markdown`, `.html`, and `.htm`. Generated HTML such as a coverage report or a built docs site enters the gate too, so exempt those paths in `.vale.ini`. Within the checked files, only the lines you added. A file with old problems does not fail your commit when you touch one paragraph of it. The one exception is a rule that judges the whole document, such as a `metric` rule for sentence length or an `occurrence` rule with document-wide scope. Vale reports those at line 1, so the gate keeps them whenever the file changed at all.
 
-Config resolution is the same as every other check: the nearest `.vale.ini`, else the shipped fallback. `bannedCheck.disableWords` and `allowPhrases` apply, so the gate agrees with what the hooks allow.
+**Pre-commit mode** lints the staged content, so it sees exactly what will land. If you stage half of a file with `git add -p`, the gate checks that half and ignores the rest. **`--base` mode** lints the working tree and keeps the lines added since the merge-base with the ref you name. That gives CI the same check over a whole branch.
 
-Two consumption routes, by preference:
+**Exit codes:**
 
-1. **The [pre-commit framework](https://pre-commit.com)** — this repo ships [.pre-commit-hooks.yaml](.pre-commit-hooks.yaml); pin the `vale-staged` hook at a tag and the framework clones the script at that rev.
-2. **Husky or plain `.git/hooks`** — add this repo as a dev dependency from a tag (`"just-say-so": "github:ifandelse/just-say-so#v0.4.0"`, zero transitive dependencies) and call `node_modules/.bin/just-say-so-staged` from the hook. The lockfile is the pin.
+- `0`: clean, or only warnings and suggestions.
+- `1`: at least one error-level alert on an added line. The report lists them.
+- `2`: `git` or `vale` failed, so the line filter cannot be trusted. The gate refuses to pass a commit it could not check.
 
-Running it out of the Claude plugin cache also works, and is the wrong route: the path is machine-specific and version-suffixed, and it silently exempts every committer who lacks the plugin.
+**Escape hatches.** To skip the gate for one commit, run `JUST_SAY_SO_PRECOMMIT=0 git commit ...`. When `vale` is missing from PATH, the gate prints a notice and exits 0. Adding the gate to a repo never blocks commits on a machine without Vale.
+
+**Configuration** is the same as for the in-session hooks. The gate uses the nearest `.vale.ini` above the file, or the shipped fallback when there is none. It also honors `bannedCheck.disableWords` and `allowPhrases` from `.just-say-so.json`, so a term you allowed during a session is allowed at commit time too.
+
+**Installing it** in a repository, by preference:
+
+1. **The [pre-commit framework](https://pre-commit.com).** This repo ships [.pre-commit-hooks.yaml](.pre-commit-hooks.yaml). Pin the hook at a tag, and the framework clones the script at that revision:
+
+   ```yaml
+   repos:
+     - repo: https://github.com/ifandelse/just-say-so
+       rev: v0.5.0
+       hooks:
+         - id: vale-staged
+   ```
+
+2. **Husky or plain `.git/hooks`.** Add this repo as a dev dependency from a tag, then call the bin from your hook. The lockfile is the pin, and the package has no transitive dependencies:
+
+   ```json
+   { "devDependencies": { "just-say-so": "github:ifandelse/just-say-so#v0.5.0" } }
+   ```
+
+   ```
+   node_modules/.bin/just-say-so-staged
+   ```
+
+Do not point a hook at the Claude plugin cache. The path there is machine-specific and version-suffixed, and the hook silently skips every committer who lacks the plugin.
 
 ## Install (Claude Code)
 
 ### Prerequisites
 
 - `node` 18 or newer on your PATH. The plugin has zero npm dependencies.
-- `vale` on your PATH: `brew install vale`, or another installer from [vale.sh](https://vale.sh). Without it, the checks are skipped and the reminders still work; `SessionStart` prints one notice.
-  - ⚠️ A different tool, an STE linter, also installs a binary named `vale`. This plugin uses errata-ai vale — the one brew installs. If both are installed, put errata-ai's first on PATH.
+- `vale` on your PATH: `brew install vale`, or another installer from [vale.sh](https://vale.sh). Without it, the hooks skip the checks and the reminders still work. `SessionStart` prints one notice.
+  - ⚠️ A different tool, an STE linter, also installs a binary named `vale`. This plugin uses errata-ai vale — the one brew installs. If you have both, put errata-ai's first on PATH.
 - Claude Code 2.1.85 or newer, for the command filter the `gh` addon uses. Details are under [Checking published text](#checking-published-text-gh-and-mcp-tools).
 
 ### Plugin install
@@ -135,9 +164,9 @@ When you want different behavior, create one or both of these files:
 1. `~/.config/just-say-so/just-say-so.json` — your personal defaults. These apply in every project. Set the `JUST_SAY_SO_CONFIG` environment variable to read this layer from a different path instead.
 2. `.just-say-so.json` in a project's root — settings for that one project. `just-say-so` finds this file by walking up from the working directory, so it also applies when you work in a subdirectory.
 
-Both files use the same JSON shape, and each one can set only the fields you care about. When the same field appears in more than one place, the project file wins over your personal file, and your personal file wins over the built-in defaults. Sections combine field by field. Lists and single values replace the whole default — so a custom `exclude` list replaces the default list, and you repeat any default entries you want to keep.
+Both files use the same JSON shape, and each one can set only the fields you care about. When the same field appears in more than one place, the project file wins over your personal file. Your personal file wins over the built-in defaults. Sections combine field by field. Lists and single values replace the whole default. A custom `exclude` list replaces the default list, so you repeat any default entries you want to keep.
 
-One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config file path, and that file's fields beat every other layer, project file included. Precedence is a property of the layer, never of where a file sits on disk: defaults ← personal ← project ← forced. Use it when a run must guarantee its policy — see [Single-prompt runs (CI)](#single-prompt-runs-ci).
+One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config file path, and that file's fields beat every other layer, project file included. Precedence belongs to the layer: defaults ← personal ← project ← forced. Where a file sits on disk never changes it. Use it when a run must guarantee its policy — see [Single-prompt runs (CI)](#single-prompt-runs-ci).
 
 ```jsonc
 {
@@ -165,7 +194,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "additions": { "words": [], "phrases": [], "patterns": [] } // CLI check.js only — for the hooks,
     // add terms to your own Vale style or a vocabulary reject.txt
   },
-  "outputCheck": { "mode": "off" }, // Stop-hook chat check: "off" | "warn" | "block"
+  "outputCheck": { "mode": "off" }, // Stop-hook chat check: "off" | "warn" | "block" — warn: counts broken
+  // rules per reply and reports them with the next reminder; block: rewrite before the turn ends
   "vale": {
     "config": null, // explicit .vale.ini path; default: nearest above the checked file, else the shipped fallback
     "levels": "suggestion" // lowest alert level shown to the agent at edit time: "error" | "warning" | "suggestion"
@@ -178,35 +208,37 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
 }
 ```
 
-Which files get checked is Vale's decision now, made in `.vale.ini`: a `[glob]` section with an empty `BasedOnStyles` exempts its paths (this repo's own [.vale.ini](.vale.ini) does exactly that for the docs and tests that name the banned words). `exclude`, `include`, and `additions` still apply to the `check.js` CLI, which runs the built-in matcher.
+Vale decides which files get checked, in `.vale.ini`. A `[glob]` section with an empty `BasedOnStyles` exempts its paths. This repo's own [.vale.ini](.vale.ini) does exactly that for the docs and tests that name the banned words. `exclude`, `include`, and `additions` still apply to the `check.js` CLI, which runs the built-in matcher.
+
+`outputCheck.mode: "warn"` is the quiet reply check. The Stop hook lints each finished reply and keeps the error-level alerts as per-rule counts in session state. It returns nothing to the harness. The next rules injection in the main session appends a report below the rules. That injection is the interval reminder, a resume, or the post-compaction injection. The report has one line per rule and matched text with its count, capped at ten lines. An instruction follows it: apply the rules to the next replies and leave earlier replies alone. The counts reset on delivery. Subagent injections do not include the report. `warn` needs a schedule to deliver through. With `reminder.mode: "off"` the reply check is idle, the hook skips the lint, and the SessionStart notice says so. The feedback arrives up to `everyPrompts` prompts late by design. Use `block` when you want the flagged reply itself fixed.
 
 ### Checking published text (gh and MCP tools)
 
-The file gate catches what the agent writes to disk. PR comments and Confluence pages go out through `gh` commands and MCP tools instead, and by default nothing checks them. Two opt-in settings close that:
+The file gate catches what the agent writes to disk. PR comments and Confluence pages go out through `gh` commands and MCP tools instead, and by default nothing checks them. These opt-in settings cover them:
 
-`"addons": ["gh"]` covers the gh commands that publish prose: `create`, `comment`, `edit`, and `review` under `gh pr`, `gh issue`, and `gh release`, plus `gh api` calls that write a prose field (`-f`/`-F`/`--field`/`--raw-field` with the key `body`, `title`, `description`, or `notes`). When one of those appears anywhere in a Bash command — compound commands included — the checker extracts the text the command publishes and lints only that: `--title`, `--body`, and `--notes` values, the contents of a `--body-file`/`--notes-file`/`@file` reference (read at check time), each as its own fragment with its own line numbers. The command string itself is never linted; flags and paths are shell syntax, and a punctuation rule would read `--body` as prose and deny every flagged command.
+`"addons": ["gh"]` covers the gh commands that publish prose: `create`, `comment`, `edit`, and `review` under `gh pr`, `gh issue`, and `gh release`, plus `gh api` calls that write a prose field (`-f`/`-F`/`--field`/`--raw-field` with the key `body`, `title`, `description`, or `notes`). When one of those appears anywhere in a Bash command, compound commands included, the checker extracts the text the command publishes and lints only that. It lints the `--title`, `--body`, and `--notes` values, and the contents of a `--body-file`, `--notes-file`, or `@file` reference, read at check time. Each value is its own fragment with its own line numbers. The checker never lints the command string itself. Flags and paths are shell syntax, and a punctuation rule would read `--body` as prose and deny every flagged command.
 
-A value the extractor cannot read — a `$(...)` substitution, a variable, backticks, stdin, a heredoc, `gh api --input` — is **unresolved**: the checker refuses to guess what the shell will produce. `bannedCheck.unresolved` decides what happens in block mode: `"ask"` (the default) raises a permission prompt naming the construct, `"allow"` lets the call through with an "Unchecked values" note in the hook output, and `"deny"` rejects the call. Under a harness permission mode that answers prompts automatically (`bypassPermissions`, `dontAsk`, `auto`), a configured `"ask"` acts as `"allow"` — a prompt nobody answers is a deny in a headless run, and that false deny is worse than a visible warning. Headless pipelines that want strictness set `"unresolved": "deny"`, typically through `JUST_SAY_SO_FORCE_CONFIG`.
+A value the extractor cannot read is **unresolved**: a `$(...)` substitution, a variable, backticks, stdin, a heredoc, or `gh api --input`. The checker refuses to guess what the shell will produce. `bannedCheck.unresolved` decides what happens in block mode. `"ask"` (the default) raises a permission prompt that names the construct. `"allow"` lets the call through with an "Unchecked values" note in the hook output. `"deny"` rejects the call. Under a harness permission mode that answers prompts automatically (`bypassPermissions`, `dontAsk`, `auto`), a configured `"ask"` acts as `"allow"`. A prompt nobody answers is a deny in a headless run, and that false deny is worse than a visible warning. Headless pipelines that want strictness set `"unresolved": "deny"`, typically through `JUST_SAY_SO_FORCE_CONFIG`.
 
 `"mcpTools": ["mcp__confluence__*", "mcp__jira__*"]` names the MCP tools to check, with `*` wildcards. On a matching call, the checker scans every string argument, nested fields included. You name the tool; you never have to know which argument carries the body. The trade-off is an occasional flag on a non-prose field such as an ID or a query — `disableWords` and `allowPhrases` handle those.
 
 The collected text lints as a fragment named `fragment.chat.md`, so the `[*.chat.md]` section of your config applies — lexical rules judge a fragment fine, document-level rules do not.
 
-Timing matters more here than at file writes. In `block`, the deny lands before the tool runs, so a flagged comment never reaches GitHub — this is the one place the plugin still blocks before an action instead of gating at Stop, because no later gate can un-publish. In `warn`, the call proceeds, the text is published, and the agent gets the report after the fact. If you turned this on because your agent publishes, use `block`.
+Timing matters more here than at file writes. In `block`, the hook denies the call before the tool runs, so GitHub never receives a flagged comment. This is the one place the plugin still blocks before an action instead of gating at Stop, because no later gate can un-publish. In `warn`, the call proceeds, the text goes out, and the agent gets the report after the fact. If you turned this on because your agent publishes, use `block`.
 
 Known gaps, on purpose:
 
 - `gh api` is covered only when a field flag names a prose key. Arbitrary endpoints and `--input` request bodies stay out of scope; `--input` routes to the unresolved path instead.
-- A `--body-file` is read at check time and can change before the command runs. Every pre-commit-style checker shares that gap.
-- On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands — the `if` filter in the hook wiring arrived in that release. The results are identical; older versions pay a small startup cost per command.
+- The checker reads a `--body-file` at check time, and the file can change before the command runs. Every pre-commit-style checker shares that gap.
+- On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands. The `if` filter in the hook wiring arrived in that release. The results are identical. Older versions pay a small startup cost per command.
 
 Upgrading from 0.2.x: the checker engine is Vale now. `bannedCheck.mode: "block"` no longer rejects a file write before it happens. Block mode now works at the Stop hook for files, and still denies `gh`/MCP publishing before the call runs. `exclude`, `include`, and `additions` moved to CLI-only — scope the hooks' file coverage with `.vale.ini` sections, and ship custom terms as Vale rules or a vocabulary `reject.txt`. Upgrading from 0.1.x: `bannedCheck.tools` is gone — the hook wiring is fixed at install, so no config field can widen coverage.
 
 ### Single-prompt runs (CI)
 
-Non-interactive runs (for example `anthropics/claude-code-action`) submit one prompt and end. Two behaviors matter there:
+Non-interactive runs (for example `anthropics/claude-code-action`) submit one prompt and end. These behaviors matter there:
 
-- `outputCheck.mode: "warn"` delivers its report two ways: a note injected at the next user prompt, and the same report on the Stop hook's stderr. A single-prompt run has no next prompt, so the stderr line in the job log is the only visible copy.
+- `outputCheck.mode: "warn"` delivers nothing in a single-prompt run: its report rides the next scheduled reminder, and there is none. Use `block` when the reply must pass. Otherwise leave the reply check off and let `bannedCheck` cover the files and published text, which is where CI output lives.
 - `reminder.mode: "off"` stops the interval reminders, not the session-start injection — `onSessionStart` applies regardless of `reminder.mode`. So `{ "reminder": { "mode": "off", "onSessionStart": ["startup"] } }` injects the rules once at the start and never repeats: the right shape for a single-prompt run.
 
 To run CI stricter than developers' machines, commit a config for it and point the forced layer at that file:
@@ -234,35 +266,35 @@ You might hate my rules, fair enough. To plug your own ruleset in, point `rules.
 
 When the checker warns or blocks, it speaks in shipped English sentences (the violation report, the rewrite instruction, the confirmation prompt). Those sentences live in [rules/messages.json](rules/messages.json). To reword them, or to run the enforcement side in another language, copy that file, edit the sentences you want, and point `rules.messagesPath` at your copy. Sentences you leave out keep the shipped wording. The `{target}` placeholder is filled at runtime with the name of the file being checked.
 
-One thing to know: the per-term hints ("use a concrete verb...") live in the banned list ([rules/banned.json](rules/banned.json)), not the message file. A full translation would need to edit both files.
+The per-term hints ("use a concrete verb...") live in the banned list, [rules/banned.json](rules/banned.json). A full translation edits both files.
 
 ### Exemptions
 
 The rules permit a buzzword "when it has precise meaning or is relevant to the domain." A linter cannot make that judgment, and the model would argue its way through it. Whether a term is a real domain term is a fact about your project, and the exemption belongs to your project. The `/just-say-so:allow` command stores it in the right place:
 
-The **Vale vocabulary** is the native route. When a `.vale.ini` above the project names `StylesPath` and `Vocab`, `/allow` appends the term to that vocabulary's `accept.txt`. Vale adds every accepted entry to the exception list of every active rule, across all styles — so "robust regression" passes any rule while bare "robust" stays flagged, verified against Vale 3.22.
+The **Vale vocabulary** is the native route. When a `.vale.ini` above the project names `StylesPath` and `Vocab`, `/allow` appends the term to that vocabulary's `accept.txt`. Vale adds every accepted entry to the exception list of every active rule, across all styles. So "robust regression" passes any rule while bare "robust" stays flagged. I verified this against Vale 3.22.
 
-The **config route** is the fallback. Without a vocabulary to write to, `/allow` adds the term to `.just-say-so.json` as before: single words to `disableWords`, collocations to `allowPhrases`. The hooks apply both lists to every Vale alert — `disableWords` drops alerts whose matched text is the term (case-insensitive, hyphen and space interchangeable), `allowPhrases` drops alerts whose span sits inside the phrase — so the exemption works against the `JustSaySo` style and any other style you run, with or without a vocabulary.
+The **config route** is the fallback. Without a vocabulary to write to, `/allow` adds the term to `.just-say-so.json` as before: single words to `disableWords`, collocations to `allowPhrases`. The hooks apply both lists to every Vale alert. `disableWords` drops alerts whose matched text is the term, case-insensitive, with hyphen and space interchangeable. `allowPhrases` drops alerts whose span sits inside the phrase. The exemption therefore works against the `JustSaySo` style and any other style you run, with or without a vocabulary.
 
 In block mode, the rejection message tells the model to suggest the `/just-say-so:allow` command to you, quoting the collocation as it appears in the text.
 
-The hooks also confirm policy edits. When the model edits `.just-say-so.json`, a `.vale.ini`, a vocabulary `accept.txt`, or the global config through the file tools, the hook returns `permissionDecision: "ask"`, and you get a confirmation prompt before the edit applies. The vocabulary is the model's easiest self-exemption, which is why it gets the same prompt. Just be aware that this was done for visibility, not security. Determined agents have other ways to write files.
+The hooks also confirm policy edits. When the model edits `.just-say-so.json`, a `.vale.ini`, a vocabulary `accept.txt`, or the global config through the file tools, the hook returns `permissionDecision: "ask"`. You get a confirmation prompt before the edit applies. The vocabulary is the model's easiest self-exemption, so it gets the same prompt. The prompt gives you visibility. A shell command can write the same file without one, so the prompt is no security control.
 
 ## Limits (it's not perfect, y'all)
 
 - Vale is markup-aware: code blocks and inline code in Markdown never match a rule. A file format Vale cannot identify scans as plain text, where a banned word in a string literal still flags; exempt those paths in `.vale.ini`.
 - The edit-scoped feedback locates an `Edit` by searching for its `new_string` in the written file. A string that repeats yields the union of candidate ranges — extra facts, never a miss. A `Write` that replaced a file has nothing to diff against, so the whole file counts and the message says so.
-- The checker never scans for may/might/could. The rules allow bare modals when they state real uncertainty or permission. The banned hedge frames are phrases: the checker catches the ones in its phrase list, and the remaining frames appear to the model only in the rules text.
-- The interval reminder depends on the harness delivering `UserPromptSubmit` events. Subagent turns do not advance the prompt counter, and that is deliberate: the counter measures the main context, and a subagent's internal traffic burns tokens in its own separate context. Each subagent gets its own copy of the rules at spawn instead.
+- The checker never scans for may/might/could. The rules allow bare modals when they state real uncertainty or permission. The banned hedge frames are phrases. The checker catches the ones in its phrase list, and the remaining frames appear to the model only in the rules text.
+- The interval reminder depends on the harness delivering `UserPromptSubmit` events. Subagent turns do not advance the prompt counter, and that is deliberate. The counter measures the main context, and a subagent's internal traffic burns tokens in its own separate context. Each subagent gets its own copy of the rules at spawn instead.
 - This repo's own docs and tests quote the banned words, and its `.vale.ini` turns every style off for those paths (`.just-say-so.json` excludes them for the CLI). Expect the same in any repo that documents its style rules.
 
 ## Other harnesses
 
-The Claude Code hook protocol (JSON on stdin, JSON on stdout, exit 2 blocks) became the de-facto convention across coding agents, so the core logic carries over. It still takes work to adapt to each harness, though. Codex delivers file edits as patches, Copilot drops prompt-hook output from config files, Gemini renames the events. [adapters/README.md](adapters/README.md) maps the verified per-harness constraints and the adapter contract.
+The hook protocol of Claude Code (JSON on stdin, JSON on stdout, exit 2 blocks) became the de-facto convention across coding agents. The core logic therefore carries over, but each harness still takes work to adapt. Codex delivers file edits as patches, Copilot drops prompt-hook output from config files, Gemini renames the events. [adapters/README.md](adapters/README.md) maps the verified per-harness constraints and the adapter contract.
 
 ### What works where
 
-Only the Claude Code adapter exists today. This table shows what each harness's hook system can support once an adapter is built, checked against vendor docs (2026-09-20). "Untested" means the docs neither confirm nor deny it. ⚠️ The rows describe the pre-Vale checker design (0.2.x); the Vale engine moves file blocking to the Stop hook and adds a PostToolUse run, so re-verify the relevant events per harness before building an adapter.
+Only the Claude Code adapter exists today. This table shows what each harness's hook system can support once someone builds an adapter. I checked it against vendor docs on 2026-09-20. "Untested" means the docs neither confirm nor deny it. ⚠️ The rows describe the pre-Vale checker design (0.2.x). The Vale engine moves file blocking to the Stop hook and adds a PostToolUse run. Re-verify the relevant events per harness before building an adapter.
 
 | Feature                                  | Claude Code | Codex     | Cursor¹   | Copilot                                        | Gemini CLI             | OpenCode                       | AGENTS.md only        |
 | ---------------------------------------- | ----------- | --------- | --------- | ---------------------------------------------- | ---------------------- | ------------------------------ | --------------------- |
@@ -288,7 +320,7 @@ Only the Claude Code adapter exists today. This table shows what each harness's 
 9. Codex lists `SubagentStart` among its events, but nothing documents whether that event accepts injected context.
 10. Gemini's documented event set has no subagent events at all.
 
-The two big sacrifices: Copilot loses per-prompt reminders, the plugin's core feature — rules arrive once per new session and then decay. Codex loses the config confirmation and needs patch parsing before the banned gate functions.
+The big sacrifices: Copilot loses per-prompt reminders, the plugin's core feature, so rules arrive once per new session and then decay. Codex loses the config confirmation and needs patch parsing before the banned gate functions.
 
 ## Development
 

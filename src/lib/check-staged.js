@@ -21,7 +21,9 @@ import {
   severityRank
 } from './vale.js';
 
-export const MARKDOWN_EXT = ['.md', '.mdx', '.markdown'];
+// The prose formats Vale parses as markup. Generated HTML (coverage reports,
+// built docs) enters the gate too; exempt those paths in .vale.ini.
+export const PROSE_EXT = ['.md', '.mdx', '.markdown', '.html', '.htm'];
 const SPAWN_TIMEOUT_MS = 30_000;
 
 const DIFF_HEADER = /^diff --git "?a\/(.+?)"? "?b\/(.+?)"?$/;
@@ -42,8 +44,8 @@ function gitOrThrow(args, cwd) {
   return r.stdout;
 }
 
-function isMarkdown(file) {
-  return MARKDOWN_EXT.includes(path.extname(file).toLowerCase());
+function isProse(file) {
+  return PROSE_EXT.includes(path.extname(file).toLowerCase());
 }
 
 // The diff pathspec goes by extension, not by file list. Limiting it to the
@@ -247,7 +249,7 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
     let files, diffText, lintRoot, scope;
     if (base) {
       const mergeBase = gitOrThrow(['merge-base', base, 'HEAD'], root).trim();
-      const pathspec = ['--', ...MARKDOWN_EXT.map((e) => `*${e}`)];
+      const pathspec = ['--', ...PROSE_EXT.map((e) => `*${e}`)];
       files = gitOrThrow(['diff', '--name-only', '--diff-filter=ACMR', mergeBase, 'HEAD', ...pathspec], root)
         .split('\n')
         .filter(Boolean);
@@ -259,7 +261,7 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
       files = gitOrThrow(['diff', '--cached', '--name-only', '--diff-filter=ACMR'], root)
         .split('\n')
         .filter(Boolean)
-        .filter(isMarkdown);
+        .filter(isProse);
       if (files.length === 0) return { exitCode: 0, report: '', notices: [] };
       // The index content is what the commit receives, so it is the version
       // to lint, and its line numbers agree with the --cached diff.

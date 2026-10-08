@@ -178,7 +178,13 @@ export function fileLineReader() {
   };
 }
 
-function truncateMatch(s, max = 48) {
+// Rule + lowercased match: alert identity that survives line shifts. The
+// Stop gate and the reply-check counts both key on it.
+export function alertKey(a) {
+  return `${a.Check}|${String(a.Match).toLowerCase()}`;
+}
+
+export function truncateMatch(s, max = 48) {
   const t = String(s ?? '').replace(/\s+/g, ' ');
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }

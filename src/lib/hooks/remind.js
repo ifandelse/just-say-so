@@ -1,9 +1,11 @@
 // UserPromptSubmit logic: inject the condensed rules on the configured
-// interval. Returns the hook output object, or null for silence.
+// interval, with the reply-check report appended when counts are waiting.
+// Returns the hook output object, or null for silence.
 import { loadConfig } from '../config.js';
-import { readRules } from '../rules.js';
+import { readRules, loadMessages } from '../rules.js';
 import { readSession, writeSession } from '../state.js';
 import { contextSize } from '../transcript.js';
+import { formatReplyReport } from '../reply-alerts.js';
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
@@ -35,21 +37,20 @@ export function run(input, env = process.env) {
   }
 
   let output = null;
-  const notes = state.pendingNotes ?? [];
-  if (fire || notes.length > 0) {
-    const parts = [];
-    if (notes.length > 0) {
-      parts.push(notes.join('\n'));
-      state.pendingNotes = [];
+  if (fire) {
+    const parts = [readRules('condensed', config)];
+    // The report rides the reminder, never a schedule of its own: the counts
+    // wait here until the rules go out again.
+    const report = formatReplyReport(state.replyAlerts, loadMessages(config));
+    if (report) {
+      parts.push(report);
+      state.replyAlerts = {};
     }
-    if (fire) {
-      parts.push(readRules('condensed', config));
-      if (mode === 'tokens' && ctx !== null) state.contextAtLastReminder = ctx;
-    }
+    if (mode === 'tokens' && ctx !== null) state.contextAtLastReminder = ctx;
     output = {
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: parts.join('\n\n').trim()
+        additionalContext: parts.map((p) => p.trim()).join('\n\n')
       }
     };
   }

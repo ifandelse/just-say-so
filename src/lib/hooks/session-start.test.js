@@ -19,7 +19,12 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *   cleanupSessions runs on every call (old files removed)
  *   vale probe: checks on + probe fails → systemMessage (with or without
  *     rules injection) · probe passes → no message · checks off → no probe
+ *   reply counts: injection carries the report · compact resets them ·
+ *     resume clears them and keeps the counters · no injection → kept
+ *   reply check idle (warn + reminder off) → notice, joined with valeMissing
  */
+
+const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', match: 'synergy', message: "Banned buzzword: 'synergy'.", count: 2 } };
 
 const SESSION = 'START_SESSION';
 
@@ -42,16 +47,16 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'compact' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should inject the condensed rules', () => {
+    it('should inject the condensed rules with the reply report after them', () => {
       expect(output).toEqual({
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
-          additionalContext: expect.stringContaining('## Communication rules — reminder')
+          additionalContext: expect.stringMatching(/^## Communication rules — reminder[^]*Recent replies broke these rules[^]*"synergy" \(2\)/)
         }
       });
     });
@@ -60,7 +65,7 @@ describe('session-start.run', () => {
       expect(state).toEqual({
         promptCount: 0,
         contextAtLastReminder: null,
-        pendingNotes: [],
+        replyAlerts: {},
         projectDir: null,
         valeFiles: {},
         lastStopBlock: null
@@ -74,7 +79,7 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'clear' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
@@ -93,7 +98,7 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
@@ -106,19 +111,43 @@ describe('session-start.run', () => {
     });
   });
 
+  describe('when a session resumes with reply counts waiting', () => {
+    let output, state;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      valePresent();
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'resume' }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should deliver the report, clear the counts, and keep the counters', () => {
+      expect({
+        reported: output.hookSpecificOutput.additionalContext.includes('"synergy" (2)'),
+        replyAlerts: state.replyAlerts,
+        promptCount: state.promptCount
+      }).toEqual({ reported: true, replyAlerts: {}, promptCount: 4 });
+    });
+  });
+
   describe('when the configured list excludes the source', () => {
     let output, state;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, pendingNotes: [] }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should neither inject nor reset', () => {
-      expect({ output, promptCount: state.promptCount }).toEqual({ output: null, promptCount: 4 });
+    it('should neither inject nor reset, and keep the reply counts for the next reminder', () => {
+      expect({ output, promptCount: state.promptCount, replyAlerts: state.replyAlerts }).toEqual({
+        output: null,
+        promptCount: 4,
+        replyAlerts: COUNTS
+      });
     });
   });
 
@@ -181,6 +210,42 @@ describe('session-start.run', () => {
 
     it('should return the notice alone', () => {
       expect(output).toEqual({ systemMessage: expect.stringContaining('vale binary is missing') });
+    });
+  });
+
+  describe('when the reply check is warn but the reminder is off', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({
+        reminder: { mode: 'off' },
+        bannedCheck: { mode: 'off' },
+        outputCheck: { mode: 'warn' }
+      });
+      valeMissing();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should say the reply check is idle without probing vale', () => {
+      expect(output.systemMessage).toContain('The reply check is idle.');
+      expect(mockSpawnSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the reply check is idle and vale is missing for the edit check', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ reminder: { mode: 'off' }, outputCheck: { mode: 'warn' } });
+      valeMissing();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should join both notices on separate lines', () => {
+      expect(output.systemMessage.split('\n')).toEqual([
+        expect.stringContaining('vale binary is missing'),
+        expect.stringContaining('The reply check is idle.')
+      ]);
     });
   });
 

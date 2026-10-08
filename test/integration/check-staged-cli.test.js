@@ -86,6 +86,29 @@ describe('check-staged CLI', () => {
     });
   });
 
+  describe('when a staged HTML file adds a banned term', () => {
+    let result;
+
+    beforeEach(() => {
+      fs.writeFileSync(path.join(repo, 'page.html'), '<p>pure synergy</p>\n');
+      runGit(['add', 'page.html'], repo);
+      result = runCli([], repo, sandbox.env);
+    });
+
+    it('should gate HTML like Markdown', () => {
+      expect({ status: result.status, named: result.stdout.includes('page.html') }).toEqual({ status: 1, named: true });
+    });
+  });
+
+  describe('when a staged file is neither Markdown nor HTML', () => {
+    it('should exit 0 without linting it', () => {
+      fs.writeFileSync(path.join(repo, 'notes.txt'), 'pure synergy\n');
+      runGit(['add', 'notes.txt'], repo);
+      const result = runCli([], repo, sandbox.env);
+      expect({ status: result.status, stdout: result.stdout.trim() }).toEqual({ status: 0, stdout: '' });
+    });
+  });
+
   describe('when nothing markdown is staged', () => {
     it('should exit 0 quietly', () => {
       const result = runCli([], repo, sandbox.env);

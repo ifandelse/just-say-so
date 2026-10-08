@@ -8,7 +8,7 @@
   "configAskReason": "just-say-so: this edits a just-say-so/Vale policy file ({target}). Allow only if you asked for this change.",
   "outputIntro": "just-say-so: Vale reports errors in your last reply:",
   "outputRewrite": "Rewrite the reply per the communication rules.",
-  "replyReportIntro": "Recent replies broke these rules (rule, matched text, count):",
+  "replyReportIntro": "Recent replies broke these rules (rule, count, and the matched term when it is a fixed one):",
   "replyReportMore": "(and {n} more)",
   "replyReportInstruction": "Apply the rules to your next replies. Do not revise, repeat, or mention earlier replies, and do not acknowledge this note.",
   "replyCheckIdle": "just-say-so: outputCheck.mode is \"warn\" but reminder.mode is \"off\", so no reminder exists to carry the reply report. The reply check is idle. Set reminder.mode to \"prompts\" or \"tokens\", or set outputCheck.mode to \"off\".",

@@ -29,15 +29,34 @@ function countsLine(messages, alerts) {
   return fill(messages.valeCounts, { errors: c.error, warnings: c.warning, suggestions: c.suggestion });
 }
 
-// Record this file's outstanding error alerts, replacing whatever an
-// earlier edit recorded — the newest lint of a file is the truth about it.
-function recordErrors(sessionId, file, errors, env) {
+// Record this file's outstanding error alerts for the Stop gate: every
+// error in the lines this edit added, plus every instance an earlier edit
+// recorded that the whole-file lint still finds. The merge is what keeps a
+// later clean edit to the same file from wiping an earlier edit's unfixed
+// error. Prior instances match by key with a budget, as the gate does, so
+// pre-existing dirt outside the edit never enters the record. An in-range
+// instance spends budget too, so a re-added instance (a Write that keeps
+// the line) counts once and no twin elsewhere inherits its slot.
+function recordErrors(sessionId, file, fileErrors, ranges, env) {
   const state = readSession(sessionId, env);
-  const had = Boolean(state.valeFiles?.[file]);
-  if (errors.length === 0 && !had) return;
+  const prior = state.valeFiles?.[file]?.outstanding ?? [];
+  const budget = new Map();
+  for (const o of prior) budget.set(o.key, (budget.get(o.key) ?? 0) + 1);
+
+  const outstanding = [];
+  for (const a of fileErrors) {
+    const key = alertKey(a);
+    const left = budget.get(key) ?? 0;
+    const added = inRanges(a.Line, ranges);
+    if (!added && left === 0) continue;
+    outstanding.push({ key, line: a.Line });
+    if (left > 0) budget.set(key, left - 1);
+  }
+
+  if (outstanding.length === 0 && prior.length === 0) return;
   state.valeFiles = { ...(state.valeFiles ?? {}) };
-  if (errors.length === 0) delete state.valeFiles[file];
-  else state.valeFiles[file] = { outstanding: errors.map((a) => ({ key: alertKey(a), line: a.Line })) };
+  if (outstanding.length === 0) delete state.valeFiles[file];
+  else state.valeFiles[file] = { outstanding };
   writeSession(sessionId, state, env);
 }
 
@@ -73,9 +92,13 @@ export function run(input, env = process.env) {
   const ranges = content === null ? null : addedRanges(toolName, toolInput, content);
   const scoped = raw.filter((a) => inRanges(a.Line, ranges));
   const alerts = applyConfigExemptions(scoped, bc, fileLineReader());
-  const errors = alerts.filter((a) => a.Severity === 'error');
 
-  recordErrors(input.session_id ?? 'unknown', abs, errors, env);
+  const fileErrors = applyConfigExemptions(
+    raw.filter((a) => a.Severity === 'error'),
+    bc,
+    fileLineReader()
+  );
+  recordErrors(input.session_id ?? 'unknown', abs, fileErrors, ranges, env);
 
   const visible = alerts.filter((a) => severityRank(a.Severity) <= severityRank(config.vale.levels));
   if (visible.length === 0) return null;

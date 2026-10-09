@@ -214,6 +214,100 @@ describe('check-vale.run', () => {
     });
   });
 
+  describe('when a later clean edit touches a file with a recorded error', () => {
+    let output, state, file;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\nnow a clean line\n');
+      writeSession(
+        SESSION,
+        { valeFiles: { [file]: { outstanding: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] } } },
+        sandbox.env
+      );
+      respond({ 'doc.md': [errorAlert({ Line: 1, Span: [6, 12] })] });
+      output = run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Edit',
+          tool_input: { file_path: file, old_string: 'stale', new_string: 'now a clean line' }
+        },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should stay silent about the edit and keep the earlier error on record', () => {
+      expect({ output, outstanding: state.valeFiles[file].outstanding }).toEqual({
+        output: null,
+        outstanding: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }]
+      });
+    });
+  });
+
+  describe('when a Write replaces a file and keeps its recorded error', () => {
+    let state, file;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'intro\npure synergy\n');
+      writeSession(
+        SESSION,
+        { valeFiles: { [file]: { outstanding: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] } } },
+        sandbox.env
+      );
+      respond({ 'doc.md': [errorAlert({ Line: 2, Span: [6, 12] })] });
+      run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Write',
+          tool_input: { file_path: file, content: 'intro\npure synergy\n' }
+        },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should record the instance once, at its new line', () => {
+      expect(state.valeFiles[file].outstanding).toEqual([{ key: 'JustSaySo.Buzzwords|synergy', line: 2 }]);
+    });
+  });
+
+  describe('when a prior record names an instance that is no longer in the file', () => {
+    let state, file;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'old delve line\nfresh clean line\n');
+      writeSession(
+        SESSION,
+        { valeFiles: { [file]: { outstanding: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] } } },
+        sandbox.env
+      );
+      // "delve" sits outside the edit and was never recorded: pre-existing dirt.
+      respond({ 'doc.md': [errorAlert({ Line: 1, Match: 'delve', Span: [5, 9], Message: "Banned buzzword: 'delve'." })] });
+      run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Edit',
+          tool_input: { file_path: file, old_string: 'stale', new_string: 'fresh clean line' }
+        },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should clear the record without adopting the dirt', () => {
+      expect(state.valeFiles).toEqual({});
+    });
+  });
+
   describe('when a later edit fixes the recorded errors', () => {
     let output, state, file;
 

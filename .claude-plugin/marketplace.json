@@ -9,7 +9,7 @@
       "name": "just-say-so",
       "source": "./",
       "description": "Keeps model output aligned with your communication rules: interval reminders, post-compaction re-injection, and Vale-backed checks on written files, published text, and replies.",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "author": {
         "name": "Jim Cowart"
       }

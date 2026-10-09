@@ -68,6 +68,7 @@ describe('session-start.run', () => {
         replyAlerts: {},
         projectDir: null,
         valeFiles: {},
+        waived: {},
         lastStopBlock: null
       });
     });

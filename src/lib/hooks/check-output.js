@@ -6,11 +6,14 @@
 // the outstanding set was recorded per edit, so the user's WIP and a legacy
 // file's old errors never enter it. A rewrite that leaves the alert set
 // unchanged stands the gate down instead of burning the harness's block
-// budget. Reply "warn" records per-rule counts in session state and returns
+// budget, and waives those alerts for the rest of the session: the
+// stop_hook_active flag that drives the stand-down is per turn, so without
+// the waiver every later turn would block once more on the same lines. Reply "warn" records per-rule counts in session state and returns
 // nothing: the next rules injection reports them, so the engineer never
 // sees a rewrite of a reply they already read. "warn" without a scheduled
 // reminder is idle (replyCheckMode) and skips the lint.
 // Returns the hook output object, or null for silence.
+import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, findProjectConfig } from '../config.js';
 import { loadMessages } from '../rules.js';
@@ -43,29 +46,46 @@ function checkReply(input, config, configPath, env) {
     .map((a) => ({ ...a, file: 'reply' })); // stable key — the temp path changes per run
 }
 
+// Drop one error per waived instance, by key. The instance on the waived
+// line goes first; when the line moved, the first instance of that key
+// goes. What is left is the pool a new edit can have added to.
+function subtractWaived(errors, waivedList) {
+  const pool = [...errors];
+  for (const w of waivedList) {
+    let i = pool.findIndex((a) => alertKey(a) === w.key && a.Line === w.line);
+    if (i === -1) i = pool.findIndex((a) => alertKey(a) === w.key);
+    if (i !== -1) pool.splice(i, 1);
+  }
+  return pool;
+}
+
 // Re-lint each file with outstanding errors and keep the alerts that match
 // a recorded one (same rule, same text, counted). Line numbers shift as the
 // model edits, so identity is rule + match, capped at the recorded count —
 // a pre-existing twin elsewhere in the file cannot sneak into the gate.
+// Waived instances leave the pool before the cap applies, so a second
+// instance of a waived alert still blocks.
 function checkGate(state, config, env) {
   const remainingAlerts = [];
   let changed = false;
   const files = { ...(state.valeFiles ?? {}) };
+  const waived = { ...(state.waived ?? {}) };
 
   for (const [file, rec] of Object.entries(files)) {
     const outstanding = rec?.outstanding ?? [];
-    if (outstanding.length === 0) {
+    if (outstanding.length === 0 || !fs.existsSync(file)) {
+      // Nothing recorded, or the file is gone: either way nothing to gate.
       delete files[file];
+      delete waived[file];
       changed = true;
       continue;
     }
     const raw = lintPath(file, { configPath: resolveValeConfig(path.dirname(file), config), env });
     if (raw === null) continue; // vale broke mid-session: never block on stale records
 
-    const errors = applyConfigExemptions(
-      raw.filter((a) => a.Severity === 'error'),
-      config.bannedCheck,
-      fileLineReader()
+    const errors = subtractWaived(
+      applyConfigExemptions(raw.filter((a) => a.Severity === 'error'), config.bannedCheck, fileLineReader()),
+      waived[file] ?? []
     );
     const budget = new Map();
     for (const o of outstanding) budget.set(o.key, (budget.get(o.key) ?? 0) + 1);
@@ -82,7 +102,7 @@ function checkGate(state, config, env) {
     changed = true;
     remainingAlerts.push(...remaining);
   }
-  return { remainingAlerts, files, changed };
+  return { remainingAlerts, files, waived, changed };
 }
 
 export function run(input, env = process.env) {
@@ -118,6 +138,7 @@ export function run(input, env = process.env) {
     const gate = checkGate(state, config, env);
     gateRemaining = gate.remainingAlerts;
     state.valeFiles = gate.files;
+    state.waived = gate.waived;
     stateChanged = stateChanged || gate.changed;
   }
 
@@ -127,9 +148,18 @@ export function run(input, env = process.env) {
     const keys = JSON.stringify(blockAlerts.map((a) => `${a.file}|${alertKey(a)}`).sort());
     if (input.stop_hook_active && state.lastStopBlock === keys) {
       // Same alerts after a rewrite: the model is stuck, and six more block
-      // cycles will not unstick it.
+      // cycles will not unstick it. File alerts are waived for the session;
+      // a reply is new text every turn, so reply alerts are not.
+      if (gateRemaining.length > 0) {
+        const waived = { ...(state.waived ?? {}) };
+        for (const a of gateRemaining) {
+          waived[a.file] = [...(waived[a.file] ?? []), { key: alertKey(a), line: a.Line }];
+        }
+        state.waived = waived;
+        stateChanged = true;
+      }
       if (stateChanged) writeSession(sessionId, state, env);
-      return { systemMessage: messages.stopGateStandDown };
+      return { systemMessage: gateRemaining.length > 0 ? messages.stopGateStandDown : messages.outputStandDown };
     }
     state.lastStopBlock = keys;
     writeSession(sessionId, state, env);

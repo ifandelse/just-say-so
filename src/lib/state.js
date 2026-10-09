@@ -26,6 +26,9 @@ const FRESH = {
   // Per-file record of error-level Vale alerts in lines this session added,
   // keyed by absolute path — the Stop gate checks these, and only these.
   valeFiles: {},
+  // Gate alerts the user let stand after a stand-down, per file: [{key, line}].
+  // Subtracted from every later re-lint, so the gate never blocks twice on them.
+  waived: {},
   // Alert keys from the last Stop block: when a rewrite leaves the set
   // unchanged, the gate stands aside instead of burning the block budget.
   lastStopBlock: null

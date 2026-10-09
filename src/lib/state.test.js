@@ -20,6 +20,7 @@ const FRESH = {
   replyAlerts: {},
   projectDir: null,
   valeFiles: {},
+  waived: {},
   lastStopBlock: null
 };
 

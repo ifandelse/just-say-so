@@ -24,6 +24,11 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     pre-existing twin · warn reply + gate block → gate blocks alone
  *   stand-down: stop_hook_active + identical keys → systemMessage, no block ·
  *     different keys → block again · clean pass clears lastStopBlock
+ *   waiver: stand-down waives gate alerts → next turn passes, record pruned ·
+ *     second instance of a waived alert blocks on the new line · the waived
+ *     line moved → first instance of the key is the waived one · reply-only
+ *     stand-down waives nothing and uses its own message · deleted file →
+ *     record and waiver pruned
  */
 
 const SESSION = 'OUTPUT_SESSION';
@@ -295,6 +300,7 @@ describe('check-output.run', () => {
     beforeEach(() => {
       sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
       mockSpawnSync.mockReturnValue({ error: new Error('ENOENT'), status: null });
       output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
@@ -362,6 +368,141 @@ describe('check-output.run', () => {
     it('should stand down with a system message instead of blocking again', () => {
       expect(output.decision).toBeUndefined();
       expect(output.systemMessage).toContain('not blocking again');
+    });
+  });
+
+  describe('when a new turn follows a stand-down', () => {
+    let standDown, nextTurn, state, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\n');
+      writeSession(SESSION, gateRecord(file), sandbox.env);
+      respond({ 'doc.md': [errorAlert({ Span: [6, 12] })] });
+      run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      standDown = run({ session_id: SESSION, cwd: sandbox.work, stop_hook_active: true }, sandbox.env);
+      nextTurn = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should say the alerts are waived for the session', () => {
+      expect(standDown.systemMessage).toContain('waived for the rest of this session');
+    });
+
+    it('should not block again and should drop the file record', () => {
+      expect({ nextTurn, valeFiles: state.valeFiles, waived: state.waived }).toEqual({
+        nextTurn: null,
+        valeFiles: {},
+        waived: { [file]: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] }
+      });
+    });
+  });
+
+  describe('when a second instance of a waived alert appears', () => {
+    let output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'pure synergy\nmore synergy\n');
+      writeSession(
+        SESSION,
+        {
+          valeFiles: {
+            [file]: {
+              outstanding: [
+                { key: 'JustSaySo.Buzzwords|synergy', line: 1 },
+                { key: 'JustSaySo.Buzzwords|synergy', line: 2 }
+              ]
+            }
+          },
+          waived: { [file]: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] }
+        },
+        sandbox.env
+      );
+      respond({ 'doc.md': [errorAlert({ Line: 1, Span: [6, 12] }), errorAlert({ Line: 2, Span: [6, 12] })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+    });
+
+    it('should block on the new instance only', () => {
+      const listed = output.reason.split('\n').filter((l) => l.includes('JustSaySo.Buzzwords'));
+      expect({ decision: output.decision, listed }).toEqual({
+        decision: 'block',
+        listed: [expect.stringContaining(':L2 ')]
+      });
+    });
+  });
+
+  describe('when the waived line has moved', () => {
+    let output, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'doc.md');
+      fs.writeFileSync(file, 'intro\npure synergy\n');
+      writeSession(
+        SESSION,
+        {
+          valeFiles: { [file]: { outstanding: [{ key: 'JustSaySo.Buzzwords|synergy', line: 2 }] } },
+          waived: { [file]: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] }
+        },
+        sandbox.env
+      );
+      respond({ 'doc.md': [errorAlert({ Line: 2, Span: [6, 12] })] });
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+    });
+
+    it('should treat the only instance of the key as the waived one', () => {
+      expect(output).toBeNull();
+    });
+  });
+
+  describe('when a reply-only stand-down happens', () => {
+    let output, state, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      respond({ 'reply.chat.md': [errorAlert()] });
+      run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins', stop_hook_active: true },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should stand down with the reply message and waive nothing', () => {
+      expect({ message: output.systemMessage, waived: state.waived }).toEqual({
+        message: expect.stringContaining('remain in the reply'),
+        waived: {}
+      });
+    });
+  });
+
+  describe('when a recorded file no longer exists', () => {
+    let output, state, sandbox, file;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      file = path.join(sandbox.work, 'gone.md');
+      writeSession(
+        SESSION,
+        { ...gateRecord(file), waived: { [file]: [{ key: 'JustSaySo.Buzzwords|synergy', line: 1 }] } },
+        sandbox.env
+      );
+      respond({});
+      output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should prune the record and its waiver without linting', () => {
+      expect({ output, valeFiles: state.valeFiles, waived: state.waived, linted: mockSpawnSync.mock.calls.length }).toEqual({
+        output: null,
+        valeFiles: {},
+        waived: {},
+        linted: 0
+      });
     });
   });
 

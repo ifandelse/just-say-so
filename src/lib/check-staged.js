@@ -181,10 +181,13 @@ function lintFiles(files, rootDir, configPath, env) {
     } catch {
       throw new Error(`vale produced unparseable output on ${file}`);
     }
-    for (const [key, list] of Object.entries(parsed)) {
+    // Key by the path git gave, not the one Vale prints. This call linted one
+    // file, so every alert is that file's, and on Windows Vale prints
+    // `docs\a.md` where the diff says `docs/a.md`.
+    for (const list of Object.values(parsed)) {
       if (!Array.isArray(list) || list.length === 0) continue;
-      const prev = alertsByFile.get(key) ?? [];
-      alertsByFile.set(key, prev.concat(list.map((a) => ({ ...a, file: key }))));
+      const prev = alertsByFile.get(file) ?? [];
+      alertsByFile.set(file, prev.concat(list.map((a) => ({ ...a, file }))));
     }
   }
   return alertsByFile;

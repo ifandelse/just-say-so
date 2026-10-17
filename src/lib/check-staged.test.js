@@ -207,7 +207,9 @@ describe('runStagedCheck', () => {
         "  alerts.push({ Check: 'Test.Banned', Severity: 'error', Line: i + 1, Span: [col + 1, col + 9],",
         "    Match: 'forbidden', Message: 'banned' });",
         '});',
-        'process.stdout.write(JSON.stringify(alerts.length ? { [file]: alerts } : {}));',
+        // Vale on Windows prints the path with backslashes.
+        "const key = process.env.JSS_TEST_VALE_SEP ? file.split('/').join(process.env.JSS_TEST_VALE_SEP) : file;",
+        'process.stdout.write(JSON.stringify(alerts.length ? { [key]: alerts } : {}));',
         'process.exit(alerts.length ? 1 : 0);'
       ].join('\n')
     );
@@ -319,6 +321,24 @@ describe('runStagedCheck', () => {
       it('should fail on the staged line only', () => {
         expect(result.exitCode).toBe(1);
         expect(errorLines(result)).toEqual([7]);
+      });
+    });
+
+    describe('when Vale prints a staged path with backslashes, as it does on Windows', () => {
+      let result;
+
+      beforeEach(() => {
+        fs.mkdirSync(path.join(repo, 'docs'));
+        write('docs/guide.md', '# Guide\n\nStaged forbidden line.\n');
+        sh(['add', 'docs/guide.md']);
+        result = runStagedCheck({ cwd: repo, env: { ...env, JSS_TEST_VALE_SEP: '\\' } });
+      });
+
+      it('should report the alert under git\'s path', () => {
+        expect(result.exitCode).toBe(1);
+        expect(errorLines(result)).toEqual([3]);
+        expect(result.report).toContain('docs/guide.md');
+        expect(result.notices).toEqual([expect.stringContaining('error-level alerts on added lines')]);
       });
     });
   });

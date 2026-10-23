@@ -19,6 +19,7 @@ const FRESH = {
   promptAtLastReminder: null,
   contextAtLastReminder: null,
   replyAlerts: {},
+  pendingRewrite: null,
   projectDir: null,
   valeFiles: {},
   waived: {},

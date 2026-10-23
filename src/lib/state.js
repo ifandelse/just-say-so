@@ -26,6 +26,9 @@ const FRESH = {
   // Reply-check counts for outputCheck "warn", keyed by rule|match; the next
   // rules injection reports and clears them.
   replyAlerts: {},
+  // Id of the rejections.jsonl record a /just-say-so:restate prompt opened;
+  // the Stop hook fills in the rewrite and clears this.
+  pendingRewrite: null,
   projectDir: null,
   // Per-file record of error-level Vale alerts in lines this session added,
   // keyed by absolute path — the Stop gate checks these, and only these.

@@ -7,6 +7,7 @@ vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
 import { run } from './check-output.js';
 import { readSession, writeSession } from '../state.js';
+import { rejectionsFile, appendRecord, readRecords } from '../rejections.js';
 import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
@@ -22,6 +23,10 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     with file paths · fixed → record cleared, no block · vale broken →
  *     skip file, keep record · empty record pruned · budget caps a
  *     pre-existing twin · warn reply + gate block → gate blocks alone
+ *   pending rewrite: record completed with the reply and its alerts, pending
+ *     cleared, even with both checks off · warn mode still counts the rewrite ·
+ *     block mode keeps the record open through a blocked reply and closes it on
+ *     the reply that passes · stand-down closes it with the reply that stood
  *   stand-down: stop_hook_active + identical keys → systemMessage, no block ·
  *     different keys → block again · clean pass clears lastStopBlock
  *   waiver: stand-down waives gate alerts → next turn passes, record pruned ·
@@ -77,6 +82,125 @@ describe('check-output.run', () => {
     it('should return null without linting', () => {
       expect(output).toBeNull();
       expect(mockSpawnSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when a restate record is open and both checks are off', () => {
+    let output, state, records;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
+      appendRecord(rejectionsFile(sandbox.env), { id: 'R1', rejected: { text: 'synergy wins', alerts: [] }, rewrite: null });
+      writeSession(SESSION, { pendingRewrite: 'R1' }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' },
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+      records = readRecords(rejectionsFile(sandbox.env));
+    });
+
+    it('should complete the record with the rewrite and its alerts, and return nothing', () => {
+      expect({ output, records }).toEqual({
+        output: null,
+        records: [
+          {
+            id: 'R1',
+            rejected: { text: 'synergy wins', alerts: [] },
+            rewrite: {
+              text: 'synergy still',
+              alerts: [{ check: 'JustSaySo.Buzzwords', severity: 'error', line: 1, match: 'synergy', message: "Banned buzzword: 'synergy'." }]
+            }
+          }
+        ]
+      });
+    });
+
+    it('should clear the pending id', () => {
+      expect(state.pendingRewrite).toBeNull();
+    });
+  });
+
+  describe('when a restate record is open in warn mode', () => {
+    let state, records;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      appendRecord(rejectionsFile(sandbox.env), { id: 'R2', rewrite: null });
+      writeSession(SESSION, { pendingRewrite: 'R2' }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' }, sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+      records = readRecords(rejectionsFile(sandbox.env));
+    });
+
+    it('should complete the record and still count the rewrite for the next report', () => {
+      expect({
+        rewriteText: records[0].rewrite.text,
+        pendingRewrite: state.pendingRewrite,
+        counted: state.replyAlerts['JustSaySo.Buzzwords|synergy'].count
+      }).toEqual({ rewriteText: 'synergy still', pendingRewrite: null, counted: 1 });
+    });
+  });
+
+  describe('when a restate record is open and block mode rejects the first rewrite', () => {
+    let first, second, afterFirst, afterSecond;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      appendRecord(rejectionsFile(sandbox.env), { id: 'R3', rewrite: null });
+      writeSession(SESSION, { pendingRewrite: 'R3' }, sandbox.env);
+      respond({ 'reply.chat.md': [errorAlert()] });
+      first = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' }, sandbox.env);
+      afterFirst = { pending: readSession(SESSION, sandbox.env).pendingRewrite, rewrite: readRecords(rejectionsFile(sandbox.env))[0].rewrite };
+      respond({});
+      second = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'We ship.', stop_hook_active: true },
+        sandbox.env
+      );
+      afterSecond = { pending: readSession(SESSION, sandbox.env).pendingRewrite, rewrite: readRecords(rejectionsFile(sandbox.env))[0].rewrite };
+    });
+
+    it('should block the first reply and keep the record open', () => {
+      expect({ decision: first.decision, ...afterFirst }).toEqual({ decision: 'block', pending: 'R3', rewrite: null });
+    });
+
+    it('should let the clean reply end the turn and close the record with it', () => {
+      expect({ second, ...afterSecond }).toEqual({
+        second: null,
+        pending: null,
+        rewrite: { text: 'We ship.', alerts: [] }
+      });
+    });
+  });
+
+  describe('when a restate record is open and block mode stands down', () => {
+    let output, pending, rewriteText;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      appendRecord(rejectionsFile(sandbox.env), { id: 'R4', rewrite: null });
+      writeSession(
+        SESSION,
+        { pendingRewrite: 'R4', lastStopBlock: JSON.stringify(['reply|JustSaySo.Buzzwords|synergy']) },
+        sandbox.env
+      );
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still', stop_hook_active: true },
+        sandbox.env
+      );
+      pending = readSession(SESSION, sandbox.env).pendingRewrite;
+      rewriteText = readRecords(rejectionsFile(sandbox.env))[0].rewrite.text;
+    });
+
+    it('should stand down and close the record with the reply that stood', () => {
+      expect({ systemMessage: output.systemMessage, pending, rewriteText }).toEqual({
+        systemMessage: expect.stringContaining('not blocking again'),
+        pending: null,
+        rewriteText: 'synergy still'
+      });
     });
   });
 

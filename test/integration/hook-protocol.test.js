@@ -147,6 +147,59 @@ describe('hook protocol', () => {
     });
   });
 
+  describe('when a flagged reply, a restate, a clean rewrite, and an ordinary prompt go through the spawned hooks', () => {
+    let flaggedStop, promptResult, stopResult, nextPrompt, record;
+
+    beforeEach(() => {
+      const sandbox = withFakeVale(makeSandbox());
+      const session = { session_id: 'PROTO_RESTATE', cwd: sandbox.work };
+      const transcript = path.join(sandbox.work, 'session.jsonl');
+      fs.writeFileSync(
+        transcript,
+        JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'we leverage synergy' }] } }) + '\n'
+      );
+      // The default warn check records the flagged reply's counts first.
+      flaggedStop = spawnHook('check-output.js', { ...session, last_assistant_message: 'we leverage synergy' }, sandbox.env);
+      promptResult = spawnHook(
+        'remind.js',
+        { ...session, transcript_path: transcript, prompt: '/just-say-so:restate too much jargon' },
+        sandbox.env
+      );
+      stopResult = spawnHook('check-output.js', { ...session, last_assistant_message: 'We use the tool.' }, sandbox.env);
+      nextPrompt = spawnHook('remind.js', { ...session, transcript_path: transcript, prompt: 'what next?' }, sandbox.env);
+      const lines = fs.readFileSync(path.join(sandbox.stateDir, 'rejections.jsonl'), 'utf8').trim().split('\n');
+      record = JSON.parse(lines[0]);
+    });
+
+    it('should stay silent on every hook, the ordinary prompt included', () => {
+      expect({
+        flaggedStop: [flaggedStop.status, flaggedStop.stdout],
+        prompt: [promptResult.status, promptResult.stdout],
+        stop: [stopResult.status, stopResult.stdout],
+        nextPrompt: [nextPrompt.status, nextPrompt.stdout]
+      }).toEqual({
+        flaggedStop: [0, ''],
+        prompt: [0, ''],
+        stop: [0, ''],
+        nextPrompt: [0, '']
+      });
+    });
+
+    it('should leave one record holding both texts, the reason, and the rejected alerts', () => {
+      expect({
+        reason: record.reason,
+        rejected: record.rejected.text,
+        rejectedChecks: record.rejected.alerts.map((a) => a.match),
+        rewrite: record.rewrite
+      }).toEqual({
+        reason: 'too much jargon',
+        rejected: 'we leverage synergy',
+        rejectedChecks: ['leverage', 'synergy'],
+        rewrite: { text: 'We use the tool.', alerts: [] }
+      });
+    });
+  });
+
   describe('when every script receives garbage stdin', () => {
     let results;
 

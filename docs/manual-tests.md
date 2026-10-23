@@ -100,6 +100,18 @@ Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
 **15e. Report resets the interval (0.6.0).** Set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, keep `deliver` at its default. Send two clean prompts, then the banned sentence from 15d. The next prompt (the third) fires with the report. Expect: prompts four and five stay quiet, and prompt six fires on the interval.
 
+## Phase E2 — rejected replies (0.7.0)
+
+Defaults in `.just-say-so.json` (remove `outputCheck` and `reminder` overrides).
+
+**16. Restate with a reason.** Say: "Reply with exactly this sentence: we leverage synergy to empower teams." Then run `/just-say-so:restate too much jargon`. Expect: the model answers with a rewrite only, no apology and no mention of the rules. Ground truth: `rejections.jsonl` in the state directory (`$CLAUDE_PLUGIN_DATA/state/` or `~/.local/state/just-say-so/`) has one new line. Its `rejected.text` is the banned sentence verbatim, `reason` is `too much jargon`, `rejected.alerts` names `leverage`, `synergy`, and `empower`, and `rewrite.text` is the model's second reply. The session state file shows `pendingRewrite: null` and `promptAtLastReminder` equal to `promptCount`.
+
+**16a. Bare command.** Repeat with `/just-say-so:restate` alone. Expect: the record's `reason` is `null`.
+
+**16b. No double injection.** Set `reminder.everyPrompts` to 2. Send one clean prompt, then the banned sentence, then `/just-say-so:restate`. Expect: the restate prompt carries the skill body with the rules but no `hook_additional_context` record from the prompt hook (transcript grep for the reminder heading finds it once, inside the skill expansion). The next prompt carries the reply report for the rewrite only if the rewrite itself broke a rule.
+
+**16c. Wrong answer is not a restate.** Ask a factual question, get a correct answer, and run `/just-say-so:restate` anyway. Expect: the rewrite keeps every fact. This confirms the skill body's instruction; the README tells users to correct wrong answers in an ordinary prompt.
+
 ## Phase F — published text via gh (0.2.0)
 
 Edit `.just-say-so.json`: `{ "bannedCheck": { "mode": "block", "addons": ["gh"] } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)

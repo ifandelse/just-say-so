@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
+vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
+
 import { run } from './remind.js';
 import { readSession, writeSession } from '../state.js';
+import { rejectionsFile, readRecords } from '../rejections.js';
 import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
@@ -14,6 +21,9 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     cleared, interval reset · no counts → silent until the default 20-prompt interval · outputCheck off → never fires on counts ·
  *     a counts-fire pushes the next interval fire back
  *   next-reminder delivery: counts wait for the interval · fire → rules then report, cleared
+ *   restate: records the previous reply with the reason, its Vale alerts, and the
+ *     prompt index · sets pendingRewrite · resets both interval baselines · emits
+ *     nothing · bare command → reason null · ordinary prompt → no record file
  *   session_id missing → "unknown"
  */
 
@@ -30,7 +40,111 @@ function fired(output) {
   return output?.hookSpecificOutput?.additionalContext?.includes('## Communication rules — reminder') ?? false;
 }
 
+// Vale stand-in: flags "synergy" at error level in whatever file it is handed.
+function valeFlagsSynergy() {
+  mockSpawnSync.mockImplementation((_cmd, args, opts) => {
+    if (args[0] === 'ls-dirs') return { status: 0, stdout: '' };
+    const target = args[args.length - 1];
+    const text = fs.readFileSync(path.resolve(opts?.cwd ?? '.', target), 'utf8');
+    const at = text.indexOf('synergy');
+    if (at === -1) return { status: 0, stdout: JSON.stringify({}) };
+    const alert = { Check: 'JustSaySo.Buzzwords', Severity: 'error', Line: 1, Span: [at + 1, at + 7], Match: 'synergy', Message: "Banned buzzword: 'synergy'." };
+    return { status: 1, stdout: JSON.stringify({ [target]: [alert] }) };
+  });
+}
+
+function rejectedReplyTranscript(sandbox) {
+  return writeTranscript(sandbox.work, 'restate.jsonl', [
+    { type: 'user', message: { role: 'user', content: 'how do we ship?' } },
+    { type: 'assistant', message: { id: 'msg_1', role: 'assistant', content: [{ type: 'text', text: 'We ship synergy.' }] } }
+  ]);
+}
+
 describe('remind.run', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    valeFlagsSynergy();
+  });
+
+  describe('when the prompt is the restate command with a reason', () => {
+    let output, state, records;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      writeSession(SESSION, { promptCount: 40, promptAtLastReminder: 21, contextAtLastReminder: 900 }, sandbox.env);
+      const transcript = rejectedReplyTranscript(sandbox);
+      output = run(
+        promptEvent(sandbox, { prompt: '/just-say-so:restate verbal shorthand', transcript_path: transcript }),
+        sandbox.env
+      );
+      state = readSession(SESSION, sandbox.env);
+      records = readRecords(rejectionsFile(sandbox.env));
+    });
+
+    it('should emit nothing and leave the rules to the skill', () => {
+      expect(output).toBeNull();
+    });
+
+    it('should record the rejected reply verbatim with the reason and its alerts', () => {
+      expect(records).toEqual([
+        {
+          id: expect.any(String),
+          session: SESSION,
+          project: expect.any(String),
+          promptIndex: 41,
+          reason: 'verbal shorthand',
+          rejected: {
+            text: 'We ship synergy.',
+            alerts: [{ check: 'JustSaySo.Buzzwords', severity: 'error', line: 1, match: 'synergy', message: "Banned buzzword: 'synergy'." }]
+          },
+          rewrite: null,
+          version: expect.any(String),
+          reminder: { mode: 'prompts', everyPrompts: 20 },
+          outputCheck: { mode: 'warn', deliver: 'next-prompt' }
+        }
+      ]);
+    });
+
+    it('should hold the record open for the Stop hook and reset the interval', () => {
+      expect({
+        pendingRewrite: state.pendingRewrite,
+        promptCount: state.promptCount,
+        promptAtLastReminder: state.promptAtLastReminder,
+        contextAtLastReminder: state.contextAtLastReminder
+      }).toEqual({ pendingRewrite: records[0].id, promptCount: 41, promptAtLastReminder: 41, contextAtLastReminder: null });
+    });
+  });
+
+  describe('when the prompt is the bare restate command', () => {
+    let records;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      const transcript = rejectedReplyTranscript(sandbox);
+      run(promptEvent(sandbox, { prompt: '/just-say-so:restate', transcript_path: transcript }), sandbox.env);
+      records = readRecords(rejectionsFile(sandbox.env));
+    });
+
+    it('should record a null reason', () => {
+      expect(records.map((r) => r.reason)).toEqual([null]);
+    });
+  });
+
+  describe('when an ordinary prompt mentions restating', () => {
+    let exists, state;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      run(promptEvent(sandbox, { prompt: 'please restate that /just-say-so:remind' }), sandbox.env);
+      exists = fs.existsSync(rejectionsFile(sandbox.env));
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should record nothing', () => {
+      expect({ exists, pendingRewrite: state.pendingRewrite }).toEqual({ exists: false, pendingRewrite: null });
+    });
+  });
+
   describe('when prompts mode has not reached the interval', () => {
     let outputs, state, work;
 

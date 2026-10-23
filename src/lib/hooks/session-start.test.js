@@ -71,6 +71,7 @@ describe('session-start.run', () => {
         promptAtLastReminder: null,
         contextAtLastReminder: null,
         replyAlerts: {},
+        pendingRewrite: null,
         projectDir: null,
         valeFiles: {},
         waived: {},

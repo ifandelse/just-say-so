@@ -12,7 +12,9 @@
 // nothing: the next rules injection reports them, so the engineer never
 // sees a rewrite of a reply they already read. "warn" with nothing to
 // deliver through (next-reminder delivery and no scheduled reminder) is
-// idle (replyCheckMode) and skips the lint.
+// idle (replyCheckMode) and skips the lint. A third job runs regardless
+// of either mode: when a /just-say-so:restate prompt opened a rejection
+// record, this reply is the rewrite, and it goes into that record.
 // Returns the hook output object, or null for silence.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,6 +23,7 @@ import { loadMessages } from '../rules.js';
 import { lastAssistantText } from '../transcript.js';
 import { readSession, writeSession } from '../state.js';
 import { replyCheckMode, recordReplyAlerts } from '../reply-alerts.js';
+import { rejectionsFile, lintReply, completeRecord } from '../rejections.js';
 import {
   alertKey,
   resolveValeConfig,
@@ -31,11 +34,16 @@ import {
   formatAlerts
 } from '../vale.js';
 
+// The transcript file lags the turn, so the harness's own copy of the
+// final message comes first.
+function replyText(input) {
+  return typeof input.last_assistant_message === 'string' && input.last_assistant_message.length > 0
+    ? input.last_assistant_message
+    : lastAssistantText(input.transcript_path);
+}
+
 function checkReply(input, config, configPath, env) {
-  const text =
-    typeof input.last_assistant_message === 'string' && input.last_assistant_message.length > 0
-      ? input.last_assistant_message
-      : lastAssistantText(input.transcript_path);
+  const text = replyText(input);
   if (!text) return [];
 
   const raw = lintText(text, { name: 'reply.chat.md', configPath, env });
@@ -121,12 +129,27 @@ export function run(input, env = process.env) {
   const replyMode = replyCheckMode(config);
   const replyOn = replyMode === 'warn' || replyMode === 'block';
   const gateOn = config.bannedCheck.mode === 'block';
-  if (!replyOn && !gateOn) return null;
 
   const state = readSession(sessionId, env);
-  const messages = loadMessages(config);
   const configPath = resolveValeConfig(configAnchor, config);
   let stateChanged = false;
+
+  if (state.pendingRewrite) {
+    const text = replyText(input);
+    completeRecord(rejectionsFile(env), state.pendingRewrite, {
+      text,
+      alerts: lintReply(text, config, configPath, env)
+    });
+    state.pendingRewrite = null;
+    stateChanged = true;
+  }
+
+  if (!replyOn && !gateOn) {
+    if (stateChanged) writeSession(sessionId, state, env);
+    return null;
+  }
+
+  const messages = loadMessages(config);
 
   const replyErrors = replyOn ? checkReply(input, config, configPath, env) : [];
   if (replyMode === 'warn' && replyErrors.length > 0) {

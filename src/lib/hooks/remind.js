@@ -3,12 +3,18 @@
 // triggers: the configured interval (prompts or tokens), and, when the
 // reply check delivers on the next prompt, counts recorded since the last
 // injection. Any firing resets the interval, so the two never stack.
+// A /just-say-so:restate prompt is the third case: the hook records the
+// rejected reply from the transcript, emits nothing (the skill body carries
+// the rules and the instruction), and resets the interval because the
+// rules are going out through the skill.
 // Returns the hook output object, or null for silence.
 import { loadConfig, DEFAULTS } from '../config.js';
 import { readRules, loadMessages } from '../rules.js';
 import { readSession, writeSession } from '../state.js';
-import { contextSize } from '../transcript.js';
+import { contextSize, lastAssistantText } from '../transcript.js';
 import { formatReplyReport, replyCheckMode, deliversNextPrompt } from '../reply-alerts.js';
+import { parseRestate, rejectionsFile, lintReply, newRecord, appendRecord } from '../rejections.js';
+import { resolveValeConfig } from '../vale.js';
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
@@ -18,6 +24,26 @@ export function run(input, env = process.env) {
   // Prompt events carry a trustworthy cwd; record it so hooks whose events
   // don't (Stop, seen live) can still find the project config.
   if (input.cwd) state.projectDir = input.cwd;
+
+  const restate = parseRestate(input.prompt);
+  if (restate) {
+    const text = lastAssistantText(input.transcript_path);
+    const configPath = resolveValeConfig(input.cwd, config);
+    const record = newRecord({
+      sessionId,
+      project: input.cwd ?? null,
+      promptIndex: state.promptCount,
+      reason: restate.reason,
+      rejected: { text, alerts: lintReply(text, config, configPath, env) },
+      config
+    });
+    appendRecord(rejectionsFile(env), record);
+    state.pendingRewrite = record.id;
+    state.promptAtLastReminder = state.promptCount;
+    state.contextAtLastReminder = null;
+    writeSession(sessionId, state, env);
+    return null;
+  }
 
   const mode = config.reminder.mode;
   const countsWaiting = Object.keys(state.replyAlerts ?? {}).length > 0;

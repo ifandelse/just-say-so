@@ -6,6 +6,7 @@ const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
 import { run } from './session-start.js';
+import { run as runRemind } from './remind.js';
 import { readSession, writeSession, stateDir } from '../state.js';
 import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
@@ -21,6 +22,9 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     rules injection) · probe passes → no message · checks off → no probe
  *   reply counts: injection carries the report · compact resets them ·
  *     resume clears them and keeps the counters · no injection → kept
+ *   interval baseline: resume/startup injection moves promptAtLastReminder to
+ *     promptCount and clears the token baseline, so the next prompt does not
+ *     inject again · no injection → baselines untouched
  *   reply check idle (warn + next-reminder + reminder off) → notice, joined with valeMissing
  */
 
@@ -124,12 +128,33 @@ describe('session-start.run', () => {
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should deliver the report, clear the counts, and keep the counters', () => {
+    it('should deliver the report, clear the counts, keep the prompt count, and reset the interval', () => {
       expect({
         reported: output.hookSpecificOutput.additionalContext.includes('"synergy" (2)'),
         replyAlerts: state.replyAlerts,
-        promptCount: state.promptCount
-      }).toEqual({ reported: true, replyAlerts: {}, promptCount: 4 });
+        promptCount: state.promptCount,
+        promptAtLastReminder: state.promptAtLastReminder,
+        contextAtLastReminder: state.contextAtLastReminder
+      }).toEqual({ reported: true, replyAlerts: {}, promptCount: 4, promptAtLastReminder: 4, contextAtLastReminder: null });
+    });
+  });
+
+  describe('when a resume delivers the report one prompt short of the interval', () => {
+    let resumed, nextPrompt;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      valePresent();
+      writeSession(SESSION, { promptCount: 19, promptAtLastReminder: 0, replyAlerts: COUNTS }, sandbox.env);
+      resumed = run({ session_id: SESSION, cwd: sandbox.work, source: 'resume' }, sandbox.env);
+      nextPrompt = runRemind({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
+    });
+
+    it('should inject once on resume and stay silent on the next prompt', () => {
+      expect({ resumed: resumed.hookSpecificOutput.hookEventName, nextPrompt }).toEqual({
+        resumed: 'SessionStart',
+        nextPrompt: null
+      });
     });
   });
 
@@ -145,10 +170,16 @@ describe('session-start.run', () => {
     });
 
     it('should neither inject nor reset, and keep the reply counts for the next reminder', () => {
-      expect({ output, promptCount: state.promptCount, replyAlerts: state.replyAlerts }).toEqual({
+      expect({
+        output,
+        promptCount: state.promptCount,
+        replyAlerts: state.replyAlerts,
+        contextAtLastReminder: state.contextAtLastReminder
+      }).toEqual({
         output: null,
         promptCount: 4,
-        replyAlerts: COUNTS
+        replyAlerts: COUNTS,
+        contextAtLastReminder: 900
       });
     });
   });
@@ -181,8 +212,8 @@ describe('session-start.run', () => {
       remaining = fs.readdirSync(path.join(stateDir(sandbox.env), 'sessions'));
     });
 
-    it('should clean it up', () => {
-      expect(remaining).toEqual([]);
+    it('should clean it up and leave only the current session', () => {
+      expect(remaining).toEqual([`${SESSION}.json`]);
     });
   });
 

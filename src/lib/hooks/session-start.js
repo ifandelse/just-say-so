@@ -26,7 +26,17 @@ export function run(input, env = process.env) {
 
   // Context was rebuilt: counters and token baselines are stale either way.
   if (source === 'compact' || source === 'clear') resetSession(sessionId, env);
-  else if (report) writeSession(sessionId, { ...before, replyAlerts: {} }, env);
+  else if (injectRules) {
+    // The rules just went out, so the interval measures from here: the
+    // prompt baseline moves to now, and the token baseline clears so the
+    // next prompt re-reads context size without firing. Without this a
+    // resume one prompt short of the interval would inject twice in a row.
+    writeSession(
+      sessionId,
+      { ...before, replyAlerts: {}, promptAtLastReminder: before.promptCount, contextAtLastReminder: null },
+      env
+    );
+  }
   cleanupSessions(env);
 
   const checksOn = config.bannedCheck.mode !== 'off' || replyMode === 'warn' || replyMode === 'block';

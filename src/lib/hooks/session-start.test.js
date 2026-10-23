@@ -21,7 +21,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     rules injection) · probe passes → no message · checks off → no probe
  *   reply counts: injection carries the report · compact resets them ·
  *     resume clears them and keeps the counters · no injection → kept
- *   reply check idle (warn + reminder off) → notice, joined with valeMissing
+ *   reply check idle (warn + next-reminder + reminder off) → notice, joined with valeMissing
  */
 
 const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', match: 'synergy', message: "Banned buzzword: 'synergy'.", count: 2 } };
@@ -64,6 +64,7 @@ describe('session-start.run', () => {
     it('should reset the session counters', () => {
       expect(state).toEqual({
         promptCount: 0,
+        promptAtLastReminder: null,
         contextAtLastReminder: null,
         replyAlerts: {},
         projectDir: null,
@@ -221,7 +222,7 @@ describe('session-start.run', () => {
       const sandbox = makeSandbox({
         reminder: { mode: 'off' },
         bannedCheck: { mode: 'off' },
-        outputCheck: { mode: 'warn' }
+        outputCheck: { mode: 'warn', deliver: 'next-reminder' }
       });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
@@ -237,7 +238,7 @@ describe('session-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'off' }, outputCheck: { mode: 'warn' } });
+      const sandbox = makeSandbox({ reminder: { mode: 'off' }, outputCheck: { mode: 'warn', deliver: 'next-reminder' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
     });

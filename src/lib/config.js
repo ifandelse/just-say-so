@@ -4,8 +4,12 @@ import path from 'node:path';
 
 export const DEFAULTS = {
   reminder: {
+    // Since 0.6.0 the reply check below delivers the rules on the prompt
+    // after a flagged reply, so the interval is a safety net: it covers an
+    // install without vale, and drift Vale cannot see. 20 is wide enough
+    // to cost little and still arrive within a long session.
     mode: 'prompts', // "prompts" | "tokens" | "off"
-    everyPrompts: 5,
+    everyPrompts: 20,
     everyTokens: 4000,
     // Rules are present at the start of every context, then refreshed every
     // N prompts. Trim this list to inject on fewer SessionStart sources.
@@ -30,7 +34,11 @@ export const DEFAULTS = {
     additions: { words: [], phrases: [], patterns: [] }
   },
   outputCheck: {
-    mode: 'off' // "off" | "warn" | "block"
+    mode: 'warn', // "off" | "warn" | "block"
+    // Where a warn-mode report goes: "next-prompt" injects the rules and the
+    // report on the prompt after a flagged reply; "next-reminder" holds it
+    // for the scheduled reminder, which needs reminder.mode on.
+    deliver: 'next-prompt' // "next-prompt" | "next-reminder"
   },
   vale: {
     config: null, // path to a .vale.ini; default: nearest above the checked file, else the shipped fallback

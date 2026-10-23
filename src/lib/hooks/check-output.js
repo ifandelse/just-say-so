@@ -10,8 +10,9 @@
 // stop_hook_active flag that drives the stand-down is per turn, so without
 // the waiver every later turn would block once more on the same lines. Reply "warn" records per-rule counts in session state and returns
 // nothing: the next rules injection reports them, so the engineer never
-// sees a rewrite of a reply they already read. "warn" without a scheduled
-// reminder is idle (replyCheckMode) and skips the lint.
+// sees a rewrite of a reply they already read. "warn" with nothing to
+// deliver through (next-reminder delivery and no scheduled reminder) is
+// idle (replyCheckMode) and skips the lint.
 // Returns the hook output object, or null for silence.
 import fs from 'node:fs';
 import path from 'node:path';

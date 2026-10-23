@@ -1,21 +1,31 @@
 // Reply-check bookkeeping for outputCheck.mode "warn". The Stop hook records
 // error-level alerts from each reply as per-rule counts; the next rules
-// injection (interval reminder, resume, compaction) carries a short report
-// and resets the counts. Nothing is delivered on its own schedule, so the
-// engineer never sees a rewrite of a reply they already read.
+// injection carries a short report and resets the counts. With deliver
+// "next-prompt" that injection is the next prompt; with
+// "next-reminder" it is the scheduled reminder, a resume, or compaction.
+// Either way the report rides a rules injection, so the engineer never
+// sees a rewrite of a reply they already read.
 import { fill } from './rules.js';
 import { alertKey } from './vale.js';
 
 const MAX_REPORT_LINES = 10;
 const SHORT_MATCH_MAX = 24;
 
+// Whether warn-mode counts fire a rules injection on the prompt after they
+// were recorded.
+export function deliversNextPrompt(config) {
+  return (config.outputCheck?.deliver ?? 'next-prompt') === 'next-prompt';
+}
+
 // Whether the Stop hook lints replies at all, and what it does with the
-// result. "warn" needs a scheduled reminder to deliver through; without one
-// the lint would run on every Stop for nothing, so it is "idle" instead.
+// result. "warn" needs something to deliver through: the next prompt, or a
+// scheduled reminder. With neither the lint would run on every Stop for
+// nothing, so it is "idle" instead.
 export function replyCheckMode(config) {
   const mode = config.outputCheck?.mode ?? 'off';
-  if (mode === 'warn' && (config.reminder?.mode ?? 'off') === 'off') return 'idle';
-  return mode;
+  if (mode !== 'warn') return mode;
+  const scheduled = (config.reminder?.mode ?? 'off') !== 'off';
+  return scheduled || deliversNextPrompt(config) ? 'warn' : 'idle';
 }
 
 // A short, fixed match (a banned word, a filler phrase, a punctuation mark)

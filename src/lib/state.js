@@ -18,6 +18,10 @@ function sessionFile(sessionId, env) {
 
 const FRESH = {
   promptCount: 0,
+  // Interval reminders measure from the last rules injection, whichever
+  // trigger fired it, so a reply-report delivery pushes the next interval
+  // reminder back instead of stacking a second injection two prompts later.
+  promptAtLastReminder: null,
   contextAtLastReminder: null,
   // Reply-check counts for outputCheck "warn", keyed by rule|match; the next
   // rules injection reports and clears them.

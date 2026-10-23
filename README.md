@@ -12,20 +12,20 @@ I adapted the `just-say-so` communication rules from the [ASD-STE100 standard](h
 
 There are three behaviors:
 
-1. **It reminds the agent of the rules on a schedule.** Rules stated once at session start lose force as the context grows. `just-say-so` re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) at an interval you control.
+1. **It re-injects the rules when they slip.** Rules stated once at session start lose force as the context grows. By default, `just-say-so` lints each finished reply and re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) on the prompt after a reply breaks one. An interval reminder, every 20 prompts by default, covers drift the linter cannot see.
 2. **It checks the text the agent writes.** The checker is [Vale](https://vale.sh), the prose linter. After the agent writes a file, a hook runs Vale on that file. The agent receives the alerts for the lines it added. These alerts never block the write, because the write already happened. In `block` mode, a Stop hook blocks the end of the turn while error-level alerts remain in the files the agent wrote this session. Opt-in settings extend the check to text the agent publishes through `gh` commands and MCP tools. That check runs before the tool call, because nothing can un-publish a comment (see [Checking published text](#checking-published-text-gh-and-mcp-tools)).
-3. **It can verify chat replies too, after the fact** (off by default). The rules themselves always apply to chat, and the reminders keep them in force. This switch controls only whether Vale also lints each finished reply. In `warn` mode the result never interrupts anyone. The hook counts the broken rules, and the next scheduled reminder includes a short report of rule names and counts.
+3. **It verifies chat replies after the fact.** The rules themselves always apply to chat. This check controls whether Vale also lints each finished reply. In `warn` mode, the default, the result never interrupts anyone. The hook counts the broken rules, and the next rules injection includes a short report of rule names and counts. By default that injection is the next prompt; set `deliver` to `next-reminder` to hold it for the interval reminder instead.
 
 The plugin does this through hooks. A hook is a command your harness runs at a fixed point, such as "the user submitted a prompt" or "the agent just wrote a file."
 
 | Hook               | What it does                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `UserPromptSubmit` | Injects the condensed rules every 5 prompts, or every 4,000 tokens of context growth (both configurable). Never blocks your prompt.                                                                                                                                                                                                                                      |
-| `SessionStart`     | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction. Also says so, once, when checks are on but the `vale` binary is missing.                                                                                                                                                                                 |
+| `UserPromptSubmit` | Injects the condensed rules, with the reply report, on the prompt after a reply broke a rule. Also every 20 prompts, or every N tokens of context growth, as a safety net (both configurable). Never blocks your prompt. |
+| `SessionStart`     | Injects the condensed rules at the start of every context: new session, resume, `/clear`, and after compaction. Also says so, once, when checks are on but the `vale` binary is missing, or when the reply check has no way to deliver its report. |
 | `SubagentStart`    | Injects the condensed rules into each subagent when it spawns. Subagents start with fresh context and never see the main session's reminders — without this, they'd discover the rules only by violating them.                                                                                                                                                           |
 | `PreToolUse`       | A confirmation prompt before the agent edits a policy file (`.just-say-so.json`, `.vale.ini`, a vocabulary `accept.txt`), plus the pre-publication check for `gh` commands and named MCP tools. In `block` mode the check denies the call before the text is published.                                                                                                  |
 | `PostToolUse`      | Runs Vale on the file a tool just wrote (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). The hook drops alerts outside the lines this edit added, so on a legacy file the agent answers only for its own additions. The hook records errors for the Stop gate, and keeps an earlier edit's unfixed errors on record when a later edit to the same file is clean.                                                                                            |
-| `Stop`             | In `bannedCheck.mode: "block"`, the session gate: re-lint the recorded files and block the turn while their errors remain. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. Also the reply check (`outputCheck`, off by default): `block` forces a rewrite; `warn` records per-rule counts, which ride the next reminder as a report.                   |
+| `Stop`             | In `bannedCheck.mode: "block"`, the session gate: re-lint the recorded files and block the turn while their errors remain. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. Also the reply check (`outputCheck`): `block` forces a rewrite; `warn`, the default, records per-rule counts, which ride the next rules injection as a report. |
 
 You also get three commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
 
@@ -171,9 +171,10 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
 ```jsonc
 {
   "reminder": {
-    "mode": "prompts", // "prompts" | "tokens" | "off"
-    "everyPrompts": 5, // fire every N user prompts
-    "everyTokens": 4000, // or: fire after N tokens of context growth
+    "mode": "prompts", // "prompts" | "tokens" | "off" — the interval reminder, a safety net behind the
+    // reply check below, which re-injects the rules on the prompt after a reply breaks one
+    "everyPrompts": 20, // prompts mode: fire every N user prompts
+    "everyTokens": 4000, // tokens mode: fire after N tokens of context growth
     "onSessionStart": ["startup", "resume", "clear", "compact"],
     // inject at the start of every context; trim the list to inject on fewer sources
     // (for example ["compact"] if your CLAUDE.md already carries the rules at startup)
@@ -194,8 +195,12 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "additions": { "words": [], "phrases": [], "patterns": [] } // CLI check.js only — for the hooks,
     // add terms to your own Vale style or a vocabulary reject.txt
   },
-  "outputCheck": { "mode": "off" }, // Stop-hook chat check: "off" | "warn" | "block" — warn: counts broken
-  // rules per reply and reports them with the next reminder; block: rewrite before the turn ends
+  "outputCheck": {
+    "mode": "warn", // Stop-hook chat check: "off" | "warn" | "block" — warn: counts broken rules per reply
+    // and reports them with the next rules injection; block: rewrite before the turn ends
+    "deliver": "next-prompt" // warn only: "next-prompt" injects rules + report on the prompt after a flagged
+    // reply; "next-reminder" holds the report for the interval reminder (needs reminder.mode on)
+  },
   "vale": {
     "config": null, // explicit .vale.ini path; default: nearest above the checked file, else the shipped fallback
     "levels": "suggestion" // lowest alert level shown to the agent at edit time: "error" | "warning" | "suggestion"
@@ -210,7 +215,7 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
 
 Vale decides which files get checked, in `.vale.ini`. A `[glob]` section with an empty `BasedOnStyles` exempts its paths. This repo's own [.vale.ini](.vale.ini) does exactly that for the docs and tests that name the banned words. `exclude`, `include`, and `additions` still apply to the `check.js` CLI, which runs the built-in matcher.
 
-`outputCheck.mode: "warn"` is the quiet reply check. The Stop hook lints each finished reply and keeps the error-level alerts as per-rule counts in session state. It returns nothing to the harness. The next rules injection in the main session appends a report below the rules. That injection is the interval reminder, a resume, or the post-compaction injection. The report has one line per rule with its count, capped at ten lines. A short fixed match such as a banned word appears on its line. A longer match is a span of the old reply, so that line names the rule alone, and two styles that flag the same span count once. An instruction follows it: apply the rules to the next replies and leave earlier replies alone. The counts reset on delivery. Subagent injections do not include the report. `warn` needs a schedule to deliver through. With `reminder.mode: "off"` the reply check is idle, the hook skips the lint, and the SessionStart notice says so. The feedback arrives up to `everyPrompts` prompts late by design. Use `block` when you want the flagged reply itself fixed.
+`outputCheck.mode: "warn"` is the quiet reply check, and the default. The Stop hook lints each finished reply and keeps the error-level alerts as per-rule counts in session state. It returns nothing to the harness. The next rules injection in the main session appends a report below the rules. With `deliver: "next-prompt"` (the default) that injection is the next prompt: the model sees the rules and the report one prompt after the reply that broke them. With `deliver: "next-reminder"` the counts wait for the interval reminder, a resume, or the post-compaction injection. Any rules injection in the main session, a report delivery or a resume included, resets the interval, so a report never stacks a second reminder two prompts later. The report has one line per rule with its count, capped at ten lines. A short fixed match such as a banned word appears on its line. A longer match is a span of the old reply, so that line names the rule alone, and two styles that flag the same span count once. An instruction follows it: apply the rules to the next replies and leave earlier replies alone. The counts reset on delivery. Subagent injections do not include the report. `warn` needs something to deliver through. With `deliver: "next-reminder"` and `reminder.mode: "off"` the reply check is idle, the hook skips the lint, and the SessionStart notice says so. Use `block` when you want the flagged reply itself fixed.
 
 ### Checking published text (gh and MCP tools)
 
@@ -238,8 +243,8 @@ Upgrading from 0.2.x: the checker engine is Vale now. `bannedCheck.mode: "block"
 
 Non-interactive runs (for example `anthropics/claude-code-action`) submit one prompt and end. These behaviors matter there:
 
-- `outputCheck.mode: "warn"` delivers nothing in a single-prompt run: its report rides the next scheduled reminder, and there is none. Use `block` when the reply must pass. Otherwise leave the reply check off and let `bannedCheck` cover the files and published text, which is where CI output lives.
-- `reminder.mode: "off"` stops the interval reminders, not the session-start injection — `onSessionStart` applies regardless of `reminder.mode`. So `{ "reminder": { "mode": "off", "onSessionStart": ["startup"] } }` injects the rules once at the start and never repeats: the right shape for a single-prompt run.
+- `outputCheck.mode: "warn"` delivers nothing in a single-prompt run: its report rides the next prompt or the next scheduled reminder, and there is neither. Use `block` when the reply must pass. Otherwise set the reply check to `off` and let `bannedCheck` cover the files and published text, which is where CI output lives.
+- `reminder.mode: "off"` stops the interval reminders, not the session-start injection. `onSessionStart` applies regardless of `reminder.mode`. So `{ "reminder": { "mode": "off", "onSessionStart": ["startup"] } }` with the reply check off injects the rules once at the start and never repeats: the right shape for a single-prompt run.
 
 To run CI stricter than developers' machines, commit a config for it and point the forced layer at that file:
 

@@ -1,11 +1,14 @@
-// UserPromptSubmit logic: inject the condensed rules on the configured
-// interval, with the reply-check report appended when counts are waiting.
+// UserPromptSubmit logic: inject the condensed rules when a trigger is due,
+// with the reply-check report appended when counts are waiting. Two
+// triggers: the configured interval (prompts or tokens), and, when the
+// reply check delivers on the next prompt, counts recorded since the last
+// injection. Any firing resets the interval, so the two never stack.
 // Returns the hook output object, or null for silence.
-import { loadConfig } from '../config.js';
+import { loadConfig, DEFAULTS } from '../config.js';
 import { readRules, loadMessages } from '../rules.js';
 import { readSession, writeSession } from '../state.js';
 import { contextSize } from '../transcript.js';
-import { formatReplyReport } from '../reply-alerts.js';
+import { formatReplyReport, replyCheckMode, deliversNextPrompt } from '../reply-alerts.js';
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
@@ -17,21 +20,22 @@ export function run(input, env = process.env) {
   if (input.cwd) state.projectDir = input.cwd;
 
   const mode = config.reminder.mode;
-  let fire = false;
+  const countsWaiting = Object.keys(state.replyAlerts ?? {}).length > 0;
+  let fire = countsWaiting && replyCheckMode(config) === 'warn' && deliversNextPrompt(config);
   let ctx = null;
 
   if (mode === 'prompts') {
-    const n = Math.max(1, Number(config.reminder.everyPrompts) || 5);
-    fire = state.promptCount % n === 0;
+    const n = Math.max(1, Number(config.reminder.everyPrompts) || DEFAULTS.reminder.everyPrompts);
+    fire = fire || state.promptCount - (state.promptAtLastReminder ?? 0) >= n;
   } else if (mode === 'tokens') {
     ctx = contextSize(input.transcript_path);
     if (ctx !== null) {
       if (state.contextAtLastReminder == null) {
-        // First sight of this session: set the baseline, don't fire.
+        // First sight of this session: set the baseline, don't fire on growth.
         state.contextAtLastReminder = ctx;
       } else {
         const threshold = Math.max(1, Number(config.reminder.everyTokens) || 4000);
-        fire = ctx - state.contextAtLastReminder >= threshold;
+        fire = fire || ctx - state.contextAtLastReminder >= threshold;
       }
     }
   }
@@ -39,13 +43,14 @@ export function run(input, env = process.env) {
   let output = null;
   if (fire) {
     const parts = [readRules('condensed', config)];
-    // The report rides the reminder, never a schedule of its own: the counts
-    // wait here until the rules go out again.
+    // The report rides the rules, never a schedule of its own: the counts
+    // wait here until the rules go out.
     const report = formatReplyReport(state.replyAlerts, loadMessages(config));
     if (report) {
       parts.push(report);
       state.replyAlerts = {};
     }
+    state.promptAtLastReminder = state.promptCount;
     if (mode === 'tokens' && ctx !== null) state.contextAtLastReminder = ctx;
     output = {
       hookSpecificOutput: {

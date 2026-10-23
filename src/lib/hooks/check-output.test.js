@@ -16,7 +16,7 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     no reply errors · vale broken → treated clean · exemptions apply ·
  *     errors only (warnings never gate the reply)
  *   warn: counts recorded, nothing returned · counts accumulate · warn with
- *     the reminder off → idle, no lint
+ *     next-reminder delivery and the reminder off → idle, no lint
  *   block (reply): decision block with outputIntro
  *   gate (bannedCheck block): outstanding errors re-lint → remaining block
  *     with file paths · fixed → record cleared, no block · vale broken →
@@ -67,7 +67,7 @@ describe('check-output.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'we ship synergy' },
         sandbox.env
@@ -129,7 +129,7 @@ describe('check-output.run', () => {
     let output, state, sandbox;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'warn' }, reminder: { mode: 'off' } });
+      sandbox = makeSandbox({ outputCheck: { mode: 'warn', deliver: 'next-reminder' }, reminder: { mode: 'off' } });
       respond({ 'reply.chat.md': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },

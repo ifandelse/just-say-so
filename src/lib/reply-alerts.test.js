@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { replyCheckMode, isShortMatch, dedupeOverlaps, recordReplyAlerts, formatReplyReport } from './reply-alerts.js';
+import { replyCheckMode, deliversNextPrompt, isShortMatch, dedupeOverlaps, recordReplyAlerts, formatReplyReport } from './reply-alerts.js';
 
 /*
  * Branch map — src/lib/reply-alerts.js
- *   replyCheckMode: off · block · warn with a schedule → warn · warn without
- *     one → idle · missing sections → off
+ *   replyCheckMode: off · block · warn with a schedule → warn · warn with
+ *     next-prompt delivery and no schedule → warn · warn with next-reminder and
+ *     no schedule → idle · missing sections → off
+ *   deliversNextPrompt: default → true · next-reminder → false
  *   isShortMatch: empty → false · bare punctuation → true · short word or
  *     phrase → true · over 24 chars → false · sentence punctuation inside → false
  *   dedupeOverlaps: same line+span → one alert, JustSaySo preferred in either
@@ -36,9 +38,10 @@ describe('reply-alerts', () => {
           off: replyCheckMode({ outputCheck: { mode: 'off' }, reminder: { mode: 'prompts' } }),
           block: replyCheckMode({ outputCheck: { mode: 'block' }, reminder: { mode: 'off' } }),
           warn: replyCheckMode({ outputCheck: { mode: 'warn' }, reminder: { mode: 'tokens' } }),
-          idle: replyCheckMode({ outputCheck: { mode: 'warn' }, reminder: { mode: 'off' } }),
+          idle: replyCheckMode({ outputCheck: { mode: 'warn', deliver: 'next-reminder' }, reminder: { mode: 'off' } }),
           bare: replyCheckMode({}),
-          warnNoReminder: replyCheckMode({ outputCheck: { mode: 'warn' } })
+          warnNextPrompt: replyCheckMode({ outputCheck: { mode: 'warn' }, reminder: { mode: 'off' } }),
+          warnNoReminder: replyCheckMode({ outputCheck: { mode: 'warn', deliver: 'next-reminder' } })
         };
       });
 
@@ -49,8 +52,28 @@ describe('reply-alerts', () => {
           warn: 'warn',
           idle: 'idle',
           bare: 'off',
+          warnNextPrompt: 'warn',
           warnNoReminder: 'idle'
         });
+      });
+    });
+  });
+
+  describe('deliversNextPrompt', () => {
+    describe('when each delivery setting is given', () => {
+      let results;
+
+      beforeEach(() => {
+        results = {
+          unset: deliversNextPrompt({ outputCheck: { mode: 'warn' } }),
+          bare: deliversNextPrompt({}),
+          nextPrompt: deliversNextPrompt({ outputCheck: { deliver: 'next-prompt' } }),
+          nextReminder: deliversNextPrompt({ outputCheck: { deliver: 'next-reminder' } })
+        };
+      });
+
+      it('should default to the next prompt', () => {
+        expect(results).toEqual({ unset: true, bare: true, nextPrompt: true, nextReminder: false });
       });
     });
   });

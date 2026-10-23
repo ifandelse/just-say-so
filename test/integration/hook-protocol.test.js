@@ -36,7 +36,7 @@ describe('hook protocol', () => {
     let results;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 5 } });
       const event = { session_id: 'PROTO_SESSION', cwd: sandbox.work, prompt: 'hi' };
       results = [1, 2, 3, 4, 5].map(() => spawnHook('remind.js', event, sandbox.env));
     });

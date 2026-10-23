@@ -6,7 +6,9 @@
 // A /just-say-so:restate prompt is the third case: the hook records the
 // rejected reply from the transcript, emits nothing (the skill body carries
 // the rules and the instruction), and resets the interval because the
-// rules are going out through the skill.
+// rules are going out through the skill. The waiting reply counts go with
+// the record: they describe the reply being rejected, and a report about
+// it on the next prompt would describe the wrong reply.
 // Returns the hook output object, or null for silence.
 import { loadConfig, DEFAULTS } from '../config.js';
 import { readRules, loadMessages } from '../rules.js';
@@ -39,6 +41,7 @@ export function run(input, env = process.env) {
     });
     appendRecord(rejectionsFile(env), record);
     state.pendingRewrite = record.id;
+    state.replyAlerts = {};
     state.promptAtLastReminder = state.promptCount;
     state.contextAtLastReminder = null;
     writeSession(sessionId, state, env);

@@ -92,18 +92,27 @@ describe('rejections', () => {
   });
 
   describe('rejectionsFile', () => {
+    let file;
+
+    beforeEach(() => {
+      file = rejectionsFile({ JUST_SAY_SO_STATE_DIR: '/tmp/jss-state' });
+    });
+
     it('should live under the state directory', () => {
-      expect(rejectionsFile({ JUST_SAY_SO_STATE_DIR: '/tmp/jss-state' })).toBe('/tmp/jss-state/rejections.jsonl');
+      expect(file).toBe('/tmp/jss-state/rejections.jsonl');
     });
   });
 
   describe('lintReply', () => {
     describe('when the text is empty', () => {
+      let result;
+
+      beforeEach(() => {
+        result = { alerts: lintReply('', CONFIG, shippedConfigPath()), spawned: mockSpawnSync.mock.calls.length };
+      });
+
       it('should return an empty list without spawning vale', () => {
-        expect({ alerts: lintReply('', CONFIG, shippedConfigPath()), spawned: mockSpawnSync.mock.calls.length }).toEqual({
-          alerts: [],
-          spawned: 0
-        });
+        expect(result).toEqual({ alerts: [], spawned: 0 });
       });
     });
 
@@ -178,14 +187,15 @@ describe('rejections', () => {
   });
 
   describe('appendRecord and readRecords', () => {
-    let records, file;
+    let records, missing;
 
     beforeEach(() => {
-      file = tmpFile();
+      const file = tmpFile();
       appendRecord(file, { id: 'a', reason: null });
       appendRecord(file, { id: 'b', reason: 'x' });
       fs.appendFileSync(file, 'not json\n');
       records = readRecords(file);
+      missing = readRecords(path.join(path.dirname(file), 'nope.jsonl'));
     });
 
     it('should create the directory and read back one record per good line', () => {
@@ -196,7 +206,7 @@ describe('rejections', () => {
     });
 
     it('should read a missing file as empty', () => {
-      expect(readRecords(path.join(path.dirname(file), 'nope.jsonl'))).toEqual([]);
+      expect(missing).toEqual([]);
     });
   });
 
@@ -238,8 +248,14 @@ describe('rejections', () => {
     });
 
     describe('when the file does not exist', () => {
+      let updated;
+
+      beforeEach(() => {
+        updated = completeRecord(path.join(os.tmpdir(), 'jss-none', 'rejections.jsonl'), 'a', {});
+      });
+
       it('should report false', () => {
-        expect(completeRecord(path.join(os.tmpdir(), 'jss-none', 'rejections.jsonl'), 'a', {})).toBe(false);
+        expect(updated).toBe(false);
       });
     });
   });

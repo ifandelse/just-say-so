@@ -22,8 +22,9 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     a counts-fire pushes the next interval fire back
  *   next-reminder delivery: counts wait for the interval · fire → rules then report, cleared
  *   restate: records the previous reply with the reason, its Vale alerts, and the
- *     prompt index · sets pendingRewrite · resets both interval baselines · emits
- *     nothing · bare command → reason null · ordinary prompt → no record file
+ *     prompt index · sets pendingRewrite · resets both interval baselines · consumes
+ *     the waiting reply counts · emits nothing · bare command → reason null ·
+ *     ordinary prompt → no record file
  *   session_id missing → "unknown"
  */
 
@@ -71,7 +72,11 @@ describe('remind.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox();
-      writeSession(SESSION, { promptCount: 40, promptAtLastReminder: 21, contextAtLastReminder: 900 }, sandbox.env);
+      writeSession(
+        SESSION,
+        { promptCount: 40, promptAtLastReminder: 21, contextAtLastReminder: 900, replyAlerts: COUNTS },
+        sandbox.env
+      );
       const transcript = rejectedReplyTranscript(sandbox);
       output = run(
         promptEvent(sandbox, { prompt: '/just-say-so:restate verbal shorthand', transcript_path: transcript }),
@@ -105,13 +110,20 @@ describe('remind.run', () => {
       ]);
     });
 
-    it('should hold the record open for the Stop hook and reset the interval', () => {
+    it('should hold the record open, reset the interval, and consume the waiting counts', () => {
       expect({
         pendingRewrite: state.pendingRewrite,
         promptCount: state.promptCount,
         promptAtLastReminder: state.promptAtLastReminder,
-        contextAtLastReminder: state.contextAtLastReminder
-      }).toEqual({ pendingRewrite: records[0].id, promptCount: 41, promptAtLastReminder: 41, contextAtLastReminder: null });
+        contextAtLastReminder: state.contextAtLastReminder,
+        replyAlerts: state.replyAlerts
+      }).toEqual({
+        pendingRewrite: records[0].id,
+        promptCount: 41,
+        promptAtLastReminder: 41,
+        contextAtLastReminder: null,
+        replyAlerts: {}
+      });
     });
   });
 

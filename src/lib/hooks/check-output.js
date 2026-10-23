@@ -14,7 +14,10 @@
 // deliver through (next-reminder delivery and no scheduled reminder) is
 // idle (replyCheckMode) and skips the lint. A third job runs regardless
 // of either mode: when a /just-say-so:restate prompt opened a rejection
-// record, this reply is the rewrite, and it goes into that record.
+// record, the reply that ends the turn is the rewrite, and it goes into
+// that record. A blocked reply is not the rewrite, so the record stays
+// open through block cycles and closes on the reply the gate lets stand,
+// stand-down included.
 // Returns the hook output object, or null for silence.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -134,7 +137,9 @@ export function run(input, env = process.env) {
   const configPath = resolveValeConfig(configAnchor, config);
   let stateChanged = false;
 
-  if (state.pendingRewrite) {
+  // Called on every path that lets the turn end, never on a block.
+  const finishRewrite = () => {
+    if (!state.pendingRewrite) return;
     const text = replyText(input);
     completeRecord(rejectionsFile(env), state.pendingRewrite, {
       text,
@@ -142,9 +147,10 @@ export function run(input, env = process.env) {
     });
     state.pendingRewrite = null;
     stateChanged = true;
-  }
+  };
 
   if (!replyOn && !gateOn) {
+    finishRewrite();
     if (stateChanged) writeSession(sessionId, state, env);
     return null;
   }
@@ -182,6 +188,7 @@ export function run(input, env = process.env) {
         state.waived = waived;
         stateChanged = true;
       }
+      finishRewrite();
       if (stateChanged) writeSession(sessionId, state, env);
       return { systemMessage: gateRemaining.length > 0 ? messages.stopGateStandDown : messages.outputStandDown };
     }
@@ -206,6 +213,7 @@ export function run(input, env = process.env) {
     stateChanged = true;
   }
 
+  finishRewrite();
   if (stateChanged) writeSession(sessionId, state, env);
   return null;
 }

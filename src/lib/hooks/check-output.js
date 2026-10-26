@@ -17,13 +17,16 @@
 // record, the reply that ends the turn is the rewrite, and it goes into
 // that record. A blocked reply is not the rewrite, so the record stays
 // open through block cycles and closes on the reply the gate lets stand,
-// stand-down included.
+// stand-down included. A fourth job: every Stop appends a reply event to
+// the events log with the alerts at all levels, so the log lints a reply
+// even when both checks are off (events.mode "on").
 // Returns the hook output object, or null for silence.
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, findProjectConfig } from '../config.js';
 import { loadMessages } from '../rules.js';
-import { lastAssistantText } from '../transcript.js';
+import { lastAssistantText, lastExchange } from '../transcript.js';
+import { logEvent, eventsOn, summarizeAlerts } from '../events.js';
 import { readSession, writeSession } from '../state.js';
 import { replyCheckMode, recordReplyAlerts } from '../reply-alerts.js';
 import { rejectionsFile, lintReply, completeRecord } from '../rejections.js';
@@ -45,17 +48,21 @@ function replyText(input) {
     : lastAssistantText(input.transcript_path);
 }
 
-function checkReply(input, config, configPath, env) {
+// Every level, exemptions applied. null when vale is missing or broken:
+// the check treats that as clean (session-start told the user), the log
+// records that the reply went unlinted.
+function lintReplyAllLevels(input, config, configPath, env) {
   const text = replyText(input);
   if (!text) return [];
 
   const raw = lintText(text, { name: 'reply.chat.md', configPath, env });
-  if (raw === null) return []; // vale missing or broken: silent, session-start told the user
+  if (raw === null) return null;
 
   const lines = text.split('\n');
-  return applyConfigExemptions(raw, config.bannedCheck, (_file, line) => lines[line - 1] ?? null)
-    .filter((a) => a.Severity === 'error')
-    .map((a) => ({ ...a, file: 'reply' })); // stable key — the temp path changes per run
+  return applyConfigExemptions(raw, config.bannedCheck, (_file, line) => lines[line - 1] ?? null).map((a) => ({
+    ...a,
+    file: 'reply' // stable key — the temp path changes per run
+  }));
 }
 
 // Drop one error per waived instance, by key. The instance on the waived
@@ -136,28 +143,63 @@ export function run(input, env = process.env) {
   const state = readSession(sessionId, env);
   const configPath = resolveValeConfig(configAnchor, config);
   let stateChanged = false;
+  const logOn = eventsOn(config);
 
-  // Called on every path that lets the turn end, never on a block.
+  if (logOn && !state.model) {
+    const model = lastExchange(input.transcript_path).model;
+    if (model) {
+      state.model = model;
+      stateChanged = true;
+    }
+  }
+
+  // The lint runs for the check, for the log, or both; one Vale run serves
+  // both. null means vale is missing or broken.
+  const allAlerts = replyOn || logOn ? lintReplyAllLevels(input, config, configPath, env) : null;
+
+  // One reply event per Stop, whatever ends it. The final event for a
+  // promptIndex is the turn's outcome; the ones before it are block cycles.
+  const logReply = (outcome, rewriteOf = null) => {
+    logEvent(
+      'reply',
+      {
+        session: sessionId,
+        project: configAnchor ?? null,
+        promptIndex: state.promptCount ?? 0,
+        sinceReminder: Math.max(0, (state.promptCount ?? 0) - (state.promptAtLastReminder ?? 0)),
+        outcome,
+        model: state.model ?? null,
+        alerts: summarizeAlerts(allAlerts),
+        ...(rewriteOf ? { rewriteOf } : {})
+      },
+      { config, env }
+    );
+  };
+
+  // Called on every path that lets the turn end, never on a block. Returns
+  // the id of the record it closed, or null.
   const finishRewrite = () => {
-    if (!state.pendingRewrite) return;
+    if (!state.pendingRewrite) return null;
+    const id = state.pendingRewrite;
     const text = replyText(input);
-    completeRecord(rejectionsFile(env), state.pendingRewrite, {
+    completeRecord(rejectionsFile(env), id, {
       text,
       alerts: lintReply(text, config, configPath, env)
     });
     state.pendingRewrite = null;
     stateChanged = true;
+    return id;
   };
 
   if (!replyOn && !gateOn) {
-    finishRewrite();
+    logReply('pass', finishRewrite());
     if (stateChanged) writeSession(sessionId, state, env);
     return null;
   }
 
   const messages = loadMessages(config);
 
-  const replyErrors = replyOn ? checkReply(input, config, configPath, env) : [];
+  const replyErrors = replyOn ? (allAlerts ?? []).filter((a) => a.Severity === 'error') : [];
   if (replyMode === 'warn' && replyErrors.length > 0) {
     state.replyAlerts = recordReplyAlerts(state.replyAlerts, replyErrors);
     stateChanged = true;
@@ -188,11 +230,12 @@ export function run(input, env = process.env) {
         state.waived = waived;
         stateChanged = true;
       }
-      finishRewrite();
+      logReply('standdown', finishRewrite());
       if (stateChanged) writeSession(sessionId, state, env);
       return { systemMessage: gateRemaining.length > 0 ? messages.stopGateStandDown : messages.outputStandDown };
     }
     state.lastStopBlock = keys;
+    logReply('block');
     writeSession(sessionId, state, env);
 
     const parts = [];
@@ -213,7 +256,7 @@ export function run(input, env = process.env) {
     stateChanged = true;
   }
 
-  finishRewrite();
+  logReply('pass', finishRewrite());
   if (stateChanged) writeSession(sessionId, state, env);
   return null;
 }

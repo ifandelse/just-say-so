@@ -40,6 +40,12 @@ export const DEFAULTS = {
     // for the scheduled reminder, which needs reminder.mode on.
     deliver: 'next-prompt' // "next-prompt" | "next-reminder"
   },
+  events: {
+    // The events log: one line per session start, rules injection, checked
+    // reply, rejection, and allowed term, in the state directory. Rule names
+    // and counts only. "off" writes nothing and skips the log-only reply lint.
+    mode: 'on' // "on" | "off"
+  },
   vale: {
     config: null, // path to a .vale.ini; default: nearest above the checked file, else the shipped fallback
     levels: 'suggestion' // lowest alert level passed to the model at edit time: "error" | "warning" | "suggestion"

@@ -10,6 +10,17 @@ import { readRules, loadMessages } from '../rules.js';
 import { readSession, writeSession, resetSession, cleanupSessions } from '../state.js';
 import { probeVale } from '../vale.js';
 import { replyCheckMode, formatReplyReport } from '../reply-alerts.js';
+import { logEvent, eventsOn } from '../events.js';
+
+// The slice of config a reply event joins to by session id.
+function configSnapshot(config) {
+  return {
+    reminder: { mode: config.reminder?.mode ?? null, everyPrompts: config.reminder?.everyPrompts ?? null },
+    outputCheck: { mode: config.outputCheck?.mode ?? null, deliver: config.outputCheck?.deliver ?? null },
+    bannedCheck: { mode: config.bannedCheck?.mode ?? null },
+    vale: { levels: config.vale?.levels ?? null }
+  };
+}
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
@@ -40,9 +51,22 @@ export function run(input, env = process.env) {
   cleanupSessions(env);
 
   const checksOn = config.bannedCheck.mode !== 'off' || replyMode === 'warn' || replyMode === 'block';
+  // The log lints replies even with the checks off, so it wants the probe too.
+  const valeFound = checksOn || eventsOn(config) ? probeVale(env) : null;
   const notices = [];
-  if (checksOn && !probeVale(env)) notices.push(messages.valeMissing);
+  if (checksOn && valeFound === false) notices.push(messages.valeMissing);
   if (replyMode === 'idle') notices.push(messages.replyCheckIdle);
+
+  const project = input.cwd ?? null;
+  const promptIndex = source === 'compact' || source === 'clear' ? 0 : before.promptCount;
+  logEvent('session', { session: sessionId, project, source, vale: valeFound, config: configSnapshot(config) }, { config, env });
+  if (injectRules) {
+    logEvent(
+      'reminder',
+      { session: sessionId, project, promptIndex, trigger: 'session', withReport: report !== null },
+      { config, env }
+    );
+  }
 
   if (!injectRules && notices.length === 0) return null;
 

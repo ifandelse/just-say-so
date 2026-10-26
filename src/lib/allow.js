@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { findProjectConfig } from './config.js';
+import { findProjectConfig, loadConfig } from './config.js';
 import { findValeConfig } from './vale.js';
+import { logEvent } from './events.js';
 
 // A multiword term is a collocation ("robust regression") → allowPhrases;
 // a single token is a whole-term exemption → disableWords.
@@ -66,11 +67,25 @@ function addToConfig(term, cwd) {
  * exempt the term. Throws on a malformed existing config file rather than
  * clobbering it.
  */
-export function addAllowTerm(term, cwd) {
+export function addAllowTerm(term, cwd, env = process.env) {
   const cleaned = String(term ?? '').trim();
   if (!cleaned) throw new Error('no term given');
 
   const vocabFile = vocabTarget(cwd);
-  if (vocabFile) return addToVocabulary(vocabFile, cleaned);
-  return addToConfig(cleaned, cwd);
+  const result = vocabFile ? addToVocabulary(vocabFile, cleaned) : addToConfig(cleaned, cwd);
+  // The CLI runs outside a hook, so the session id is whatever the harness
+  // exported; null when it exported nothing.
+  logEvent(
+    'allow',
+    {
+      session: env.CLAUDE_SESSION_ID ?? null,
+      project: cwd ?? null,
+      term: result.term,
+      method: result.method,
+      list: result.list ?? null,
+      added: result.added
+    },
+    { config: loadConfig(cwd, env), env }
+  );
+  return result;
 }

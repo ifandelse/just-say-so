@@ -8,6 +8,7 @@ vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 import { run } from './check-output.js';
 import { readSession, writeSession } from '../state.js';
 import { rejectionsFile, appendRecord, readRecords } from '../rejections.js';
+import { eventsFile, readEvents } from '../events.js';
 import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
@@ -34,7 +35,27 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     line moved → first instance of the key is the waived one · reply-only
  *     stand-down waives nothing and uses its own message · deleted file →
  *     record and waiver pruned
+ *   events: a reply event per Stop with outcome pass | block | standdown, alerts
+ *     at every level, sinceReminder, rewriteOf when a record closed · checks
+ *     off still lint for the log · vale broken → alerts null · model read from
+ *     the transcript once and cached · events off → no file and no lint
  */
+
+function replyEvents(env) {
+  return readEvents(eventsFile(env)).map(({ e, promptIndex, sinceReminder, outcome, model, alerts, rewriteOf }) => ({
+    e,
+    promptIndex,
+    sinceReminder,
+    outcome,
+    model,
+    alerts,
+    rewriteOf
+  }));
+}
+
+function warningAlert() {
+  return errorAlert({ Check: 'AITells.MicDrop', Severity: 'warning', Line: 2, Span: [1, 30], Match: 'That is the whole story, really.' });
+}
 
 const SESSION = 'OUTPUT_SESSION';
 
@@ -69,18 +90,63 @@ describe('check-output.run', () => {
   });
 
   describe('when both checks are off', () => {
-    let output;
+    let output, events, state;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
+      respond({ 'reply.chat.md': [errorAlert(), warningAlert()] });
+      const transcript = writeTranscript(sandbox.work, 't.jsonl', [
+        { type: 'assistant', message: { id: 'm1', model: 'claude-fable-5-1', content: [{ type: 'text', text: 'we ship synergy' }] } }
+      ]);
+      writeSession(SESSION, { promptCount: 9, promptAtLastReminder: 6 }, sandbox.env);
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, transcript_path: transcript, last_assistant_message: 'we ship synergy' },
+        sandbox.env
+      );
+      events = replyEvents(sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should return null and lint once, for the log alone', () => {
+      expect(output).toBeNull();
+      expect(mockSpawnSync).toHaveBeenCalledTimes(1);
+    });
+
+    it('should log a passing reply with alerts at every level and cache the model', () => {
+      expect({ events, model: state.model }).toEqual({
+        events: [
+          {
+            e: 'reply',
+            promptIndex: 9,
+            sinceReminder: 3,
+            outcome: 'pass',
+            model: 'claude-fable-5-1',
+            alerts: [
+              { check: 'AITells.MicDrop', severity: 'warning', n: 1 },
+              { check: 'JustSaySo.Buzzwords', severity: 'error', n: 1, match: 'synergy' }
+            ],
+            rewriteOf: undefined
+          }
+        ],
+        model: 'claude-fable-5-1'
+      });
+    });
+  });
+
+  describe('when both checks and the events log are off', () => {
+    let output, logged;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'off' }, events: { mode: 'off' } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'we ship synergy' },
         sandbox.env
       );
+      logged = fs.existsSync(eventsFile(sandbox.env));
     });
 
-    it('should return null without linting', () => {
-      expect(output).toBeNull();
+    it('should return null without linting or logging', () => {
+      expect({ output, logged }).toEqual({ output: null, logged: false });
       expect(mockSpawnSync).not.toHaveBeenCalled();
     });
   });
@@ -145,7 +211,7 @@ describe('check-output.run', () => {
   });
 
   describe('when a restate record is open and block mode rejects the first rewrite', () => {
-    let first, second, afterFirst, afterSecond;
+    let first, second, afterFirst, afterSecond, events;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
@@ -160,6 +226,14 @@ describe('check-output.run', () => {
         sandbox.env
       );
       afterSecond = { pending: readSession(SESSION, sandbox.env).pendingRewrite, rewrite: readRecords(rejectionsFile(sandbox.env))[0].rewrite };
+      events = replyEvents(sandbox.env).map(({ outcome, rewriteOf }) => ({ outcome, rewriteOf }));
+    });
+
+    it('should log a block event and then a pass that names the record', () => {
+      expect(events).toEqual([
+        { outcome: 'block', rewriteOf: undefined },
+        { outcome: 'pass', rewriteOf: 'R3' }
+      ]);
     });
 
     it('should block the first reply and keep the record open', () => {
@@ -176,7 +250,7 @@ describe('check-output.run', () => {
   });
 
   describe('when a restate record is open and block mode stands down', () => {
-    let output, pending, rewriteText;
+    let output, pending, rewriteText, events;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
@@ -193,6 +267,11 @@ describe('check-output.run', () => {
       );
       pending = readSession(SESSION, sandbox.env).pendingRewrite;
       rewriteText = readRecords(rejectionsFile(sandbox.env))[0].rewrite.text;
+      events = replyEvents(sandbox.env).map(({ outcome, rewriteOf }) => ({ outcome, rewriteOf }));
+    });
+
+    it('should log the stand-down with the record it closed', () => {
+      expect(events).toEqual([{ outcome: 'standdown', rewriteOf: 'R4' }]);
     });
 
     it('should stand down and close the record with the reply that stood', () => {
@@ -262,11 +341,11 @@ describe('check-output.run', () => {
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should skip the lint and record nothing', () => {
+    it('should record nothing for the check, with the one lint serving the log', () => {
       expect({ output, replyAlerts: state.replyAlerts, linted: mockSpawnSync.mock.calls.length }).toEqual({
         output: null,
         replyAlerts: {},
-        linted: 0
+        linted: 1
       });
     });
   });
@@ -339,7 +418,7 @@ describe('check-output.run', () => {
   });
 
   describe('when vale is broken during the reply check', () => {
-    let output;
+    let output, alerts;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
@@ -348,10 +427,11 @@ describe('check-output.run', () => {
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
         sandbox.env
       );
+      alerts = replyEvents(sandbox.env).map((e) => e.alerts);
     });
 
-    it('should treat the reply as clean', () => {
-      expect(output).toBeNull();
+    it('should treat the reply as clean and log it as unlinted', () => {
+      expect({ output, alerts }).toEqual({ output: null, alerts: [null] });
     });
   });
 

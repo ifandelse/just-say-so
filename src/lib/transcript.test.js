@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { contextSize, lastAssistantText } from './transcript.js';
+import { contextSize, lastAssistantText, lastExchange } from './transcript.js';
 import { writeTranscript } from '../../test/helpers/sandbox.js';
 
 /*
@@ -13,6 +13,11 @@ import { writeTranscript } from '../../test/helpers/sandbox.js';
  *   textOf: content string · content array (non-text blocks filtered) · neither → ''
  *   lastAssistantText: no assistant → '' · assistant without message id → that entry only ·
  *                      assistant with id spanning several entries
+ *   isPromptEntry: non-user → no · string content (empty → no) · array with a
+ *                  tool_result → no · array of text blocks · content neither → no
+ *   lastExchange: no assistant → nulls · model string present · model missing →
+ *                 null · prompt skips tool results back past a multi-entry
+ *                 message · no id → that entry · no prompt before → null
  */
 
 function tmpdir() {
@@ -168,6 +173,59 @@ describe('transcript', () => {
 
       it('should return empty text', () => {
         expect({ missingFile, userOnly }).toEqual({ missingFile: '', userOnly: '' });
+      });
+    });
+  });
+
+  describe('lastExchange', () => {
+    describe('when the last message spans entries and tool results sit between it and the prompt', () => {
+      let result;
+
+      beforeEach(() => {
+        const file = writeTranscript(tmpdir(), 't.jsonl', [
+          { type: 'user', message: { content: 'older prompt' } },
+          { type: 'assistant', message: { id: 'msg_0', model: 'claude-x', content: [{ type: 'text', text: 'older reply' }] } },
+          { type: 'user', message: { content: [{ type: 'text', text: 'how do we ship?' }] } },
+          { type: 'assistant', message: { id: 'msg_1', model: 'claude-fable-5-1', content: [{ type: 'tool_use', name: 'Bash' }] } },
+          { type: 'user', message: { content: [{ type: 'tool_result', content: 'ok' }] } },
+          { type: 'assistant', message: { id: 'msg_1', model: 'claude-fable-5-1', content: [{ type: 'text', text: 'We ship synergy.' }] } }
+        ]);
+        result = lastExchange(file);
+      });
+
+      it('should return the prompt, the joined text, and the model', () => {
+        expect(result).toEqual({ prompt: 'how do we ship?', text: 'We ship synergy.', model: 'claude-fable-5-1' });
+      });
+    });
+
+    describe('when the last assistant entry has no id, no model, and only junk before it', () => {
+      let result;
+
+      beforeEach(() => {
+        const file = writeTranscript(tmpdir(), 't.jsonl', [
+          { type: 'user', message: { content: '' } },
+          { type: 'user', message: { content: 8675309 } },
+          { type: 'user', message: { content: [{ type: 'image' }] } },
+          { type: 'assistant', message: { content: 'plain reply' } }
+        ]);
+        result = lastExchange(file);
+      });
+
+      it('should return that entry alone with null prompt and model', () => {
+        expect(result).toEqual({ prompt: null, text: 'plain reply', model: null });
+      });
+    });
+
+    describe('when no assistant entry exists', () => {
+      let result;
+
+      beforeEach(() => {
+        const file = writeTranscript(tmpdir(), 't.jsonl', [{ type: 'user', message: { content: 'hi' } }]);
+        result = lastExchange(file);
+      });
+
+      it('should return empty text and nulls', () => {
+        expect(result).toEqual({ prompt: null, text: '', model: null });
       });
     });
   });

@@ -14,8 +14,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI = path.join(ROOT, 'src', 'cli', 'allow.js');
 
+// The CLI logs an allow event, so it gets a throwaway state directory and
+// an empty personal config, never the developer's own.
 function runCli(args, cwd) {
-  return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8' });
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-cli-state-'));
+  const env = { ...process.env, JUST_SAY_SO_STATE_DIR: state, JUST_SAY_SO_CONFIG: path.join(state, 'none.json') };
+  return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env });
 }
 
 describe('allow CLI', () => {

@@ -6,11 +6,10 @@
 // too low, and rejections per prompt is a drift rate for one user's sessions.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { stateDir } from './state.js';
 import { lintText, applyConfigExemptions } from './vale.js';
+import { pluginVersion } from './version.js';
 
-const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const COMMAND = /^\/just-say-so:restate(?:\s+([\s\S]*))?$/;
 
 // The prompt hook receives a typed skill command as typed, not expanded.
@@ -44,22 +43,32 @@ export function lintReply(text, config, configPath, env = process.env) {
   }));
 }
 
-function pluginVersion() {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(PKG_ROOT, '.claude-plugin', 'plugin.json'), 'utf8')).version ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function newRecord({ sessionId, project, promptIndex, reason, rejected, config, now = new Date() }) {
+// prompt is the user prompt that produced the rejected reply, so the record
+// can stand as an eval case; model and sinceReminder (prompts between the
+// last rules injection and that reply) are the two joins a summary needs
+// without the events log.
+export function newRecord({
+  sessionId,
+  project,
+  promptIndex,
+  reason,
+  rejected,
+  config,
+  prompt = null,
+  model = null,
+  sinceReminder = null,
+  now = new Date()
+}) {
   const suffix = Math.random().toString(16).slice(2, 6).padEnd(4, '0');
   return {
     id: `${now.toISOString()}-${suffix}`,
     session: sessionId,
     project: project ?? null,
     promptIndex,
+    sinceReminder,
+    model,
     reason,
+    prompt,
     rejected,
     rewrite: null,
     version: pluginVersion(),

@@ -112,6 +112,22 @@ Defaults in `.just-say-so.json` (remove `outputCheck` and `reminder` overrides).
 
 **16c. Wrong answer is not a restate.** Ask a factual question, get a correct answer, and run `/just-say-so:restate` anyway. Expect: the rewrite keeps every fact. This confirms the skill body's instruction; the README tells users to correct wrong answers in an ordinary prompt.
 
+## Phase E3 — events log (0.8.0)
+
+Defaults in `.just-say-so.json` (remove `events` overrides). The log is `events.jsonl` in the state directory. `tail -f` it in a second terminal.
+
+**17. One session, every event type.** Start a fresh session. Expect: a `session` line with `source: "startup"`, `vale: true`, and the config snapshot, then a `reminder` line with `trigger: "session"` and `promptIndex: 0`. Send a clean prompt. Expect: a `reply` line with `outcome: "pass"`, `promptIndex: 1`, `sinceReminder: 1`, `alerts: []`, and the model id. Say: "Reply with exactly this sentence: we leverage synergy." Expect: a `reply` line whose `alerts` names `JustSaySo.Buzzwords` with `match` entries for `leverage` and `synergy`. Send any prompt. Expect: a `reminder` line with `trigger: "report"` and `withReport: true` (the default delivers the report on the next prompt), and `sinceReminder` on the following `reply` line is 0.
+
+**17a. Restate.** Repeat the banned sentence and run `/just-say-so:restate jargon`. Expect: a `restate` line with `reasonGiven: true`, `sinceReminder` equal to the distance from the last reminder, and `record` matching the new id in `rejections.jsonl`; a `reminder` line with `trigger: "restate"`; then a `reply` line for the rewrite with `rewriteOf` set to the same id. The rejection record carries `prompt` (the sentence request), `model`, and `sinceReminder`.
+
+**17b. Allow.** Run `/just-say-so:allow "robust regression"`. Expect: an `allow` line with `method`, `list` (null on the vocabulary route), and `added: true`. `session` is null unless the harness exported `CLAUDE_SESSION_ID` to the command.
+
+**17c. Block cycles.** Set `outputCheck.mode` to `block`, request the banned sentence. Expect: one `reply` line with `outcome: "block"` per blocked attempt, then a final `pass` or `standdown` line for the same `promptIndex`.
+
+**17d. Checks off.** Set `outputCheck.mode` and `bannedCheck.mode` to `off`. Send the banned sentence. Expect: no injection, no block, but the `reply` line still carries the alerts (the log lints on its own). Set `events.mode` to `off` and repeat. Expect: no new lines, and no `vale` process in the Stop hook's timing.
+
+**17e. Compact.** Run `/compact`. Expect: a `session` line with `source: "compact"` and a `reminder` line at `promptIndex: 0`.
+
 ## Phase F — published text via gh (0.2.0)
 
 Edit `.just-say-so.json`: `{ "bannedCheck": { "mode": "block", "addons": ["gh"] } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)

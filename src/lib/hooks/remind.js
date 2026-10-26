@@ -13,7 +13,8 @@
 import { loadConfig, DEFAULTS } from '../config.js';
 import { readRules, loadMessages } from '../rules.js';
 import { readSession, writeSession } from '../state.js';
-import { contextSize, lastAssistantText } from '../transcript.js';
+import { contextSize, lastExchange } from '../transcript.js';
+import { logEvent } from '../events.js';
 import { formatReplyReport, replyCheckMode, deliversNextPrompt } from '../reply-alerts.js';
 import { parseRestate, rejectionsFile, lintReply, newRecord, appendRecord } from '../rejections.js';
 import { resolveValeConfig } from '../vale.js';
@@ -29,33 +30,48 @@ export function run(input, env = process.env) {
 
   const restate = parseRestate(input.prompt);
   if (restate) {
-    const text = lastAssistantText(input.transcript_path);
+    const { prompt, text, model } = lastExchange(input.transcript_path);
     const configPath = resolveValeConfig(input.cwd, config);
+    // The rejected reply answered the previous prompt, so its distance from
+    // the last injection is measured from there.
+    const sinceReminder = Math.max(0, state.promptCount - 1 - (state.promptAtLastReminder ?? 0));
     const record = newRecord({
       sessionId,
       project: input.cwd ?? null,
       promptIndex: state.promptCount,
       reason: restate.reason,
       rejected: { text, alerts: lintReply(text, config, configPath, env) },
-      config
+      config,
+      prompt,
+      model,
+      sinceReminder
     });
     appendRecord(rejectionsFile(env), record);
+    const common = { session: sessionId, project: input.cwd ?? null, promptIndex: state.promptCount };
+    logEvent(
+      'restate',
+      { ...common, sinceReminder, record: record.id, reasonGiven: restate.reason !== null },
+      { config, env }
+    );
+    logEvent('reminder', { ...common, trigger: 'restate', withReport: false }, { config, env });
     state.pendingRewrite = record.id;
     state.replyAlerts = {};
     state.promptAtLastReminder = state.promptCount;
     state.contextAtLastReminder = null;
+    if (!state.model && model) state.model = model;
     writeSession(sessionId, state, env);
     return null;
   }
 
   const mode = config.reminder.mode;
   const countsWaiting = Object.keys(state.replyAlerts ?? {}).length > 0;
-  let fire = countsWaiting && replyCheckMode(config) === 'warn' && deliversNextPrompt(config);
+  const reportFire = countsWaiting && replyCheckMode(config) === 'warn' && deliversNextPrompt(config);
+  let intervalFire = false;
   let ctx = null;
 
   if (mode === 'prompts') {
     const n = Math.max(1, Number(config.reminder.everyPrompts) || DEFAULTS.reminder.everyPrompts);
-    fire = fire || state.promptCount - (state.promptAtLastReminder ?? 0) >= n;
+    intervalFire = state.promptCount - (state.promptAtLastReminder ?? 0) >= n;
   } else if (mode === 'tokens') {
     ctx = contextSize(input.transcript_path);
     if (ctx !== null) {
@@ -64,13 +80,13 @@ export function run(input, env = process.env) {
         state.contextAtLastReminder = ctx;
       } else {
         const threshold = Math.max(1, Number(config.reminder.everyTokens) || 4000);
-        fire = fire || ctx - state.contextAtLastReminder >= threshold;
+        intervalFire = ctx - state.contextAtLastReminder >= threshold;
       }
     }
   }
 
   let output = null;
-  if (fire) {
+  if (reportFire || intervalFire) {
     const parts = [readRules('condensed', config)];
     // The report rides the rules, never a schedule of its own: the counts
     // wait here until the rules go out.
@@ -79,6 +95,13 @@ export function run(input, env = process.env) {
       parts.push(report);
       state.replyAlerts = {};
     }
+    // The interval names the trigger when both are due; the report rides it.
+    const trigger = intervalFire ? (mode === 'tokens' ? 'tokens' : 'interval') : 'report';
+    logEvent(
+      'reminder',
+      { session: sessionId, project: input.cwd ?? null, promptIndex: state.promptCount, trigger, withReport: report !== null },
+      { config, env }
+    );
     state.promptAtLastReminder = state.promptCount;
     if (mode === 'tokens' && ctx !== null) state.contextAtLastReminder = ctx;
     output = {

@@ -8,6 +8,7 @@ vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 import { run } from './remind.js';
 import { readSession, writeSession } from '../state.js';
 import { rejectionsFile, readRecords } from '../rejections.js';
+import { eventsFile, readEvents } from '../events.js';
 import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
@@ -26,7 +27,15 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *     the waiting reply counts · emits nothing · bare command → reason null ·
  *     ordinary prompt → no record file
  *   session_id missing → "unknown"
+ *   events: reminder event per fire with trigger interval | tokens | report and
+ *     withReport · restate → restate event plus a reminder event (trigger restate)
  */
+
+function reminderEvents(env) {
+  return readEvents(eventsFile(env))
+    .filter((e) => e.e === 'reminder')
+    .map(({ promptIndex, trigger, withReport }) => ({ promptIndex, trigger, withReport }));
+}
 
 const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', match: 'synergy', message: "Banned buzzword: 'synergy'.", count: 2 } };
 
@@ -68,7 +77,7 @@ describe('remind.run', () => {
   });
 
   describe('when the prompt is the restate command with a reason', () => {
-    let output, state, records;
+    let output, state, records, events;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
@@ -84,10 +93,37 @@ describe('remind.run', () => {
       );
       state = readSession(SESSION, sandbox.env);
       records = readRecords(rejectionsFile(sandbox.env));
+      events = readEvents(eventsFile(sandbox.env));
     });
 
     it('should emit nothing and leave the rules to the skill', () => {
       expect(output).toBeNull();
+    });
+
+    it('should log the rejection and the rules going out through the skill', () => {
+      expect(events).toEqual([
+        {
+          t: expect.any(String),
+          e: 'restate',
+          session: SESSION,
+          project: expect.any(String),
+          v: expect.any(String),
+          promptIndex: 41,
+          sinceReminder: 19,
+          record: records[0].id,
+          reasonGiven: true
+        },
+        {
+          t: expect.any(String),
+          e: 'reminder',
+          session: SESSION,
+          project: expect.any(String),
+          v: expect.any(String),
+          promptIndex: 41,
+          trigger: 'restate',
+          withReport: false
+        }
+      ]);
     });
 
     it('should record the rejected reply verbatim with the reason and its alerts', () => {
@@ -97,7 +133,10 @@ describe('remind.run', () => {
           session: SESSION,
           project: expect.any(String),
           promptIndex: 41,
+          sinceReminder: 19,
+          model: null,
           reason: 'verbal shorthand',
+          prompt: 'how do we ship?',
           rejected: {
             text: 'We ship synergy.',
             alerts: [{ check: 'JustSaySo.Buzzwords', severity: 'error', line: 1, match: 'synergy', message: "Banned buzzword: 'synergy'." }]
@@ -180,7 +219,7 @@ describe('remind.run', () => {
   });
 
   describe('when prompts mode reaches the interval', () => {
-    let fifth, sixth, state;
+    let fifth, sixth, state, events;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 5 } });
@@ -188,6 +227,11 @@ describe('remind.run', () => {
       fifth = run(promptEvent(sandbox), sandbox.env);
       state = readSession(SESSION, sandbox.env);
       sixth = run(promptEvent(sandbox), sandbox.env);
+      events = reminderEvents(sandbox.env);
+    });
+
+    it('should log one interval reminder event', () => {
+      expect(events).toEqual([{ promptIndex: 5, trigger: 'interval', withReport: false }]);
     });
 
     it('should inject the condensed rules on the fifth prompt', () => {
@@ -270,10 +314,10 @@ describe('remind.run', () => {
   });
 
   describe('when context growth reaches the threshold', () => {
-    let output, state;
+    let output, state, sandbox;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'tokens', everyTokens: 100 } });
+      sandbox = makeSandbox({ reminder: { mode: 'tokens', everyTokens: 100 } });
       writeSession(SESSION, { promptCount: 1, contextAtLastReminder: 1000 }, sandbox.env);
       const transcript = writeTranscript(sandbox.work, 't3.jsonl', [
         { type: 'assistant', message: { usage: { input_tokens: 1200 } } }
@@ -284,6 +328,10 @@ describe('remind.run', () => {
 
     it('should fire and move the baseline to the current size', () => {
       expect({ fired: fired(output), baseline: state.contextAtLastReminder }).toEqual({ fired: true, baseline: 1200 });
+    });
+
+    it('should log a tokens reminder event', () => {
+      expect(reminderEvents(sandbox.env)).toEqual([{ promptIndex: 2, trigger: 'tokens', withReport: false }]);
     });
   });
 
@@ -307,13 +355,17 @@ describe('remind.run', () => {
   });
 
   describe('when reply counts wait under the default config', () => {
-    let context, state;
+    let context, state, sandbox;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      sandbox = makeSandbox();
       writeSession(SESSION, { promptCount: 1, replyAlerts: COUNTS }, sandbox.env);
       context = run(promptEvent(sandbox), sandbox.env).hookSpecificOutput.additionalContext;
       state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should log a report-triggered reminder event', () => {
+      expect(reminderEvents(sandbox.env)).toEqual([{ promptIndex: 2, trigger: 'report', withReport: true }]);
     });
 
     it('should fire on the next prompt with the rules and then the report', () => {
@@ -371,13 +423,17 @@ describe('remind.run', () => {
   });
 
   describe('when a reminder fires while reply counts wait for it', () => {
-    let context, state;
+    let context, state, sandbox;
 
     beforeEach(() => {
-      const sandbox = makeSandbox(INTERVAL_ONLY);
+      sandbox = makeSandbox(INTERVAL_ONLY);
       writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       context = run(promptEvent(sandbox), sandbox.env).hookSpecificOutput.additionalContext;
       state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should log the interval as the trigger with the report riding it', () => {
+      expect(reminderEvents(sandbox.env)).toEqual([{ promptIndex: 5, trigger: 'interval', withReport: true }]);
     });
 
     it('should lead with the rules and follow with the report', () => {

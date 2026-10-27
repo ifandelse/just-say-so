@@ -11,9 +11,13 @@
 // a later section wins, package configs before the project's; a section's
 // BasedOnStyles replaces the list in force, an empty one included; inside
 // one section a per-rule level beats a style-wide level, and a narrower
-// section beats the global one either way. ls-config serializes the
-// sections as maps, which lose file order, so the order is read from the
-// config files themselves.
+// section beats the global one either way. Selecting a style and setting
+// it are different things: only BasedOnStyles selects, `Style = NO` and a
+// later `Style = YES` toggle a selected style, a style-wide level also
+// counts as YES, and an explicit per-rule YES or NO decides that rule
+// whatever its style's state. ls-config serializes the sections as maps,
+// which lose file order, so the order is read from the config files
+// themselves.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,10 +58,17 @@ function sectionHeaders(file) {
   } catch {
     return [];
   }
+  // A header runs to its last "]", so a character class inside it stays,
+  // and a trailing comment after it is ignored, the way Vale's INI reader
+  // takes them.
   const out = [];
-  for (const m of text.matchAll(/^\s*\[([^\]\n]+)\]\s*$/gm)) {
-    const name = m[1].trim();
-    if (name !== 'formats' && name !== GLOBAL) out.push(name);
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line.startsWith('[')) continue;
+    const close = line.lastIndexOf(']');
+    if (close === -1) continue;
+    const name = line.slice(1, close).trim();
+    if (name && name !== 'formats' && name !== GLOBAL) out.push(name);
   }
   return out;
 }
@@ -120,18 +131,20 @@ export function ruleStateFor(name, resolved, inventory, order) {
   const state = new Map();
   for (const [id, declared] of inventory) {
     const style = id.split('.')[0];
-    let enabled = styleSet.has(style);
+    let styleToggle; // the last Style = YES|NO (a level counts as YES)
+    let ruleToggle; // the last Style.Rule = YES|NO
     let level = declared;
     for (const section of sections) {
+      if (typeof section.checks[style] === 'boolean') styleToggle = section.checks[style];
+      if (typeof section.checks[id] === 'boolean') ruleToggle = section.checks[id];
       // Style-wide first, per-rule second: inside one section the
-      // per-rule setting wins.
-      if (section.checks[style] === false) enabled = false;
-      if (section.checks[style] === true) enabled = true;
-      if (section.checks[id] === false) enabled = false;
-      if (section.checks[id] === true) enabled = true;
+      // per-rule level wins.
       if (section.levels[style]) level = section.levels[style];
       if (section.levels[id]) level = section.levels[id];
     }
+    // An explicit per-rule setting decides. Otherwise the rule runs when
+    // its style is selected and not toggled off.
+    const enabled = ruleToggle !== undefined ? ruleToggle : styleSet.has(style) && styleToggle !== false;
     state.set(id, { enabled, level });
   }
   return state;

@@ -12,15 +12,18 @@ import { DEFAULTS } from './config.js';
 /*
  * Branch map — src/lib/rule-state.js
  *   sectionOrder: package .vale-config/*.ini in name order, then the
- *     config files · [formats] and [*] skipped · globs only the maps hold
- *     come last · unreadable file skipped
+ *     config files · [formats] and [*] skipped · a trailing comment and a
+ *     character class inside the header are kept the way Vale keeps them ·
+ *     globs only the maps hold come last · unreadable file skipped
  *   ruleStateFor: global styles · a matching section's BasedOnStyles
  *     replaces them, an empty list included · later section wins over an
  *     earlier one in file order · Style = NO · Style.Rule = NO · YES
  *     re-enables · style-wide level · per-rule level beats style-wide in
  *     the same section · a narrower section beats the global one either
  *     way · brace-alternative sections match · sections that do not
- *     match the name are ignored
+ *     match the name are ignored · a style-wide YES or level never selects
+ *     a style, a later YES undoes NO on a selected style, a per-rule YES
+ *     loads the rule after an empty BasedOnStyles or a style NO
  *   contextRules: vale fails or prints junk → the plain condensed text ·
  *     vale: false → the plain text, no spawn · a bullet whose installed
  *     Vale rules are all off is dropped, an uninstalled rule not counting ·
@@ -85,7 +88,9 @@ describe('rule-state', () => {
         const styles = tmpdir();
         iniFile('[formats]\nreply = md\n[*.reply]\nP.Rule = NO\n', path.join(styles, '.vale-config'), '1-Q.ini');
         iniFile('[*.publish]\nP.Rule = NO\n', path.join(styles, '.vale-config'), '0-P.ini');
-        const project = iniFile('StylesPath = styles\n[*]\nBasedOnStyles = X\n  [reply.*]  \nX.A = YES\n[{*.reply,*.publish}]\nX.A = NO\n');
+        const project = iniFile(
+          'StylesPath = styles\n[*]\nBasedOnStyles = X\n  [reply.*]  \nX.A = YES\n[r*.reply] # the first match\nX.A = NO\n[reply.[r]eply]\nX.A = NO\n[{*.reply,*.publish}]\nX.A = NO\n[broken\n'
+        );
         order = sectionOrder(
           resolvedWith({
             Paths: [styles, path.join(styles, 'MISSING')],
@@ -96,7 +101,7 @@ describe('rule-state', () => {
       });
 
       it('should list package sections first, then the project sections, then map-only globs', () => {
-        expect(order).toEqual(['*.publish', '*.reply', 'reply.*', '{*.reply,*.publish}', '*.md']);
+        expect(order).toEqual(['*.publish', '*.reply', 'reply.*', 'r*.reply', 'reply.[r]eply', '{*.reply,*.publish}', '*.md']);
       });
     });
   });
@@ -182,6 +187,64 @@ describe('rule-state', () => {
           ['Local.Extra', true],
           ['Local.Other', true]
         ]);
+      });
+    });
+
+    describe('when styles are toggled or leveled without being selected', () => {
+      let unselectedYes, laterYes, emptyListWithLevel, ruleYesAfterEmpty, ruleYesInsideStyleNo;
+
+      beforeEach(() => {
+        const inv = new Map([
+          ['Local.Extra', 'error'],
+          ['Local.Other', 'warning']
+        ]);
+        // [*] Local = YES with no BasedOnStyles: nothing runs.
+        unselectedYes = ruleStateFor('reply.reply', resolvedWith({ GBaseStyles: [], GChecks: { Local: true } }), inv, []);
+        // [*] BasedOnStyles = Local; [*.reply] Local = NO; [reply.*] Local = YES: back on.
+        laterYes = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ GBaseStyles: ['Local'], SChecks: { '*.reply': { Local: false }, 'reply.*': { Local: true } } }),
+          inv,
+          ['*.reply', 'reply.*']
+        );
+        // [*] BasedOnStyles = Local, Local = suggestion; [*.reply] BasedOnStyles = (empty): off.
+        emptyListWithLevel = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ GBaseStyles: ['Local'], GChecks: { Local: true }, RuleToLevel: { Local: 'suggestion' }, SBaseStyles: { '*.reply': [] } }),
+          inv,
+          ['*.reply']
+        );
+        // [*.reply] BasedOnStyles = (empty) then Local.Extra = YES: that one rule runs.
+        ruleYesAfterEmpty = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ GBaseStyles: ['Local'], SBaseStyles: { '*.reply': [] }, SChecks: { '*.reply': { 'Local.Extra': true } } }),
+          inv,
+          ['*.reply']
+        );
+        // [*.reply] Local = NO plus Local.Extra = YES: the per-rule setting decides.
+        ruleYesInsideStyleNo = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ GBaseStyles: ['Local'], SChecks: { '*.reply': { Local: false, 'Local.Extra': true } } }),
+          inv,
+          ['*.reply']
+        );
+      });
+
+      it('should select only through BasedOnStyles and let per-rule settings decide', () => {
+        const on = (state) => [...state.entries()].filter(([, s]) => s.enabled).map(([id]) => id);
+        expect({
+          unselectedYes: on(unselectedYes),
+          laterYes: on(laterYes),
+          emptyListWithLevel: on(emptyListWithLevel),
+          ruleYesAfterEmpty: on(ruleYesAfterEmpty),
+          ruleYesInsideStyleNo: on(ruleYesInsideStyleNo)
+        }).toEqual({
+          unselectedYes: [],
+          laterYes: ['Local.Extra', 'Local.Other'],
+          emptyListWithLevel: [],
+          ruleYesAfterEmpty: ['Local.Extra'],
+          ruleYesInsideStyleNo: ['Local.Extra']
+        });
       });
     });
 

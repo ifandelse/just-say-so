@@ -32,7 +32,8 @@ import { DEFAULTS } from './config.js';
  *     per-rule setting mentions anywhere
  *   contextRules: vale fails or prints junk → the plain condensed text ·
  *     vale: false → the plain text, no spawn · a bullet whose installed
- *     Vale rules are all off is dropped, an uninstalled rule not counting ·
+ *     addressed Vale rules are all off is dropped, an uninstalled or
+ *     unselected rule not counting ·
  *     a bullet with only uninstalled rules stays · error rules no bullet
  *     names are appended, capped, sorted · a style-wide level below error
  *     keeps a rule out of the trailer · nothing to append → no trailer
@@ -141,11 +142,11 @@ describe('rule-state', () => {
 
       it('should apply the matching sections in that order and ignore the rest', () => {
         expect(Object.fromEntries(state)).toEqual({
-          'JustSaySo.Buzzwords': { enabled: true, level: 'error' },
-          'JustSaySo.Intensifiers': { enabled: false, level: 'suggestion' },
-          'STE.Articles': { enabled: false, level: 'error' },
-          'Local.Extra': { enabled: true, level: 'error' },
-          'Local.Other': { enabled: false, level: 'warning' }
+          'JustSaySo.Buzzwords': { enabled: true, level: 'error', addressed: true },
+          'JustSaySo.Intensifiers': { enabled: false, level: 'suggestion', addressed: true },
+          'STE.Articles': { enabled: false, level: 'error', addressed: true },
+          'Local.Extra': { enabled: true, level: 'error', addressed: true },
+          'Local.Other': { enabled: false, level: 'warning', addressed: true }
         });
       });
     });
@@ -162,7 +163,7 @@ describe('rule-state', () => {
       });
 
       it('should let the later section win', () => {
-        expect(state.get('JustSaySo.Intensifiers')).toEqual({ enabled: true, level: 'suggestion' });
+        expect(state.get('JustSaySo.Intensifiers')).toEqual({ enabled: true, level: 'suggestion', addressed: true });
       });
     });
 
@@ -422,6 +423,40 @@ describe('rule-state', () => {
         expect(text).not.toContain("it's not {x}");
         expect(text).toContain('- One idea per sentence.');
         expect(text).toMatch(/\n\nThis project also enforces these Vale rules at error level: acme\.Alpha, acme\.Beta\.\n$/);
+      });
+    });
+
+    describe('when a style sits in the styles directory but no section selects it', () => {
+      let text;
+
+      beforeEach(() => {
+        const dir = stylesDir({
+          'JustSaySo.Buzzwords': 'error',
+          'ai-tells.AbstractionSubject': 'error',
+          'ai-tells.EmptyPadding': 'error',
+          'ai-tells.MicDrop': 'error'
+        });
+        valeSays(resolvedWith({ GBaseStyles: ['JustSaySo'], Paths: [dir] }));
+        text = contextRules(DEFAULTS, os.tmpdir(), {});
+      });
+
+      it('should keep every bullet and name nothing, because an unselected style is neither on nor off', () => {
+        expect(text.split('\n').filter((l) => l.startsWith('- ')).length).toBe(19);
+        expect(text).not.toContain('also enforces');
+      });
+    });
+
+    describe('when an unselected style has one rule turned on by name', () => {
+      let text;
+
+      beforeEach(() => {
+        const dir = stylesDir({ 'JustSaySo.Buzzwords': 'error', 'ai-tells.EmDashUsage': 'error', 'ai-tells.MicDrop': 'error' });
+        valeSays(resolvedWith({ GBaseStyles: ['JustSaySo'], GChecks: { 'ai-tells.EmDashUsage': true }, Paths: [dir] }));
+        text = contextRules(DEFAULTS, os.tmpdir(), {});
+      });
+
+      it('should name only that rule in the trailer', () => {
+        expect(text).toMatch(/also enforces these Vale rules at error level: ai-tells\.EmDashUsage\.\n$/);
       });
     });
 

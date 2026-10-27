@@ -128,10 +128,15 @@ export function ruleStateFor(name, resolved, inventory, order) {
   const toggles = new Map(); // key → { on, scope }
   const levels = new Map(); // key → { level, scope }
   const mentioned = new Set(); // rule ids a per-rule setting names anywhere
+  // Styles and rules the config addressed: selected in any list on the
+  // way, or named by a toggle. A style that only sits in the styles
+  // directory is neither on nor off, and says nothing about a bullet.
+  const addressed = new Set();
   let supplied = new Set();
 
   const select = (list) => {
     const selected = new Set(list);
+    for (const style of selected) addressed.add(style);
     supplied = new Set(ids.filter((id) => selected.has(styleOf(id))));
     for (const [key, t] of toggles) if (t.on) toggles.delete(key);
   };
@@ -139,6 +144,7 @@ export function ruleStateFor(name, resolved, inventory, order) {
     for (const [key, on] of Object.entries(checks ?? {})) {
       if (typeof on !== 'boolean') continue;
       toggles.set(key, { on, scope });
+      addressed.add(key);
       if (isRule(key)) mentioned.add(key);
     }
     for (const [key, level] of Object.entries(lvls ?? {})) levels.set(key, { level, scope });
@@ -170,7 +176,11 @@ export function ruleStateFor(name, resolved, inventory, order) {
     if (!t) enabled = supplied.has(id);
     else if (!t.on) enabled = false;
     else enabled = t.byRule || supplied.has(id) || mentioned.has(id);
-    state.set(id, { enabled, level: pick(levels, id)?.level ?? inventory.get(id) });
+    state.set(id, {
+      enabled,
+      level: pick(levels, id)?.level ?? inventory.get(id),
+      addressed: addressed.has(id) || addressed.has(styleOf(id))
+    });
   }
   return state;
 }
@@ -191,17 +201,18 @@ export function contextRules(config, anchorDir, env = process.env, { vale = null
   const inventory = listStyleRules(resolved.Paths ?? []);
   const state = ruleStateFor(REPLY_NAME, resolved, inventory, sectionOrder(resolved));
 
-  // A bullet goes when every installed Vale rule it names is turned off.
-  // A rule the inventory lacks (a style the project never installed)
-  // checks nothing, so it neither keeps nor drops the bullet; a bullet
-  // whose rules are all uninstalled stays.
+  // A bullet goes when every Vale rule it names that the config addressed
+  // is turned off. A rule the config never addressed, because its style is
+  // not installed or sits in the styles directory unselected, checks
+  // nothing and says nothing; a bullet whose rules are all unaddressed
+  // stays.
   const drop = new Set();
   const described = new Set();
   for (const rule of allRules(manifest)) {
     const ids = rule.vale ?? [];
     for (const id of ids) described.add(id);
-    const installed = ids.filter((id) => state.has(id));
-    if (installed.length > 0 && installed.every((id) => !state.get(id).enabled)) drop.add(rule.id);
+    const considered = ids.filter((id) => state.get(id)?.addressed);
+    if (considered.length > 0 && considered.every((id) => !state.get(id).enabled)) drop.add(rule.id);
   }
 
   const undescribed = [...state.entries()]

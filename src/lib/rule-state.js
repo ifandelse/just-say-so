@@ -185,6 +185,25 @@ export function ruleStateFor(name, resolved, inventory, order) {
   return state;
 }
 
+/** Every Vale rule id the manifest's bullets name. */
+export function describedIds(manifest) {
+  return new Set(allRules(manifest).flatMap((r) => r.vale ?? []));
+}
+
+/**
+ * The enabled rules at `minLevel` or above that no bullet describes,
+ * sorted. These are what the reminder's closing line names.
+ */
+export function undescribedIds(state, manifest, minLevel = 'error') {
+  const rank = { error: 0, warning: 1, suggestion: 2 };
+  const floor = rank[minLevel] ?? 2;
+  const described = describedIds(manifest);
+  return [...state.entries()]
+    .filter(([id, s]) => s.enabled && (rank[s.level] ?? 2) <= floor && !described.has(id))
+    .map(([id]) => id)
+    .sort();
+}
+
 /**
  * The condensed rules text for a context, adjusted to the project's Vale
  * config for the reply target. Returns the unadjusted text when vale or
@@ -207,18 +226,13 @@ export function contextRules(config, anchorDir, env = process.env, { vale = null
   // nothing and says nothing; a bullet whose rules are all unaddressed
   // stays.
   const drop = new Set();
-  const described = new Set();
   for (const rule of allRules(manifest)) {
     const ids = rule.vale ?? [];
-    for (const id of ids) described.add(id);
     const considered = ids.filter((id) => state.get(id)?.addressed);
     if (considered.length > 0 && considered.every((id) => !state.get(id).enabled)) drop.add(rule.id);
   }
 
-  const undescribed = [...state.entries()]
-    .filter(([id, s]) => s.enabled && s.level === 'error' && !described.has(id))
-    .map(([id]) => id)
-    .sort();
+  const undescribed = undescribedIds(state, manifest, 'error');
   let append = null;
   if (undescribed.length > 0) {
     const messages = loadMessages(config);

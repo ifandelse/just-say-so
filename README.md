@@ -33,6 +33,7 @@ You also get six commands. They work in environments without hooks (like desktop
 
 - `/just-say-so:init [flags]` — set a project up: a `.vale.ini` that loads the JustSaySo package, `vale sync`, the plugin config for the targets you name, and the commit gate for the repo's hook tooling. See [Setting a project up](#setting-a-project-up).
 - `/just-say-so:doctor` — how the plugin reads this project: the Vale binary and config in force, which rules each target lints under, the raw section settings, and every warning. See [The doctor](#the-doctor).
+- `/just-say-so:draft [--all]` — bullets for the Vale rules this project enforces that the reminder only names, grouped by theme, as a `rules.extra` fragment to paste and edit. See [Bullets for your own Vale rules](#bullets-for-your-own-vale-rules).
 - `/just-say-so:rules` — load the full rules into context for the rest of the session.
 - `/just-say-so:remind` — inject the condensed reminder now.
 - `/just-say-so:restate [reason]` — the previous reply broke the rules in a way you noticed. The model rewrites it under the condensed rules, and the plugin saves the rejected reply, your reason, and the rewrite as a labeled example. See [Rejected replies](#rejected-replies).
@@ -343,6 +344,10 @@ Fields the forced file sets win over the project file, so a mode committed to `.
 - `style`, on the four banned-term rules: the name, message, level, and terms of the generated Vale rule. The `{terms}` placeholder in the text renders that list, so the rules text and the style never disagree about what is banned.
 
 **What the `vale` field buys.** At every context start, the plugin runs `vale ls-config` for the reply target and adjusts the condensed text before injecting it. A bullet is left out when every installed Vale rule behind it is turned off; a rule from a style the project never installed does not count. Error-level rules in the project's styles that no bullet names are added as one closing line, twelve at most, so the model at least sees their names. A project that sets `JustSaySo.Intensifiers = NO` and runs `ai-tells.EmDashUsage` at error gets a reminder without the intensifiers bullet and with the em-dash rule named at the end. When `vale` is missing the text goes out unadjusted.
+
+### Bullets for your own Vale rules
+
+A project that runs a style the shipped manifest does not describe, ai-tells say, gets those rules named at the end of the reminder and nothing more. `/just-say-so:draft` writes the missing bullets. It runs `node src/cli/undescribed.js`, which lists every enabled error-level rule for the reply target that no bullet names, with the rule's message, description, link, and a few of the tokens it looks for. The model then groups those rules by theme and writes one bullet per theme, with a `short` text for the reminder, a `full` text, and the grouped ids in `vale`, and prints the result as a `rules.extra` fragment. It is a draft: save it, edit it, and point `rules.extra` at the file. From then on the reminder carries your sentences instead of the names. `--all` includes warning and suggestion rules. The doctor warns when a pasted bullet names a rule no installed style has.
 
 ### Bring your own rules
 

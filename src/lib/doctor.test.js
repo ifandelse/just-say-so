@@ -17,7 +17,8 @@ import { makeSandbox } from '../../test/helpers/sandbox.js';
  *   warnings: package tag drift · sync needed (no .vale-config) · package
  *     listed but style missing · formats unmapped · chat.md section ·
  *     restated BasedOnStyles · JustSaySo not installed · installed but
- *     unselected · block mode with no error rule · dangling Vocab
+ *     unselected · block mode with no error rule · dangling Vocab ·
+ *     rules.extra unreadable · rules.extra naming an uninstalled rule
  *   targets: rules on per style, level counts, off list capped · sections column
  *   warnings: a brace-list section naming paths that do not exist
  *   raw: global and per-section lines, levels folded in
@@ -178,6 +179,29 @@ describe('doctor', () => {
         'artifact is in block mode but no error-level rule is enabled for artifact.page.html, so it can never block.',
         'reply is in block mode but no error-level rule is enabled for reply.reply, so it can never block.'
       ]);
+    });
+  });
+
+  describe('when rules.extra names a rule no style has, or cannot be read', () => {
+    let unknown, unreadable;
+
+    beforeEach(() => {
+      const work = tmpdir();
+      const styles = path.join(work, 'styles');
+      stylesWith(styles, { 'JustSaySo.Buzzwords': 'error' });
+      fs.writeFileSync(path.join(work, '.vale.ini'), 'StylesPath = styles\n[*]\nBasedOnStyles = JustSaySo\n');
+      fs.writeFileSync(path.join(work, 'x.json'), JSON.stringify({ sections: [{ title: 'P', rules: [{ id: 'dash', full: 'x', vale: ['ai-tells.EmDashUsage', 'JustSaySo.Buzzwords'] }] }] }));
+      const resolved = { Formats: { reply: 'md', publish: 'md' }, GBaseStyles: ['JustSaySo'], Paths: [styles], ConfigFiles: [] };
+      vale({ resolved });
+      fs.writeFileSync(path.join(work, 'none.json'), JSON.stringify({ rules: { extra: path.join(work, 'x.json') } }));
+      unknown = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+      fs.writeFileSync(path.join(work, 'none.json'), JSON.stringify({ rules: { extra: path.join(work, 'missing.json') } }));
+      unreadable = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+    });
+
+    it('should name the unknown id with its bullet, and the unreadable file', () => {
+      expect(unknown.warnings).toContain('rules.extra names Vale rules no installed style has: ai-tells.EmDashUsage (bullet dash). Fix the id or sync the style.');
+      expect(unreadable.warnings.some((w) => w.startsWith('rules.extra names ') && w.includes('cannot be read as JSON'))).toBe(true);
     });
   });
 

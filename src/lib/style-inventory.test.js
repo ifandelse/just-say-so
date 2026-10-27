@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listStyleRules } from './style-inventory.js';
+import { listStyleRules, listStyleFiles } from './style-inventory.js';
 
 /*
  * Branch map — src/lib/style-inventory.js
@@ -14,7 +14,7 @@ import { listStyleRules } from './style-inventory.js';
 describe('style-inventory', () => {
   describe('listStyleRules', () => {
     describe('when two directories hold styles with nested rules and odd entries', () => {
-      let rules;
+      let rules, files;
 
       beforeEach(() => {
         const a = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-inv-a-'));
@@ -32,6 +32,12 @@ describe('style-inventory', () => {
         fs.mkdirSync(path.join(b, 'Plain'));
         fs.writeFileSync(path.join(b, 'Plain', 'Passive.yml'), 'level: warning\n');
         rules = listStyleRules([a, path.join(a, 'MISSING'), b, null]);
+        files = listStyleFiles([a, b]);
+      });
+
+      it('should map every rule to its file', () => {
+        expect([...files.keys()].sort()).toEqual(['Plain.Passive', 'Tells.Dash', 'Tells.NoLevel', 'Tells.sub.Deep']);
+        expect(files.get('Tells.sub.Deep')).toMatch(/Tells\/sub\/Deep\.yml$/);
       });
 
       it('should map every rule file to its level and skip everything else', () => {

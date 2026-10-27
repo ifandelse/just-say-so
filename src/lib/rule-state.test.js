@@ -6,7 +6,7 @@ import path from 'node:path';
 const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
-import { ruleStateFor, sectionOrder, contextRules } from './rule-state.js';
+import { ruleStateFor, sectionOrder, contextRules, describedIds, undescribedIds } from './rule-state.js';
 import { DEFAULTS } from './config.js';
 
 /*
@@ -362,6 +362,31 @@ describe('rule-state', () => {
           narrowerRule: ['warning', 'suggestion'],
           sectionRuleOverLaterSectionStyle: ['warning', 'suggestion']
         });
+      });
+    });
+  });
+
+  describe('describedIds and undescribedIds', () => {
+    it('should name the manifest ids and list enabled undescribed rules at or above the floor, sorted', () => {
+      const manifest = { sections: [{ rules: [{ id: 'a', vale: ['X.One', 'Y.Two'] }, { id: 'b', vale: [] }] }] };
+      const state = new Map([
+        ['X.One', { enabled: true, level: 'error' }],
+        ['Z.Err', { enabled: true, level: 'error' }],
+        ['Z.Warn', { enabled: true, level: 'warning' }],
+        ['Z.Sug', { enabled: true, level: 'suggestion' }],
+        ['Z.Off', { enabled: false, level: 'error' }],
+        ['A.Err', { enabled: true, level: 'error' }]
+      ]);
+      expect({
+        described: [...describedIds(manifest)],
+        errors: undescribedIds(state, manifest),
+        warnings: undescribedIds(state, manifest, 'warning'),
+        all: undescribedIds(state, manifest, 'suggestion')
+      }).toEqual({
+        described: ['X.One', 'Y.Two'],
+        errors: ['A.Err', 'Z.Err'],
+        warnings: ['A.Err', 'Z.Err', 'Z.Warn'],
+        all: ['A.Err', 'Z.Err', 'Z.Sug', 'Z.Warn']
       });
     });
   });

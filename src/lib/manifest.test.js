@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   loadManifest,
+  loadExtra,
   renderRules,
   valeIds,
   styleSpecs,
@@ -160,6 +161,19 @@ describe('manifest', () => {
       it('should ignore it', () => {
         expect(manifest).toEqual(SMALL);
       });
+    });
+  });
+
+  describe('loadExtra', () => {
+    it('should return the fragment alone, or null when unset or unreadable', () => {
+      const dir = tmpdir();
+      fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify({ sections: [] }));
+      fs.writeFileSync(path.join(dir, 'bad.json'), '{oops');
+      expect({
+        set: loadExtra({ rules: { extra: path.join(dir, 'x.json') } }),
+        unset: loadExtra({}),
+        bad: loadExtra({ rules: { extra: path.join(dir, 'bad.json') } })
+      }).toEqual({ set: { sections: [] }, unset: null, bad: null });
     });
   });
 

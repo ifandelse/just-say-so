@@ -20,8 +20,10 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *     warnings-only with rules · unlinted apart
  *   rewrites: clean, keptError, unlinted, surviving rules
  *   reasons grouped lowercase · allows per term with projects · settings ·
- *   tags: stored or derived from the reason, classified by the manifest as
- *     judgment, vale (with fires on linted rejected replies), or none
+ *   tags: stored or derived from the reason, classified by the record's
+ *     own project manifest as judgment, vale (with fires on linted rejected
+ *     replies), or none · a tag two projects cover differently prints once
+ *     per coverage with the projects named
  *   observations: frequentNeverRejected at 20+ turns
  *   compaction: a counter reset mid-session changes no count · a mode
  *     change mid-session attributes each reply to the snapshot in force
@@ -428,14 +430,42 @@ describe('summary', () => {
 
     it('should count each tag, classify its cover, and count rule fires for Vale-backed ones', () => {
       expect(s.tags).toEqual([
-        { tag: 'end-with-fact', count: 3, fired: 1, linted: 2, covers: 'vale', rules: ['ai-tells.MicDrop', 'ai-tells.PointVerdict'] },
-        { tag: 'undefined-term', count: 2, fired: 0, linted: 0, covers: 'none', rules: [] },
-        { tag: 'define-on-first-use', count: 1, fired: 0, linted: 0, covers: 'judgment', rules: [] },
-        { tag: 'flourish', count: 1, fired: 0, linted: 0, covers: 'none', rules: [] }
+        { tag: 'end-with-fact', count: 3, fired: 1, linted: 2, covers: 'vale', rules: ['ai-tells.MicDrop', 'ai-tells.PointVerdict'], projects: ['/p/a'] },
+        { tag: 'undefined-term', count: 2, fired: 0, linted: 0, covers: 'none', rules: [], projects: ['/p/a'] },
+        { tag: 'define-on-first-use', count: 1, fired: 0, linted: 0, covers: 'judgment', rules: [], projects: ['/p/a'] },
+        { tag: 'flourish', count: 1, fired: 0, linted: 0, covers: 'none', rules: [], projects: ['/p/a'] }
       ]);
       expect(text).toContain('end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules fired on 1 of 2 linted rejected replies');
       expect(text).toContain('define-on-first-use: 1 · covered by a judgment bullet; no Vale rule can check it');
       expect(text).toContain('what the rules do not cover yet: undefined-term (2), flourish (1).');
+    });
+  });
+
+  describe('when two projects cover the same tag differently', () => {
+    let s, text;
+
+    beforeEach(() => {
+      const shipped = { sections: [{ rules: [{ id: 'one-idea', vale: ['STE.SentenceLength'] }] }] };
+      const withExtra = { sections: [...shipped.sections, { rules: [{ id: 'domain-term', vale: ['Project.DomainTerm'] }] }] };
+      const manifestFor = (project) => (project === '/p/b' ? withExtra : shipped);
+      const rejections = [
+        { ...rejection('s1', '/p/a', 1, 2, 0, '#domain-term x', []), tags: ['domain-term'] },
+        { ...rejection('s2', '/p/b', 2, 2, 0, '#domain-term y', [rb('Project.DomainTerm', 'error', 'q')]), tags: ['domain-term'] },
+        { ...rejection('s2', '/p/b', 3, 3, 0, '#one-idea z', []), tags: ['one-idea'] }
+      ];
+      s = summarize([], rejections, { manifestFor });
+      text = formatSummary(s);
+    });
+
+    it('should classify each record by its own project and print the differing coverages apart', () => {
+      expect(s.tags).toEqual([
+        { tag: 'domain-term', count: 1, fired: 0, linted: 0, covers: 'none', rules: [], projects: ['/p/a'] },
+        { tag: 'domain-term', count: 1, fired: 1, linted: 1, covers: 'vale', rules: ['Project.DomainTerm'], projects: ['/p/b'] },
+        { tag: 'one-idea', count: 1, fired: 0, linted: 1, covers: 'vale', rules: ['STE.SentenceLength'], projects: ['/p/b'] }
+      ]);
+      expect(text).toContain('domain-term: 1 (in /p/a) · no bullet covers it yet');
+      expect(text).toContain('domain-term: 1 (in /p/b) · covered by a bullet backed by Project.DomainTerm; those rules fired on 1 of 1 linted rejected replies');
+      expect(text).toContain('one-idea: 1 · covered by');
     });
   });
 

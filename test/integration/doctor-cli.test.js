@@ -79,6 +79,43 @@ describe('doctor and init CLIs', () => {
     });
   });
 
+  describe('when the summary runs from one project about another with its own rules.extra', () => {
+    let fromA, fromB;
+
+    beforeEach(() => {
+      const shared = makeSandbox();
+      const a = fs.realpathSync(fs.mkdtempSync(path.join(shared.work, 'a-')));
+      const b = fs.realpathSync(fs.mkdtempSync(path.join(shared.work, 'b-')));
+      fs.writeFileSync(path.join(b, 'rules.json'), JSON.stringify({ sections: [{ title: 'B', rules: [{ id: 'domain-term', full: 'x', vale: ['Project.DomainTerm'] }] }] }));
+      fs.writeFileSync(path.join(b, '.just-say-so.json'), JSON.stringify({ rules: { extra: path.join(b, 'rules.json') } }));
+      fs.mkdirSync(shared.stateDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(shared.stateDir, 'rejections.jsonl'),
+        JSON.stringify({
+          id: '2026-10-01T12:00:00.000Z-abcd',
+          session: 's',
+          project: b,
+          promptIndex: 2,
+          sinceReminder: 0,
+          reason: '#domain-term',
+          tags: ['domain-term'],
+          rejected: { text: 'r', alerts: [{ check: 'Project.DomainTerm', severity: 'error', line: 1, match: 'q', message: 'm' }] },
+          rewrite: null,
+          version: '0.15.0'
+        }) + '\n'
+      );
+      const runIn = (cwd) => spawnSync(process.execPath, [path.join(ROOT, 'src', 'cli', 'summary.js'), '--json', '--project', b], { cwd, encoding: 'utf8', env: { ...process.env, ...shared.env } });
+      fromA = JSON.parse(runIn(a).stdout).tags;
+      fromB = JSON.parse(runIn(b).stdout).tags;
+    });
+
+    it('should classify the tag by the reported project, wherever the command runs', () => {
+      const expected = [{ tag: 'domain-term', count: 1, fired: 1, linted: 1, covers: 'vale', rules: ['Project.DomainTerm'], projects: expect.any(Array) }];
+      expect(fromA).toEqual(expected);
+      expect(fromB).toEqual(expected);
+    });
+  });
+
   describe('when init runs with a bad argument', () => {
     let result;
 

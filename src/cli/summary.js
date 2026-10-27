@@ -32,9 +32,18 @@ try {
   console.error(`just-say-so summary: ${err.message}`);
   process.exit(1);
 }
+// Each project's own manifest decides what its tags cover, because a
+// project's rules.extra adds bullets no other project has. A record with
+// no project falls back to the launch directory's manifest.
+const manifests = new Map();
+const manifestFor = (project) => {
+  const dir = project ?? process.cwd();
+  if (!manifests.has(dir)) manifests.set(dir, loadManifest(loadConfig(dir)));
+  return manifests.get(dir);
+};
 const report = summarize(readEvents(eventsFile()), readRecords(rejectionsFile()), {
   since,
   project: opt('--project'),
-  manifest: loadManifest(loadConfig(process.cwd()))
+  manifestFor
 });
 process.stdout.write(args.includes('--json') ? JSON.stringify(report, null, 2) + '\n' : formatSummary(report));

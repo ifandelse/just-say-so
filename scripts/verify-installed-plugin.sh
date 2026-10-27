@@ -169,8 +169,17 @@ printf 'StylesPath = styles\n' > "$W/.vale.ini"
 (cd "$W" && node "$PLUGIN/src/cli/allow.js" robust >/dev/null 2>&1 && node "$PLUGIN/src/cli/allow.js" robust regression >/dev/null 2>&1)
 OUT=$(cat "$W/.vale.ini"; cat "$W/styles/config/vocabularies/Project/accept.txt" 2>/dev/null)
 contains 'Vocab = Project' && contains 'robust regression'; check 'the CLI adds Vocab to the ini and both terms to accept.txt' $?
-OUT=$(cd "$W" && node "$PLUGIN/src/cli/allow.js" ROBUST 2>&1)
-contains 'already'; check 'CLI dedupes case-insensitively' $?
+OUT=$(cd "$W" && node "$PLUGIN/src/cli/allow.js" robust 2>&1)
+contains 'already'; check 'CLI dedupes an exact repeat' $?
+if [ "$HAVE_VALE" -eq 1 ]; then
+  (cd "$W" && node "$PLUGIN/src/cli/allow.js" Robust >/dev/null 2>&1 && cp -R "$PLUGIN/styles/JustSaySo" "$W/styles/JustSaySo")
+  printf 'MinAlertLevel = suggestion\n[*]\nBasedOnStyles = JustSaySo\n' >> "$W/.vale.ini"
+  printf 'Robust and robust.\n' > "$W/case.md"
+  OUT=$(cd "$W" && vale --output=line case.md 2>&1)
+  silent; check 'both spellings allowed, neither flagged by real vale' $?
+else
+  skip 'both spellings allowed'
+fi
 
 echo '— resilience'
 GARBAGE_OK=0

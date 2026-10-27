@@ -64,7 +64,9 @@ function addToVocabulary(file, term) {
   } catch {
     // a missing accept.txt starts empty
   }
-  const added = !lines.some((l) => l.trim().toLowerCase() === term.toLowerCase());
+  // Vale reads each entry as a case-sensitive expression, so "Robust" and
+  // "robust" are two exemptions; compare exactly or the second is lost.
+  const added = !lines.some((l) => l.trim() === term);
   if (added) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, [...lines, term].join('\n') + '\n');

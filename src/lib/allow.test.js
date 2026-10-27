@@ -11,8 +11,9 @@ import { eventsFile, readEvents } from './events.js';
  *                missing Vocab → inserted before the first section, default name ·
  *                missing both → both inserted; a sectionless ini gets them appended ·
  *                no .vale.ini above cwd → throw
- *   addToVocabulary: new file → created · duplicate (case-insensitive) →
- *                added: false · append preserves existing lines
+ *   addToVocabulary: new file → created · exact duplicate → added: false ·
+ *                a different casing is a new entry (Vale matches exactly) ·
+ *                append preserves existing lines
  *   addAllowTerm: empty term → throw · found by walk-up from a subdirectory
  *   events: an allow event per call, session from CLAUDE_SESSION_ID or null ·
  *           events off → no file
@@ -172,9 +173,26 @@ describe('allow', () => {
         result = addAllowTerm('robust regression', root, env);
       });
 
+      it('should add the new spelling, because Vale matches entries exactly', () => {
+        expect(result.added).toBe(true);
+        expect(fs.readFileSync(acceptPath(root), 'utf8')).toBe('Robust Regression\nTLS\nrobust regression\n');
+      });
+    });
+
+    describe('when the vocabulary already holds the exact term', () => {
+      let root, result;
+
+      beforeEach(() => {
+        root = tmpdir();
+        fs.writeFileSync(path.join(root, '.vale.ini'), 'StylesPath = styles\nVocab = Team\n');
+        fs.mkdirSync(path.dirname(acceptPath(root)), { recursive: true });
+        fs.writeFileSync(acceptPath(root), 'robust regression\nTLS\n');
+        result = addAllowTerm('robust regression', root, env);
+      });
+
       it('should report added: false and keep the file unchanged', () => {
         expect(result.added).toBe(false);
-        expect(fs.readFileSync(acceptPath(root), 'utf8')).toBe('Robust Regression\nTLS\n');
+        expect(fs.readFileSync(acceptPath(root), 'utf8')).toBe('robust regression\nTLS\n');
       });
     });
 

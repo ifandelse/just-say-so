@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { matchGhTrigger, matchesMcpTool, collectStrings, tokenize, extractGhTexts } from './addons.js';
+import { matchGhTrigger, matchesMcpTool, collectStrings, collectProseFields, tokenize, extractGhTexts } from './addons.js';
 
 /*
  * Branch map — src/lib/addons.js
@@ -10,6 +10,9 @@ import { matchGhTrigger, matchesMcpTool, collectStrings, tokenize, extractGhText
  *                   matches → false · patterns undefined → false
  *   collectStrings: bare string · nested objects and arrays · non-string
  *                   leaves dropped · null → []
+ *   collectProseFields: strings with whitespace only, with path and leaf
+ *                   field · arrays carry the parent's field · bare string ·
+ *                   null → []
  */
 
 describe('addons', () => {
@@ -52,6 +55,39 @@ describe('addons', () => {
           exact: true,
           noMatch: false,
           noPatterns: false
+        });
+      });
+    });
+  });
+
+  describe('collectProseFields', () => {
+    describe('when a tool input mixes prose, ids, and nested arrays', () => {
+      let fields, bare, empty;
+
+      beforeEach(() => {
+        fields = collectProseFields({
+          space: 'ENG',
+          url: 'https://x.test/a?b=c',
+          title: 'Q3 plan',
+          page: { body: { text: 'pure synergy here', format: 'adf' } },
+          comments: [{ body: 'first note' }, { body: 'nospace' }, { author: 'me', body: 'third note' }],
+          tags: ['one word', 'single']
+        });
+        bare = collectProseFields('two words');
+        empty = collectProseFields(null);
+      });
+
+      it('should keep only strings with whitespace, naming each by path and leaf field', () => {
+        expect({ fields, bare, empty }).toEqual({
+          fields: [
+            { path: 'title', field: 'title', text: 'Q3 plan' },
+            { path: 'page.body.text', field: 'text', text: 'pure synergy here' },
+            { path: 'comments[0].body', field: 'body', text: 'first note' },
+            { path: 'comments[2].body', field: 'body', text: 'third note' },
+            { path: 'tags[0]', field: 'tags', text: 'one word' }
+          ],
+          bare: [{ path: '$', field: 'value', text: 'two words' }],
+          empty: []
         });
       });
     });

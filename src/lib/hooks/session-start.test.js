@@ -77,7 +77,7 @@ describe('session-start.run', () => {
           vale: true,
           config: {
             files: { mode: 'warn' },
-            publish: { mode: 'block', gh: false, mcp: 0 },
+            publish: { mode: 'block', gh: false, mcp: 0, artifact: true },
             reply: { mode: 'warn' },
             rules: { onViolation: true }
           }
@@ -322,6 +322,7 @@ describe('session-start.run', () => {
       const sandbox = makeSandbox({
         rules: { onContextStart: ['compact'] },
         files: { mode: 'off' },
+        publish: { mode: 'off' },
         reply: { mode: 'off' }
       });
       valePresent({ Formats: {}, SBaseStyles: { '*.chat.md': ['X'] }, SChecks: {} });
@@ -338,7 +339,7 @@ describe('session-start.run', () => {
     let output, logged;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ files: { mode: 'off' }, reply: { mode: 'off' }, events: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' }, publish: { mode: 'off' }, reply: { mode: 'off' }, events: { mode: 'off' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       logged = fs.existsSync(eventsFile(sandbox.env));
@@ -355,7 +356,7 @@ describe('session-start.run', () => {
     let output, vale;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ files: { mode: 'off' }, reply: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' }, publish: { mode: 'off' }, reply: { mode: 'off' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       vale = readEvents(eventsFile(sandbox.env))[0].vale;

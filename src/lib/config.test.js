@@ -284,13 +284,13 @@ describe('config', () => {
         expect({ full, partial }).toEqual({
           full: {
             files: { mode: 'warn' },
-            publish: { mode: 'block', gh: false, mcp: 0 },
+            publish: { mode: 'block', gh: false, mcp: 0, artifact: true },
             reply: { mode: 'warn' },
             rules: { onViolation: true }
           },
           partial: {
             files: { mode: null },
-            publish: { mode: null, gh: null, mcp: 2 },
+            publish: { mode: null, gh: null, mcp: 2, artifact: null },
             reply: { mode: null },
             rules: { onViolation: null }
           }
@@ -309,12 +309,13 @@ describe('config', () => {
           publishOn({ publish: { mode: 'block', gh: true } }),
           publishOn({ publish: { mode: 'warn', mcp: ['mcp__x__*'] } }),
           publishOn({ publish: { mode: 'off', gh: true } }),
+          publishOn({ publish: { mode: 'block', artifact: false } }),
           publishOn({})
         ];
       });
 
-      it('should be on only with a source named and the mode not off', () => {
-        expect(results).toEqual([false, true, true, false, false]);
+      it('should be on only with a source on and the mode not off', () => {
+        expect(results).toEqual([true, true, true, false, false, false]);
       });
     });
   });

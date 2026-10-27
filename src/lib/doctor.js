@@ -20,6 +20,7 @@ import { pluginVersion } from './version.js';
 export const TARGETS = [
   ['reply', REPLY_NAME],
   ['publish', 'gh.pr.body.publish'],
+  ['artifact', 'artifact.page.html'],
   ['files .md', 'doc.md'],
   ['files .html', 'page.html'],
   ['files .js', 'code.js']
@@ -110,7 +111,7 @@ export function doctorReport(cwd, env = process.env) {
   }
   const p = config.publish;
   facts.push(
-    `targets: files ${config.files.mode} (show ${config.files.show}) · publish ${p.mode}${p.gh ? ', gh' : ''}${p.mcp.length ? `, mcp ${p.mcp.length} pattern(s)` : ''}${publishOn(config) ? '' : ' (no source named)'} · reply ${config.reply.mode}`
+    `targets: files ${config.files.mode} (show ${config.files.show}) · publish ${p.mode}${p.gh ? ', gh' : ''}${p.mcp.length ? `, mcp ${p.mcp.length} pattern(s)` : ''}${p.artifact ? ', artifact' : ''}${publishOn(config) ? '' : ' (no source on)'} · reply ${config.reply.mode}`
   );
   facts.push(
     `rules: context start [${(config.rules.onContextStart ?? []).join(', ')}] · subagents ${config.rules.onSubagentStart ? 'yes' : 'no'} · on violation ${config.rules.onViolation ? 'yes' : 'no'}`
@@ -199,7 +200,8 @@ export function doctorReport(cwd, env = process.env) {
 
   const blockTargets = [];
   if (config.files.mode === 'block') blockTargets.push('files .md');
-  if (p.mode === 'block' && publishOn(config)) blockTargets.push('publish');
+  if (p.mode === 'block' && (p.gh === true || p.mcp.length > 0)) blockTargets.push('publish');
+  if (p.mode === 'block' && p.artifact === true) blockTargets.push('artifact');
   if (config.reply.mode === 'block') blockTargets.push('reply');
   for (const label of blockTargets) {
     const t = targets.find((x) => x.label === label);

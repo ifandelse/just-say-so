@@ -387,7 +387,7 @@ describe('pre-gate.run', () => {
           session_id: SESSION,
           cwd: sandbox.work,
           tool_name: 'mcp__confluence__create_page',
-          tool_input: { title: 'Q3 plan', body: { text: 'pure synergy' } }
+          tool_input: { spaceId: 'ENG123', title: 'Q3 plan', page: { body: { text: 'pure synergy', format: 'adf' } } }
         },
         sandbox.env
       );
@@ -398,9 +398,75 @@ describe('pre-gate.run', () => {
       expect(output.hookSpecificOutput.permissionDecisionReason).toContain('mcp__confluence__create_page');
     });
 
-    it('should lint the call as mcp.<server>.<tool>.publish', () => {
-      const lintCall = mockSpawnSync.mock.calls.find((c) => c[1][0] !== 'ls-dirs');
-      expect(lintCall[1][2]).toBe('mcp.confluence.create_page.publish');
+    it('should lint each prose field as mcp.<server>.<tool>.<field>.publish and skip the id', () => {
+      const names = mockSpawnSync.mock.calls.filter((c) => c[1][0] !== 'ls-dirs').map((c) => c[1][2]);
+      expect(names).toEqual(['mcp.confluence.create_page.title.publish', 'mcp.confluence.create_page.text.publish']);
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('mcp__confluence__create_page page.body.text');
+    });
+  });
+
+  describe('when the Artifact tool publishes a page with an error', () => {
+    let output, name;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      fs.writeFileSync(path.join(sandbox.work, 'report.html'), '<p>pure synergy</p>\n');
+      lintResponder([errorAlert()]);
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Artifact', tool_input: { file_path: 'report.html', icon: 'chart' } },
+        sandbox.env
+      );
+      name = mockSpawnSync.mock.calls.find((c) => c[1][0] !== 'ls-dirs')[1][2];
+    });
+
+    it('should deny by default and lint the page under its own name and extension', () => {
+      expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('text published by Artifact');
+      expect(name).toBe('artifact.report.html');
+    });
+  });
+
+  describe('when the Artifact tool does something other than publish a page', () => {
+    let outputs;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      fs.writeFileSync(path.join(sandbox.work, 'report.html'), '<p>pure synergy</p>\n');
+      lintResponder([errorAlert()]);
+      const call = (tool_input) => run({ session_id: SESSION, cwd: sandbox.work, tool_name: 'Artifact', tool_input }, sandbox.env);
+      outputs = {
+        read: call({ action: 'read', url: 'https://claude.ai/artifact/x' }),
+        list: call({ action: 'list' }),
+        asset: call({ url: 'https://claude.ai/artifact/x', file_path: 'report.html', asset: true }),
+        noFile: call({ url: 'https://claude.ai/artifact/x', title: 'x' }),
+        off: (() => {
+          const off = makeSandbox({ publish: { artifact: false } });
+          fs.writeFileSync(path.join(off.work, 'report.html'), '<p>pure synergy</p>\n');
+          return run({ session_id: SESSION, cwd: off.work, tool_name: 'Artifact', tool_input: { file_path: 'report.html' } }, off.env);
+        })()
+      };
+    });
+
+    it('should stay silent', () => {
+      expect(outputs).toEqual({ read: null, list: null, asset: null, noFile: null, off: null });
+    });
+  });
+
+  describe('when the Artifact tool names a page that cannot be read', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      lintResponder([]);
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Artifact', tool_input: { file_path: 'missing.html' } },
+        sandbox.env
+      );
+    });
+
+    it('should ask, naming the page as unresolved', () => {
+      expect(output.hookSpecificOutput.permissionDecision).toBe('ask');
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain('missing.html (cannot read the page)');
     });
   });
 

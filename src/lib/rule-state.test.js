@@ -23,7 +23,10 @@ import { DEFAULTS } from './config.js';
  *     way · brace-alternative sections match · sections that do not
  *     match the name are ignored · a style-wide YES or level never selects
  *     a style, a later YES undoes NO on a selected style, a per-rule YES
- *     loads the rule after an empty BasedOnStyles or a style NO
+ *     loads the rule after an empty BasedOnStyles or a style NO · across
+ *     sections a later style YES/NO or list beats an earlier per-rule
+ *     setting, a new list keeps exclusions, a style NO on an unselected
+ *     style does nothing
  *   contextRules: vale fails or prints junk → the plain condensed text ·
  *     vale: false → the plain text, no spawn · a bullet whose installed
  *     Vale rules are all off is dropped, an uninstalled rule not counting ·
@@ -244,6 +247,56 @@ describe('rule-state', () => {
           emptyListWithLevel: [],
           ruleYesAfterEmpty: ['Local.Extra'],
           ruleYesInsideStyleNo: ['Local.Extra']
+        });
+      });
+    });
+
+    describe('when per-rule and style-wide settings meet across sections', () => {
+      let results;
+
+      beforeEach(() => {
+        const inv = new Map([
+          ['Local.Extra', 'error'],
+          ['Local.Other', 'warning']
+        ]);
+        const on = (state) => [...state.entries()].filter(([, s]) => s.enabled).map(([id]) => id);
+        const run = (over, order) => on(ruleStateFor('reply.reply', resolvedWith({ GBaseStyles: ['Local'], ...over }), inv, order));
+        results = {
+          // [*] Extra = NO; [*.reply] Local = YES: the later style YES clears the rule NO.
+          ruleNoThenStyleYes: run({ GChecks: { 'Local.Extra': false }, SChecks: { '*.reply': { Local: true } } }, ['*.reply']),
+          // [*] Extra = YES; [*.reply] Local = NO: the later style NO excludes the rule.
+          ruleYesThenStyleNo: run({ GChecks: { 'Local.Extra': true }, SChecks: { '*.reply': { Local: false } } }, ['*.reply']),
+          // [*] Extra = YES; [*.reply] BasedOnStyles = (empty): the new list drops the rule.
+          ruleYesThenEmptyList: run({ GChecks: { 'Local.Extra': true }, SBaseStyles: { '*.reply': [] } }, ['*.reply']),
+          // [*.reply] Extra = NO; [reply.*] BasedOnStyles = Local: a new list keeps the exclusion.
+          ruleNoThenList: run({ SChecks: { '*.reply': { 'Local.Extra': false } }, SBaseStyles: { 'reply.*': ['Local'] } }, ['*.reply', 'reply.*']),
+          // [*.reply] Local = NO; [reply.*] BasedOnStyles = Local: same for a style NO.
+          styleNoThenList: run({ SChecks: { '*.reply': { Local: false } }, SBaseStyles: { 'reply.*': ['Local'] } }, ['*.reply', 'reply.*']),
+          // [*.reply] Local = NO; [reply.*] BasedOnStyles = (empty) plus Extra = YES: the rule YES wins.
+          styleNoThenEmptyListRuleYes: run(
+            { SChecks: { '*.reply': { Local: false }, 'reply.*': { 'Local.Extra': true } }, SBaseStyles: { 'reply.*': [] } },
+            ['*.reply', 'reply.*']
+          ),
+          // Unselected style: [*] Extra = YES; [*.reply] Local = NO: the style NO does not act.
+          unselectedRuleYesThenStyleNo: run({ GBaseStyles: [], GChecks: { 'Local.Extra': true }, SChecks: { '*.reply': { Local: false } } }, ['*.reply']),
+          // [*] Extra = NO; [*.reply] BasedOnStyles = Local plus Local = YES: the style YES clears it.
+          ruleNoThenListAndStyleYes: run(
+            { GChecks: { 'Local.Extra': false }, SBaseStyles: { '*.reply': ['Local'] }, SChecks: { '*.reply': { Local: true } } },
+            ['*.reply']
+          )
+        };
+      });
+
+      it('should resolve each the way Vale 3.24.0 does', () => {
+        expect(results).toEqual({
+          ruleNoThenStyleYes: ['Local.Extra', 'Local.Other'],
+          ruleYesThenStyleNo: [],
+          ruleYesThenEmptyList: [],
+          ruleNoThenList: ['Local.Other'],
+          styleNoThenList: [],
+          styleNoThenEmptyListRuleYes: ['Local.Extra'],
+          unselectedRuleYesThenStyleNo: ['Local.Extra'],
+          ruleNoThenListAndStyleYes: ['Local.Extra', 'Local.Other']
         });
       });
     });

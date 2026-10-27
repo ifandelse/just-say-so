@@ -97,6 +97,7 @@ export function adviceInputs(report, { registry = [], cache = [], env = process.
       .map((s) => ({
         tag: s.tag,
         kind: s.kind,
+        reasons: s.reasons.filter(Boolean),
         named: s.rules.map((id) => {
           const st = f.state.get(id);
           return { id, installed: installedIds.has(id), enabled: Boolean(st?.enabled), level: st?.level ?? null };
@@ -158,6 +159,8 @@ export function formatAdvice(inputs) {
     L.push('  Situations');
     for (const s of p.situations) L.push(`    ${formatSituation(s)}`);
     for (const t of p.tags) {
+      const reasons = t.reasons.length ? t.reasons.map((r) => r.replace(/\s+/g, ' ')).join(' | ') : '(none typed)';
+      L.push(`  #${t.tag} · reasons typed: ${reasons}`);
       if (t.named.length) {
         L.push(`  #${t.tag} · rules the bullet names, as the reply target sees them: ${t.named.map((n) => `${n.id} (${!n.installed ? 'not installed' : n.enabled ? `on, ${n.level}` : `off, ${n.level}`})`).join('; ')}`);
       }

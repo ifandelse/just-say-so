@@ -345,6 +345,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
         fired: 0,
         joinedLinted: 0,
         firedAtShip: 0,
+        stoodDown: 0,
         modes: new Map(),
         levels: new Set(),
         reasons: []
@@ -364,6 +365,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
           const hits = r.turn.alerts.filter((a) => row.rules.includes(a.check));
           if (hits.length > 0) {
             row.firedAtShip++;
+            if (r.turn.outcome === 'standdown') row.stoodDown++;
             bump(row.modes, modeOf(r.turn));
             for (const a of hits) row.levels.add(a.severity);
           }
@@ -403,6 +405,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
       fired: row.fired,
       joinedLinted: row.joinedLinted,
       firedAtShip: row.firedAtShip,
+      stoodDown: row.stoodDown,
       modes: Object.fromEntries(sortedEntries(row.modes)),
       levels: [...row.levels].sort(),
       reasons: row.reasons
@@ -411,13 +414,17 @@ export function summarize(events, rejections, { since = null, until = null, proj
     if (row.covers === 'none') kind = 'uncovered';
     else if (row.covers === 'judgment') kind = 'judgment';
     else if (row.linted < SITUATION_MIN || row.joinedLinted === 0) kind = 'insufficient';
+    // A stood-down turn is the block gate's own escape: the rules fired,
+    // the rewrite kept the same alerts, and the gate let the turn end.
+    // Blocking was in force, so that is not missing enforcement.
+    else if (row.firedAtShip > 0 && row.stoodDown === row.firedAtShip) kind = 'stood-down';
     else if (row.firedAtShip > 0) kind = 'fired-shipped';
     else if (row.fired / row.linted < SILENT_SHARE) kind = 'silent';
     else kind = 'detects-now';
     situations.push({ kind, ...base });
   }
   for (const [proj, list] of untaggedClean) {
-    situations.push({ kind: 'untagged-clean', project: proj, tag: null, count: list.length, rules: [], short: false, linted: list.length, fired: 0, joinedLinted: 0, firedAtShip: 0, modes: {}, levels: [], reasons: list });
+    situations.push({ kind: 'untagged-clean', project: proj, tag: null, count: list.length, rules: [], short: false, linted: list.length, fired: 0, joinedLinted: 0, firedAtShip: 0, stoodDown: 0, modes: {}, levels: [], reasons: list });
   }
   situations.sort((a, b) => a.project.localeCompare(b.project) || b.count - a.count || String(a.tag).localeCompare(String(b.tag)));
 
@@ -486,7 +493,12 @@ export function formatSituation(x) {
       return `${head} · backed by ${rules} · ${x.linted} linted at restate-time, ${x.joinedLinted} joined replies linted at ship-time: not enough linted evidence to judge the rules.`;
     case 'fired-shipped': {
       const modes = Object.entries(x.modes).map(([m, n]) => `${m} ${n}`).join(', ');
-      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}) and the reply still went out. Points at enforcement: reply.mode = block, or the rule at error level.`;
+      const stood = x.stoodDown ? ` ${x.stoodDown} of those were the block gate standing down after a rewrite kept the alerts.` : '';
+      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}) and the reply still went out.${stood} Points at enforcement: reply.mode = block, or the rule at error level.`;
+    }
+    case 'stood-down': {
+      const modes = Object.entries(x.modes).map(([m, n]) => `${m} ${n}`).join(', ');
+      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies and every one was the block gate standing down: the rewrite kept the same alerts, so the gate let the turn end (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.`;
     }
     case 'silent':
       return `${head} · backed by ${rules} · the rules caught ${x.fired} of ${x.linted} linted rejected replies at restate-time and none at ship-time. Points at a Vale tune: more tokens, another pattern, or a rule that catches this case.`;

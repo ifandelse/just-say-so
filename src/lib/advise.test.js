@@ -14,8 +14,8 @@ import { selectedStyles, adviceInputs, formatAdvice } from './advise.js';
  *     installed, an installed id listed once · registry packages not
  *     installed, by style name, Packages name, or Packages URL · cached
  *     flag · cache line empty, filled, stale
- *   formatAdvice: nothing to advise · a project with every section · empty
- *     candidates say what that means
+ *   formatAdvice: nothing to advise · a project with every section, the
+ *     typed reasons per tag included · empty candidates say what that means
  */
 
 const REGISTRY = [
@@ -90,6 +90,7 @@ describe('advise', () => {
         {
           tag: 'end-with-fact',
           kind: 'fired-shipped',
+          reasons: ['ends with a mic drop closer'],
           named: [
             { id: 'ai-tells.MicDrop', installed: true, enabled: true, level: 'error' },
             { id: 'ai-tells.Gone', installed: false, enabled: false, level: null }
@@ -99,7 +100,7 @@ describe('advise', () => {
             { id: 'ai-tells.MicDrop', package: 'ai-tells', installed: true, enabled: true, level: 'error', message: "AI mic-drop: '%s'. Cut it.", score: 2, matched: ['drop', 'mic'] }
           ]
         },
-        { tag: 'zzz', kind: 'uncovered', named: [], candidates: [] }
+        { tag: 'zzz', kind: 'uncovered', reasons: ['qqq'], named: [], candidates: [] }
       ]);
       expect(b.notInstalled).toEqual([{ name: 'Voices', description: 'Voices.', homepage: 'h', cached: false }]);
       expect(b.situations.map((s) => s.kind)).toEqual(['fired-shipped', 'uncovered', 'untagged-clean']);
@@ -109,7 +110,8 @@ describe('advise', () => {
       expect(text).toContain('package cache: empty. The registry lists 4 style packages;');
       expect(text).toContain('Project /p/a\n  vale could not read /p/a/.vale.ini; rule states and installed rules are unknown here.');
       expect(text).toContain('vale config /p/b/.vale.ini · packages: https://github.com/vale-cli/Microsoft/releases/latest/download/Microsoft.zip, google · reply BasedOnStyles: JustSaySo, ai-tells');
-      expect(text).toContain('#end-with-fact · rules the bullet names, as the reply target sees them: ai-tells.MicDrop (on, error); ai-tells.Gone (not installed)');
+      expect(text).toContain('  #end-with-fact · reasons typed: ends with a mic drop closer\n  #end-with-fact · rules the bullet names, as the reply target sees them: ai-tells.MicDrop (on, error); ai-tells.Gone (not installed)');
+      expect(text).toContain('  #zzz · reasons typed: qqq\n');
       expect(text).toContain("    ai-tells.MicDrop [installed, on, error] 2 (drop, mic) · AI mic-drop: '%s'. Cut it.");
       expect(text).toContain("    Human.Closers [cached from Voices, not installed] 3 (closer, end) · Closer: '%s'. End on the last point.");
       expect(text).toContain("#zzz · candidates: none found by word overlap with the tag and its reasons. That is this search's limit");

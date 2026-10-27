@@ -28,6 +28,8 @@ Rules for the writing:
 - An installed rule that is off, or sits below error, is advised as "turn on" or "raise", not as "tune".
 - A package suggestion from a description alone is a category hint; say so, and name `/just-say-so:packages --refresh` when the cache is empty.
 - For "not enough linted evidence", say what is missing and recommend nothing else.
+- For a stood-down situation, blocking and the level were already in force; recommend a change to the rule's terms or message, or a bullet the model can act on, never a setting.
+- Use the typed reasons printed per tag as the complaint to match against: a candidate counts when its message checks what those reasons describe.
 - Follow the communication rules in force: lead with the change, one idea per sentence, no banned terms. Do not write any file.
 
 End with the GitHub topic link from the output as the place to look for packages outside the registry.

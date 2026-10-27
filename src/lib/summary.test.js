@@ -27,7 +27,9 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *   situations: per project, a tag at 3+ rejections lands in one kind, in
  *     order: uncovered · judgment (short text or not) · insufficient (under
  *     3 linted at restate-time, or no joined linted reply) · fired-shipped
- *     (ship-time alert from its rules, with modes and levels) · silent
+ *     (ship-time alert from its rules, with modes and levels; stood-down
+ *     turns counted) · stood-down (every ship-time fire was the block gate
+ *     standing down, so no setting is advised) · silent
  *     (restate-time catch under half) · detects-now (restate-time catch at
  *     half or more, none at ship-time) · untagged-clean per project · the
  *     same tag in two projects below 3 each earns nothing · a stood-down
@@ -176,7 +178,7 @@ describe('summary', () => {
       expect(s.rewrites).toEqual({ total: 3, clean: 1, keptError: 1, unlinted: 1, surviving: [] });
       expect(s.reasons).toEqual({ given: [{ reason: 'too much jargon', count: 2, projects: ['/p/a', '/p/b'] }, { reason: 'flat', count: 1, projects: ['/p/b'] }], none: 1 });
       expect(s.situations).toEqual([
-        { kind: 'untagged-clean', project: '/p/b', tag: null, count: 1, rules: [], short: false, linted: 1, fired: 0, joinedLinted: 0, firedAtShip: 0, modes: {}, levels: [], reasons: ['too much jargon'] }
+        { kind: 'untagged-clean', project: '/p/b', tag: null, count: 1, rules: [], short: false, linted: 1, fired: 0, joinedLinted: 0, firedAtShip: 0, stoodDown: 0, modes: {}, levels: [], reasons: ['too much jargon'] }
       ]);
       expect(text).toContain('What the tags point at (per project; a tag needs 3 rejections');
       expect(text).toContain('/p/b · untagged and clean: 1 rejections with no tag that Vale passed clean. Points at tagging them: too much jargon');
@@ -521,6 +523,8 @@ describe('summary', () => {
       for (let i = 0; i < 3; i++) add('s1', A, 'late', [], [rb('JustSaySo.Buzzwords', 'error', 'synergy')]);
       // thin: three rejections, none joined.
       for (let i = 0; i < 3; i++) add('s1', A, 'thin', [], [], { join: false });
+      // gate: block mode in B, the rules fired, and every turn stood down.
+      for (let i = 0; i < 3; i++) add('s2', B, 'late', [{ check: 'JustSaySo.Buzzwords', severity: 'error', n: 1 }], [rb('JustSaySo.Buzzwords', 'error', 'synergy')], { outcome: 'standdown' });
       // uncovered, judgment with and without short, below threshold across projects.
       for (let i = 0; i < 3; i++) add('s1', A, 'nope', [], []);
       for (let i = 0; i < 3; i++) add('s1', A, 'plain', [], []);
@@ -544,13 +548,15 @@ describe('summary', () => {
         ['/p/a', 'plain', 'judgment', 3],
         ['/p/a', 'thin', 'insufficient', 3],
         ['/p/a', 'tune', 'silent', 3],
+        ['/p/b', 'late', 'stood-down', 3],
         ['/p/b', 'terse', 'judgment', 3],
         ['/p/b', null, 'untagged-clean', 2]
       ]);
       expect(s.situations[0]).toEqual({
         kind: 'fired-shipped', project: '/p/a', tag: 'fact', count: 3, rules: ['ai-tells.MicDrop'], short: false,
-        linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 3, modes: { warn: 3 }, levels: ['warning'], reasons: ['#fact why', '#fact why', '#fact why']
+        linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 3, stoodDown: 0, modes: { warn: 3 }, levels: ['warning'], reasons: ['#fact why', '#fact why', '#fact why']
       });
+      expect(s.situations.find((x) => x.project === '/p/b' && x.tag === 'late')).toMatchObject({ kind: 'stood-down', firedAtShip: 3, stoodDown: 3, modes: { block: 3 }, levels: ['error'] });
       expect(s.situations.find((x) => x.tag === 'thin')).toMatchObject({ linted: 3, joinedLinted: 0 });
       expect(s.situations.find((x) => x.project === '/p/b' && x.tag === null)).toMatchObject({ count: 2, reasons: ['no tag here', 'no tag here'] });
     });
@@ -564,6 +570,7 @@ describe('summary', () => {
       expect(text).toContain('/p/a · #tune: 3 · backed by JustSaySo.Leverage · the rules caught 0 of 3 linted rejected replies at restate-time and none at ship-time. Points at a Vale tune');
       expect(text).toContain('/p/b · untagged and clean: 2 rejections with no tag that Vale passed clean. Points at tagging them: no tag here | no tag here');
       expect(text).toContain('/p/b · #terse: 3 · judgment bullet with a short text.');
+      expect(text).toContain('/p/b · #late: 3 · backed by JustSaySo.Buzzwords · fired at ship-time on 3 of 3 joined replies and every one was the block gate standing down: the rewrite kept the same alerts, so the gate let the turn end (reply mode block 3; levels error). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.');
       expect(text.split('What the tags point at')[1]).not.toContain('#split');
     });
   });

@@ -155,6 +155,7 @@ describe('doctor and init CLIs', () => {
       expect(advise.status).toBe(0);
       expect(advise.stdout).toContain('package cache: 2 packages, 1 rules, fetched 2026-10-01T00:00:00.000Z.');
       expect(advise.stdout).toContain('· #hedging: 3 · uncovered: no bullet has this id.');
+      expect(advise.stdout).toContain('  #hedging · reasons typed: #hedging stacked hedges again | #hedging stacked hedges again | #hedging stacked hedges again\n');
       expect(advise.stdout).toContain("ai-tells.HedgingPhrases [installed, on, error] 3 (hedge, hedging) · AI hedge: '%s'. State your point directly.");
       expect(advise.stdout).toContain("Direct.Hedging [cached from Voices, not installed] 3 (hedge, hedging) · Hedge: '%s'. State it.");
       expect(advise.stdout).toContain('registry: shipped copy (live fetch failed: JUST_SAY_SO_REGISTRY=shipped)');

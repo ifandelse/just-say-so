@@ -61,16 +61,17 @@ contains 'SessionStart'; check 'compact injects too' $?
 OUT=$(printf '%s' "{\"session_id\":\"S\",\"cwd\":\"$W\",\"source\":\"startup\"}" | JUST_SAY_SO_STATE_DIR="$STATE" JUST_SAY_SO_CONFIG="$GLOBAL" PATH=/usr/bin:/bin "$NODE_BIN" "$PLUGIN/src/hooks/session-start.js" 2>/dev/null)
 contains 'vale binary is missing'; check 'a stripped PATH earns the missing-vale notice' $?
 
-echo '— prompt-interval reminder (default: every 5)'
+echo '— prompts without a violation'
 new_env s2
 ALL_SILENT=0
-for i in 1 2 3 4; do
+for i in 1 2 3 4 5; do
   run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
   silent || ALL_SILENT=1
 done
-check 'prompts 1-4 stay silent' $ALL_SILENT
-run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
-contains '## Communication rules — reminder'; check 'prompt 5 fires the reminder' $?
+check 'five clean prompts stay silent (no interval reminder)' $ALL_SILENT
+printf '%s' '{"reminder":{"everyPrompts":2}}' > "$W/.just-say-so.json"
+run_hook session-start.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"source\":\"startup\"}"
+contains 'sets reminder, which 0.9.0 no longer reads'; check 'a 0.8.x key earns the legacy-config notice' $?
 
 echo '— pre-gate: policy-file confirmations'
 new_env s3
@@ -84,10 +85,10 @@ silent; check 'ordinary file writes pass the pre-gate untouched' $?
 echo '— pre-gate: gh publishing'
 if [ "$HAVE_VALE" -eq 1 ]; then
   new_env s4
-  printf '%s' '{"bannedCheck":{"mode":"block","addons":["gh"]}}' > "$W/.just-say-so.json"
+  printf '%s' '{"publish":{"gh":true}}' > "$W/.just-say-so.json"
   run_hook pre-gate.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr comment 42 --body \\\"pure synergy\\\"\"}}"
   contains '"permissionDecision":"deny"' && contains '/just-say-so:allow'; check 'block denies before publication and suggests the allow skill' $?
-  printf '%s' '{"bannedCheck":{"mode":"warn","addons":["gh"]}}' > "$W/.just-say-so.json"
+  printf '%s' '{"publish":{"mode":"warn","gh":true}}' > "$W/.just-say-so.json"
   run_hook pre-gate.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr comment 42 --body \\\"pure synergy\\\"\"}}"
   contains 'additionalContext' && contains 'synergy'; check 'warn advises and lets the call proceed' $?
 else
@@ -106,18 +107,21 @@ if [ "$HAVE_VALE" -eq 1 ]; then
   printf 'We leverage old text.\nThe tests pass.\n' > "$W/notes.md"
   run_hook check-vale.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$W/notes.md\",\"old_string\":\"end\",\"new_string\":\"The tests pass.\"}}"
   silent; check 'an Edit answers only for its own added lines' $?
-  printf '%s' '{"bannedCheck":{"allowPhrases":["robust regression"]}}' > "$W/.just-say-so.json"
+  printf 'StylesPath = styles\nVocab = Team\nPackages = %s/JustSaySo.zip\n\n[*]\nBasedOnStyles = JustSaySo\n' "$PLUGIN" > "$W/.vale.ini"
+  mkdir -p "$W/styles/config/vocabularies/Team"
+  printf 'robust regression\n' > "$W/styles/config/vocabularies/Team/accept.txt"
+  cp -R "$PLUGIN/styles/JustSaySo" "$W/styles/JustSaySo"
   printf 'a robust regression model\n' > "$W/stats.md"
   run_hook check-vale.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$W/stats.md\",\"content\":\"x\"}}"
-  silent; check 'allowPhrases neutralizes the collocation against Vale alerts' $?
+  silent; check 'a vocabulary entry neutralizes the collocation' $?
 else
-  for label in 'post-write facts' 'package.json exemption' 'edit-scope' 'allowPhrases on Vale alerts'; do skip "$label"; done
+  for label in 'post-write facts' 'package.json exemption' 'edit-scope' 'vocabulary on Vale alerts'; do skip "$label"; done
 fi
 
-echo '— Stop: session gate (bannedCheck block)'
+echo '— Stop: session gate (files block)'
 if [ "$HAVE_VALE" -eq 1 ]; then
   new_env s6
-  printf '%s' '{"bannedCheck":{"mode":"block"}}' > "$W/.just-say-so.json"
+  printf '%s' '{"files":{"mode":"block"}}' > "$W/.just-say-so.json"
   printf 'pure synergy\n' > "$W/doc.md"
   run_hook check-vale.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$W/doc.md\",\"content\":\"x\"}}"
   run_hook check-output.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
@@ -134,51 +138,39 @@ fi
 echo '— Stop: chat reply check'
 if [ "$HAVE_VALE" -eq 1 ]; then
   new_env s7
-  printf '%s' '{"outputCheck":{"mode":"block"},"bannedCheck":{"disableWords":["synergy"]}}' > "$W/.just-say-so.json"
+  printf '%s' '{"reply":{"mode":"block"}}' > "$W/.just-say-so.json"
   run_hook check-output.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"last_assistant_message\":\"we leverage synergy\"}"
-  contains '"decision":"block"' && contains 'leverage' && ! contains 'synergy'; check 'block flags leverage, honors disableWords' $?
+  contains '"decision":"block"' && contains 'leverage' && contains 'synergy'; check 'block flags both terms' $?
   new_env s8
-  printf '%s' '{"outputCheck":{"mode":"warn"},"reminder":{"everyPrompts":1}}' > "$W/.just-say-so.json"
+  printf '%s' '{"reply":{"mode":"warn"}}' > "$W/.just-say-so.json"
   run_hook check-output.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"last_assistant_message\":\"we leverage this\"}"
   [ -z "$OUT" ]; check 'warn keeps stdout empty at Stop' $?
   run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
-  contains 'Recent replies broke these rules' && contains 'Leverage \"leverage\" (1)'; check 'the next reminder carries the reply report' $?
+  contains 'Recent replies broke these rules' && contains 'Leverage \"leverage\" (1)'; check 'the next prompt carries the rules and the reply report' $?
   run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\"}"
   ! contains 'Recent replies broke these rules'; check 'the report clears after delivery' $?
 else
-  for label in 'reply block + disableWords' 'warn stdout empty' 'warn report delivery' 'warn report clears'; do skip "$label"; done
+  for label in 'reply block' 'warn stdout empty' 'warn report delivery' 'warn report clears'; do skip "$label"; done
 fi
-
-echo '— token mode'
-new_env s9
-printf '%s' '{"reminder":{"mode":"tokens","everyTokens":100}}' > "$W/.just-say-so.json"
-printf '%s\n' '{"type":"assistant","message":{"usage":{"input_tokens":1000}}}' > "$ROOT/t1.jsonl"
-printf '%s\n' '{"type":"assistant","message":{"usage":{"input_tokens":1300}}}' > "$ROOT/t2.jsonl"
-run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"transcript_path\":\"$ROOT/t1.jsonl\"}"
-silent; check 'first sight sets the baseline silently' $?
-run_hook remind.js "{\"session_id\":\"S\",\"cwd\":\"$W\",\"transcript_path\":\"$ROOT/t2.jsonl\"}"
-contains '## Communication rules — reminder'; check 'growth past the threshold fires' $?
 
 echo '— subagent briefing'
 new_env s10
 run_hook subagent-start.js "{\"session_id\":\"S\",\"agent_id\":\"A\",\"agent_type\":\"Explore\",\"cwd\":\"$W\"}"
 contains '"hookEventName":"SubagentStart"'; check 'subagents get briefed at spawn' $?
-printf '%s' '{"reminder":{"onSubagentStart":false}}' > "$W/.just-say-so.json"
+printf '%s' '{"rules":{"onSubagentStart":false}}' > "$W/.just-say-so.json"
 run_hook subagent-start.js "{\"session_id\":\"S\",\"agent_id\":\"A\",\"agent_type\":\"Explore\",\"cwd\":\"$W\"}"
 silent; check 'the switch turns the briefing off' $?
 
 echo '— allow CLI'
 new_env s11
+OUT=$(cd "$W" && node "$PLUGIN/src/cli/allow.js" robust 2>&1)
+contains 'no .vale.ini above'; check 'without a .vale.ini the CLI refuses and says what to add' $?
+printf 'StylesPath = styles\n' > "$W/.vale.ini"
 (cd "$W" && node "$PLUGIN/src/cli/allow.js" robust >/dev/null 2>&1 && node "$PLUGIN/src/cli/allow.js" robust regression >/dev/null 2>&1)
-OUT=$(cat "$W/.just-say-so.json")
-contains '"disableWords"' && contains '"robust"' && contains '"allowPhrases"' && contains '"robust regression"'; check 'config route: words and phrases land in the right lists' $?
+OUT=$(cat "$W/.vale.ini"; cat "$W/styles/config/vocabularies/Project/accept.txt" 2>/dev/null)
+contains 'Vocab = Project' && contains 'robust regression'; check 'the CLI adds Vocab to the ini and both terms to accept.txt' $?
 OUT=$(cd "$W" && node "$PLUGIN/src/cli/allow.js" ROBUST 2>&1)
 contains 'already'; check 'CLI dedupes case-insensitively' $?
-new_env s12
-printf 'StylesPath = styles\nVocab = Team\n' > "$W/.vale.ini"
-(cd "$W" && node "$PLUGIN/src/cli/allow.js" robust regression >/dev/null 2>&1)
-OUT=$(cat "$W/styles/config/vocabularies/Team/accept.txt" 2>/dev/null)
-contains 'robust regression'; check 'vocabulary route: the term lands in accept.txt' $?
 
 echo '— resilience'
 GARBAGE_OK=0

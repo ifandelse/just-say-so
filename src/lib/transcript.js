@@ -20,25 +20,6 @@ function parseLines(transcriptPath) {
   return entries;
 }
 
-/**
- * Current context size in tokens: the usage block of the newest entry that
- * has one. input + cache_read + cache_creation ≈ what the model last saw.
- */
-export function contextSize(transcriptPath) {
-  const entries = parseLines(transcriptPath);
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const usage = entries[i]?.message?.usage ?? entries[i]?.usage;
-    if (usage && typeof usage.input_tokens === 'number') {
-      return (
-        (usage.input_tokens ?? 0) +
-        (usage.cache_read_input_tokens ?? 0) +
-        (usage.cache_creation_input_tokens ?? 0)
-      );
-    }
-  }
-  return null;
-}
-
 function textOf(message) {
   const content = message?.content;
   if (typeof content === 'string') return content;

@@ -4,7 +4,6 @@ extends: existence
 message: "Banned buzzword: '%s'. Use a precise domain term or delete it."
 level: error
 ignorecase: true
-nonword: true
 tokens:
   - "(?<![\\w-])robust(?![\\w-])"
   - "(?<![\\w-])seamless(?![\\w-])"

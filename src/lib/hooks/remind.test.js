@@ -13,22 +13,17 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/hooks/remind.js
- *   prompts mode: prompts since last fire < n → null · ≥ n → fire ·
- *                 invalid everyPrompts → the default interval
- *   tokens mode: transcript unreadable (ctx null) → no fire · no baseline → set, no fire ·
- *                growth < threshold → no fire · growth ≥ threshold → fire + new baseline
- *   mode off, next-reminder delivery: never fires, still counts prompts
- *   next-prompt delivery (the default): counts waiting → fire with the report, counts
- *     cleared, interval reset · no counts → silent until the default 20-prompt interval · outputCheck off → never fires on counts ·
- *     a counts-fire pushes the next interval fire back
- *   next-reminder delivery: counts wait for the interval · fire → rules then report, cleared
+ *   counts waiting + reply warn + onViolation (the default): fire with the
+ *     rules then the report, counts cleared, injection marked · no counts →
+ *     silent, prompts counted · reply off → never fires on counts ·
+ *     onViolation off → counts kept for the next context start
  *   restate: records the previous reply with the reason, its Vale alerts, and the
- *     prompt index · sets pendingRewrite · resets both interval baselines · consumes
+ *     prompt index · sets pendingRewrite · marks the injection · consumes
  *     the waiting reply counts · emits nothing · bare command → reason null ·
  *     ordinary prompt → no record file
  *   session_id missing → "unknown"
- *   events: reminder event per fire with trigger interval | tokens | report and
- *     withReport · restate → restate event plus a reminder event (trigger restate)
+ *   events: reminder event per fire with trigger report | restate and
+ *     withReport · restate → restate event first
  */
 
 function reminderEvents(env) {
@@ -40,7 +35,6 @@ function reminderEvents(env) {
 const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', match: 'synergy', message: "Banned buzzword: 'synergy'.", count: 2 } };
 
 const SESSION = 'REMIND_SESSION';
-const INTERVAL_ONLY = { reminder: { mode: 'prompts', everyPrompts: 5 }, outputCheck: { mode: 'warn', deliver: 'next-reminder' } };
 
 function promptEvent(sandbox, extra = {}) {
   return { session_id: SESSION, cwd: sandbox.work, ...extra };
@@ -83,7 +77,7 @@ describe('remind.run', () => {
       const sandbox = makeSandbox();
       writeSession(
         SESSION,
-        { promptCount: 40, promptAtLastReminder: 21, contextAtLastReminder: 900, replyAlerts: COUNTS },
+        { promptCount: 40, promptAtLastReminder: 21, replyAlerts: COUNTS },
         sandbox.env
       );
       const transcript = rejectedReplyTranscript(sandbox);
@@ -143,24 +137,26 @@ describe('remind.run', () => {
           },
           rewrite: null,
           version: expect.any(String),
-          reminder: { mode: 'prompts', everyPrompts: 20 },
-          outputCheck: { mode: 'warn', deliver: 'next-prompt' }
+          config: {
+            files: { mode: 'warn' },
+            publish: { mode: 'block', gh: false, mcp: 0 },
+            reply: { mode: 'warn' },
+            rules: { onViolation: true }
+          }
         }
       ]);
     });
 
-    it('should hold the record open, reset the interval, and consume the waiting counts', () => {
+    it('should hold the record open, mark the injection, and consume the waiting counts', () => {
       expect({
         pendingRewrite: state.pendingRewrite,
         promptCount: state.promptCount,
         promptAtLastReminder: state.promptAtLastReminder,
-        contextAtLastReminder: state.contextAtLastReminder,
         replyAlerts: state.replyAlerts
       }).toEqual({
         pendingRewrite: records[0].id,
         promptCount: 41,
         promptAtLastReminder: 41,
-        contextAtLastReminder: null,
         replyAlerts: {}
       });
     });
@@ -196,164 +192,6 @@ describe('remind.run', () => {
     });
   });
 
-  describe('when prompts mode has not reached the interval', () => {
-    let outputs, state, work;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 5 } });
-      work = sandbox.work;
-      outputs = [1, 2, 3, 4].map(() => run(promptEvent(sandbox), sandbox.env));
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should stay silent while counting prompts', () => {
-      expect({ outputs, promptCount: state.promptCount }).toEqual({
-        outputs: [null, null, null, null],
-        promptCount: 4
-      });
-    });
-
-    it('should record the project directory for hooks whose events lack one', () => {
-      expect(state.projectDir).toBe(work);
-    });
-  });
-
-  describe('when prompts mode reaches the interval', () => {
-    let fifth, sixth, state, events;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 5 } });
-      for (let i = 0; i < 4; i++) run(promptEvent(sandbox), sandbox.env);
-      fifth = run(promptEvent(sandbox), sandbox.env);
-      state = readSession(SESSION, sandbox.env);
-      sixth = run(promptEvent(sandbox), sandbox.env);
-      events = reminderEvents(sandbox.env);
-    });
-
-    it('should log one interval reminder event', () => {
-      expect(events).toEqual([{ promptIndex: 5, trigger: 'interval', withReport: false }]);
-    });
-
-    it('should inject the condensed rules on the fifth prompt', () => {
-      expect(fifth).toEqual({
-        hookSpecificOutput: {
-          hookEventName: 'UserPromptSubmit',
-          additionalContext: expect.stringContaining('## Communication rules — reminder')
-        }
-      });
-    });
-
-    it('should mark the prompt it fired on', () => {
-      expect(state.promptAtLastReminder).toBe(5);
-    });
-
-    it('should go quiet again on the sixth', () => {
-      expect(sixth).toBe(null);
-    });
-  });
-
-  describe('when everyPrompts is not a usable number', () => {
-    let outputs;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 'E_COLD_CALZONE' } });
-      outputs = Array.from({ length: 20 }, () => run(promptEvent(sandbox), sandbox.env));
-    });
-
-    it('should fall back to the default interval of 20 prompts', () => {
-      expect(outputs.map(fired)).toEqual([...Array(19).fill(false), true]);
-    });
-  });
-
-  describe('when tokens mode cannot read the transcript', () => {
-    let output, state;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'tokens' } });
-      output = run(promptEvent(sandbox, { transcript_path: '/nope/missing.jsonl' }), sandbox.env);
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should stay silent and leave the baseline unset', () => {
-      expect({ output, baseline: state.contextAtLastReminder }).toEqual({ output: null, baseline: null });
-    });
-  });
-
-  describe('when tokens mode sees the session for the first time', () => {
-    let output, state;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'tokens', everyTokens: 100 } });
-      const transcript = writeTranscript(sandbox.work, 't1.jsonl', [
-        { type: 'assistant', message: { usage: { input_tokens: 1000 } } }
-      ]);
-      output = run(promptEvent(sandbox, { transcript_path: transcript }), sandbox.env);
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should set the baseline without firing', () => {
-      expect({ output, baseline: state.contextAtLastReminder }).toEqual({ output: null, baseline: 1000 });
-    });
-  });
-
-  describe('when context growth stays under the threshold', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'tokens', everyTokens: 100 } });
-      writeSession(SESSION, { promptCount: 1, contextAtLastReminder: 1000 }, sandbox.env);
-      const transcript = writeTranscript(sandbox.work, 't2.jsonl', [
-        { type: 'assistant', message: { usage: { input_tokens: 1050 } } }
-      ]);
-      output = run(promptEvent(sandbox, { transcript_path: transcript }), sandbox.env);
-    });
-
-    it('should stay silent', () => {
-      expect(output).toBe(null);
-    });
-  });
-
-  describe('when context growth reaches the threshold', () => {
-    let output, state, sandbox;
-
-    beforeEach(() => {
-      sandbox = makeSandbox({ reminder: { mode: 'tokens', everyTokens: 100 } });
-      writeSession(SESSION, { promptCount: 1, contextAtLastReminder: 1000 }, sandbox.env);
-      const transcript = writeTranscript(sandbox.work, 't3.jsonl', [
-        { type: 'assistant', message: { usage: { input_tokens: 1200 } } }
-      ]);
-      output = run(promptEvent(sandbox, { transcript_path: transcript }), sandbox.env);
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should fire and move the baseline to the current size', () => {
-      expect({ fired: fired(output), baseline: state.contextAtLastReminder }).toEqual({ fired: true, baseline: 1200 });
-    });
-
-    it('should log a tokens reminder event', () => {
-      expect(reminderEvents(sandbox.env)).toEqual([{ promptIndex: 2, trigger: 'tokens', withReport: false }]);
-    });
-  });
-
-  describe('when the reminder is off and the report waits for a reminder', () => {
-    let output, state;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'off' }, outputCheck: { mode: 'warn', deliver: 'next-reminder' } });
-      writeSession('unknown', { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
-      output = run({ cwd: sandbox.work }, sandbox.env); // no session_id → "unknown"
-      state = readSession('unknown', sandbox.env);
-    });
-
-    it('should stay silent, count the prompt, and leave the reply counts alone', () => {
-      expect({ output, promptCount: state.promptCount, replyAlerts: state.replyAlerts }).toEqual({
-        output: null,
-        promptCount: 5,
-        replyAlerts: COUNTS
-      });
-    });
-  });
-
   describe('when reply counts wait under the default config', () => {
     let context, state, sandbox;
 
@@ -378,15 +216,31 @@ describe('remind.run', () => {
   });
 
   describe('when no reply counts wait under the default config', () => {
-    let outputs;
+    let outputs, state;
 
     beforeEach(() => {
       const sandbox = makeSandbox();
-      outputs = Array.from({ length: 21 }, () => run(promptEvent(sandbox), sandbox.env));
+      outputs = Array.from({ length: 25 }, () => run(promptEvent(sandbox), sandbox.env));
+      state = readSession(SESSION, sandbox.env);
     });
 
-    it('should stay silent until the twentieth prompt', () => {
-      expect(outputs.map(fired)).toEqual([...Array(19).fill(false), true, false]);
+    it('should stay silent on every prompt and only count them', () => {
+      expect({ fired: outputs.map(fired).some(Boolean), promptCount: state.promptCount }).toEqual({ fired: false, promptCount: 25 });
+    });
+  });
+
+  describe('when reply counts wait but onViolation is off', () => {
+    let output, state;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ rules: { onViolation: false } });
+      writeSession(SESSION, { promptCount: 1, replyAlerts: COUNTS }, sandbox.env);
+      output = run(promptEvent(sandbox), sandbox.env);
+      state = readSession(SESSION, sandbox.env);
+    });
+
+    it('should stay silent and hold the counts for the next context start', () => {
+      expect({ output, replyAlerts: state.replyAlerts, at: state.promptAtLastReminder }).toEqual({ output: null, replyAlerts: COUNTS, at: null });
     });
   });
 
@@ -394,7 +248,7 @@ describe('remind.run', () => {
     let output, state;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ reply: { mode: 'off' } });
       writeSession(SESSION, { promptCount: 1, replyAlerts: COUNTS }, sandbox.env);
       output = run(promptEvent(sandbox), sandbox.env);
       state = readSession(SESSION, sandbox.env);
@@ -405,58 +259,4 @@ describe('remind.run', () => {
     });
   });
 
-  describe('when a report fires one prompt before the interval would have', () => {
-    let outputs;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 3 } });
-      for (let i = 0; i < 2; i++) run(promptEvent(sandbox), sandbox.env);
-      writeSession(SESSION, { ...readSession(SESSION, sandbox.env), replyAlerts: COUNTS }, sandbox.env);
-      // Prompt 3: the report fires (the interval would have too). Prompts 4 and
-      // 5 stay quiet; prompt 6 is three past the last fire.
-      outputs = [3, 4, 5, 6].map(() => run(promptEvent(sandbox), sandbox.env));
-    });
-
-    it('should push the next interval fire back to three prompts after the report', () => {
-      expect(outputs.map(fired)).toEqual([true, false, false, true]);
-    });
-  });
-
-  describe('when a reminder fires while reply counts wait for it', () => {
-    let context, state, sandbox;
-
-    beforeEach(() => {
-      sandbox = makeSandbox(INTERVAL_ONLY);
-      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
-      context = run(promptEvent(sandbox), sandbox.env).hookSpecificOutput.additionalContext;
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should log the interval as the trigger with the report riding it', () => {
-      expect(reminderEvents(sandbox.env)).toEqual([{ promptIndex: 5, trigger: 'interval', withReport: true }]);
-    });
-
-    it('should lead with the rules and follow with the report', () => {
-      expect(context).toMatch(/^## Communication rules — reminder[^]*\n\nRecent replies broke these rules[^]*"synergy" \(2\)/);
-    });
-
-    it('should clear the counts', () => {
-      expect(state.replyAlerts).toEqual({});
-    });
-  });
-
-  describe('when reply counts wait for a reminder whose interval has not come', () => {
-    let output, state;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox(INTERVAL_ONLY);
-      writeSession(SESSION, { promptCount: 1, replyAlerts: COUNTS }, sandbox.env);
-      output = run(promptEvent(sandbox), sandbox.env);
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should stay silent and keep the counts', () => {
-      expect({ output, replyAlerts: state.replyAlerts }).toEqual({ output: null, replyAlerts: COUNTS });
-    });
-  });
 });

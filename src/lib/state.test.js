@@ -17,7 +17,6 @@ import { stateDir, readSession, writeSession, resetSession, cleanupSessions } fr
 const FRESH = {
   promptCount: 0,
   promptAtLastReminder: null,
-  contextAtLastReminder: null,
   replyAlerts: {},
   pendingRewrite: null,
   projectDir: null,

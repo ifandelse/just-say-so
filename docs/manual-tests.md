@@ -33,6 +33,8 @@ Config changes apply on the next hook fire — `loadConfig` runs per invocation,
    - `claude --debug` → send one prompt and watch the debug output print each hook execution, command included. This also proves the hooks fire, not just that they're registered.
 4. **(0b)** After your first prompt, locate the session state file (see above). Record where it landed — this tells us which env vars the installed plugin actually receives.
 
+> **0.9.0 note.** The config is keyed by target now (`files`, `publish`, `reply`, `rules`), and the interval reminders are gone. Scenario text below that names `bannedCheck`, `outputCheck`, or `reminder` reads through the README's "Upgrading from 0.8.x" table. Scenarios marked **removed in 0.9.0** have no behavior to test any more.
+
 ## Phase A — defaults (no project config)
 
 **1. Startup injection.** First prompt in a fresh session: ask what communication rules the model is following. Expect the condensed heading quoted back. Ground truth: transcript grep count = 1.
@@ -41,16 +43,15 @@ Config changes apply on the next hook fire — `loadConfig` runs per invocation,
 
 **3. Fallback-config exemptions.** Ask the model to add `"robust": "^2.0.0"` to a `package.json`. Expect: no feedback at all — the shipped Vale config exempts dependency manifests, and hyphenated names like `robust-websocket` would not match anyway.
 
-**4. Reminder cadence (default 5).** Send trivial prompts and after the 5th, check the transcript grep count incremented. Faster version: skip to Phase B where the interval is 2.
+**4. Reminder cadence (default 5).** Removed in 0.9.0. Send trivial prompts and after the 5th, check the transcript grep count incremented. Faster version: skip to Phase B where the interval is 2.
 
-## Phase B — project config: fast interval + block mode
+## Phase B — project config: block mode
 
 Create `.just-say-so.json` in the scratch dir:
 
 ```json
 {
-  "reminder": { "everyPrompts": 2 },
-  "bannedCheck": { "mode": "block" }
+  "files": { "mode": "block" }
 }
 ```
 
@@ -58,23 +59,23 @@ Run `/clear` to reset the counter (this also re-injects the rules — that's sce
 
 **5. `/clear` re-injection.** After `/clear`, ask what rules the model follows. Expect the heading again. Ground truth: state file shows `promptCount` reset.
 
-**6. Two-prompt reminder.** Send two trivial prompts. Ground truth: transcript grep count grows by one on the second; state file `promptCount` is even.
+**6. Two-prompt reminder.** Removed in 0.9.0. Send two trivial prompts. Ground truth: transcript grep count grows by one on the second; state file `promptCount` is even.
 
 **7. Block mode: the Stop gate.** Repeat the scenario-2 request. Expect: the write LANDS (block no longer rejects writes), the model gets the alert facts, and when it tries to end the turn, the Stop hook blocks with the outstanding errors until the model fixes the file. Ground truth: final file contains no banned terms; the transcript shows the `decision: "block"` reason naming the file. If the model "fixes" without fixing, the second block repeats; if the alert set is unchanged after a rewrite, the gate reports once (`not blocking again`) and lets the turn end — note which path you saw. **7a (0.5.2, issue #2).** After the stand-down, send two more prompts. Expect: neither turn blocks on the same alert, and the state file holds the file under `waived`. Then ask the model to add a second banned word to the same file. Expect: the gate blocks on the new instance only.
 
 **8. Edit scope.** With `notes.md` containing banned words (recreate by hand so the session never wrote them), ask the model to append one clean sentence. Expect: no feedback and no gate — alerts outside the lines the edit added are filtered, and the gate only tracks errors this session's edits produced.
 
-**9. The allow flow (config route).** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt (the skill pre-approves its own CLI call — if a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter; note it). With no `.vale.ini` in the scratch repo, the term goes to `.just-say-so.json` → `bannedCheck.allowPhrases`. Then ask for a file containing "We fit a robust regression model." — no alert. Ask for "a robust pipeline" — alert.
+**9. The allow flow.** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt (the skill pre-approves its own CLI call — if a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter; note it). With no `.vale.ini` in the scratch repo, the term goes to `.just-say-so.json` → `bannedCheck.allowPhrases`. Then ask for a file containing "We fit a robust regression model." — no alert. Ask for "a robust pipeline" — alert.
 
 **9b. The allow flow (vocabulary route).** Create a `.vale.ini` with `StylesPath = styles` and `Vocab = Test`, run `/just-say-so:allow "blast radius"`. Ground truth: `styles/config/vocabularies/Test/accept.txt` gains the line.
 
-**10. The ask gate.** Say: "Add 'synergy' to disableWords in .just-say-so.json." Expect: a confirmation prompt citing the policy file before the edit lands, even if you're in auto-accept mode. Approve it; verify the file. Repeat with "add a rule to .vale.ini" and with the vocabulary `accept.txt` — same prompt.
+**10. The ask gate.** Say: "Set reply.mode to off in .just-say-so.json." Expect: a confirmation prompt citing the policy file before the edit lands, even if you're in auto-accept mode. Approve it; verify the file. Repeat with "add a rule to .vale.ini" and with the vocabulary `accept.txt` — same prompt.
 
 ## Phase C — token mode
 
-Edit `.just-say-so.json`: `"reminder": { "mode": "tokens", "everyTokens": 3000 }`. Run `/clear`.
+Removed in 0.9.0: there is no token mode. Run `/clear`.
 
-**11. Token threshold.** Prompt 1 sets the baseline (silent). Then ask the model to read a few large files to grow context past 3,000 tokens, and send another prompt. Expect the reminder. Ground truth: state file's `contextAtLastReminder` jumps to the new context size.
+**11. Token threshold.** Removed in 0.9.0. Prompt 1 sets the baseline (silent). Then ask the model to read a few large files to grow context past 3,000 tokens, and send another prompt. Expect the reminder. Ground truth: state file's `contextAtLastReminder` jumps to the new context size.
 
 ## Phase D — subagents (resolves an open question)
 
@@ -84,31 +85,31 @@ Edit `.just-say-so.json`: `"reminder": { "mode": "tokens", "everyTokens": 3000 }
 
 ## Phase E — chat reply check
 
-Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
+Edit `.just-say-so.json`: add `"reply": { "mode": "block" }`.
 
 **14. Reply check, block.** Say: "Reply with exactly this sentence: we leverage synergy." Expect: the model finishes, the Stop hook bounces the reply with the Vale alerts, and the model continues with a rewrite. If the rewrite still carries the same alerts, the hook reports once (`not blocking again`) instead of looping. Note the UX; this is why `block` is not the default.
 
-**15. Warn report (0.5.0).** Switch `outputCheck.mode` to `"warn"` with `"deliver": "next-reminder"`, set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, and repeat. Expect: the reply stands, nothing prints, and the next prompt gets nothing either. On the third prompt the reminder fires with the report under the rules (transcript grep: `Recent replies broke these rules`), naming `JustSaySo.Leverage "leverage"` and `JustSaySo.Buzzwords "synergy"` with counts. With ai-tells loaded in `[*.reply]`, "leverage" appears once, under the JustSaySo rule (0.5.1, issue #1). The session state file (`~/.local/state/just-say-so/sessions/<id>.json` or `$CLAUDE_PLUGIN_DATA/state/...`) shows `replyAlerts` filled before the reminder and `{}` after.
+**15. Warn report (0.5.0).** Removed in 0.9.0. Switch `outputCheck.mode` to `"warn"` with `"deliver": "next-reminder"`, set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, and repeat. Expect: the reply stands, nothing prints, and the next prompt gets nothing either. On the third prompt the reminder fires with the report under the rules (transcript grep: `Recent replies broke these rules`), naming `JustSaySo.Leverage "leverage"` and `JustSaySo.Buzzwords "synergy"` with counts. With ai-tells loaded in `[*.reply]`, "leverage" appears once, under the JustSaySo rule (0.5.1, issue #1). The session state file (`~/.local/state/just-say-so/sessions/<id>.json` or `$CLAUDE_PLUGIN_DATA/state/...`) shows `replyAlerts` filled before the reminder and `{}` after.
 
 **15a. The model stays quiet (0.5.0, resolves an open question).** Continue from 15. On the prompt that carries the report, ask an unrelated question. Expect: the answer neither acknowledges the report ("Noted, I'll avoid...") nor revises or repeats the earlier reply. Record the exact wording if it does; the instruction text is `replyReportInstruction` in `rules/messages.json`, and the fix is there, not in code.
 
 **15b. Report rides compaction.** Continue from 15 with counts waiting (stay under the interval). Run `/compact`. Expect: the post-compaction injection carries the report (transcript grep as above), and the state file shows `replyAlerts: {}` afterwards.
 
-**15c. Idle notice.** Set `reminder.mode` to `"off"` with `outputCheck.mode` still `"warn"` and `deliver` still `"next-reminder"`. Start a session. Expect one system line: `The reply check is idle.` A flagged reply then records nothing (state file stays `replyAlerts: {}`).
+**15c. Idle notice.** Removed in 0.9.0. Set `reminder.mode` to `"off"` with `outputCheck.mode` still `"warn"` and `deliver` still `"next-reminder"`. Start a session. Expect one system line: `The reply check is idle.` A flagged reply then records nothing (state file stays `replyAlerts: {}`).
 
 **15d. Next-prompt delivery (0.6.0, the default).** Remove `deliver`, `reminder.mode`, and `everyPrompts` so all fall back to their defaults (`next-prompt`, `prompts`, 20). Say: "Reply with exactly this sentence: we leverage synergy." Expect: the reply stands and nothing prints. Send any prompt. Expect: that prompt carries the rules and the report (transcript grep: `Recent replies broke these rules`), and the state file shows `replyAlerts: {}` and `promptAtLastReminder` equal to `promptCount`. Send three more clean prompts. Expect: no injection on any of them.
 
-**15e. Report resets the interval (0.6.0).** Set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, keep `deliver` at its default. Send two clean prompts, then the banned sentence from 15d. The next prompt (the third) fires with the report. Expect: prompts four and five stay quiet, and prompt six fires on the interval.
+**15e. Report resets the interval (0.6.0).** Removed in 0.9.0. Set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, keep `deliver` at its default. Send two clean prompts, then the banned sentence from 15d. The next prompt (the third) fires with the report. Expect: prompts four and five stay quiet, and prompt six fires on the interval.
 
 ## Phase E2 — rejected replies (0.7.0)
 
-Defaults in `.just-say-so.json` (remove `outputCheck` and `reminder` overrides).
+Defaults in `.just-say-so.json` (remove the `reply` override).
 
 **16. Restate with a reason.** Say: "Reply with exactly this sentence: we leverage synergy to empower teams." Then run `/just-say-so:restate too much jargon`. Expect: the model answers with a rewrite only, no apology and no mention of the rules. Ground truth: `rejections.jsonl` in the state directory (`$CLAUDE_PLUGIN_DATA/state/` or `~/.local/state/just-say-so/`) has one new line. Its `rejected.text` is the banned sentence verbatim, `reason` is `too much jargon`, `rejected.alerts` names `leverage`, `synergy`, and `empower`, and `rewrite.text` is the model's second reply. The session state file shows `pendingRewrite: null` and `promptAtLastReminder` equal to `promptCount`.
 
 **16a. Bare command.** Repeat with `/just-say-so:restate` alone. Expect: the record's `reason` is `null`.
 
-**16b. No double injection.** Set `reminder.everyPrompts` to 2. Send one clean prompt, then the banned sentence, then `/just-say-so:restate`. Expect: the restate prompt carries the skill body with the rules but no `hook_additional_context` record from the prompt hook (transcript grep for the reminder heading finds it once, inside the skill expansion). The next prompt carries the reply report for the rewrite only if the rewrite itself broke a rule.
+**16b. No double injection.** Removed in 0.9.0. Set `reminder.everyPrompts` to 2. Send one clean prompt, then the banned sentence, then `/just-say-so:restate`. Expect: the restate prompt carries the skill body with the rules but no `hook_additional_context` record from the prompt hook (transcript grep for the reminder heading finds it once, inside the skill expansion). The next prompt carries the reply report for the rewrite only if the rewrite itself broke a rule.
 
 **16c. Wrong answer is not a restate.** Ask a factual question, get a correct answer, and run `/just-say-so:restate` anyway. Expect: the rewrite keeps every fact. This confirms the skill body's instruction; the README tells users to correct wrong answers in an ordinary prompt.
 
@@ -122,15 +123,15 @@ Defaults in `.just-say-so.json` (remove `events` overrides). The log is `events.
 
 **17b. Allow.** Run `/just-say-so:allow "robust regression"`. Expect: an `allow` line with `method`, `list` (null on the vocabulary route), and `added: true`. `session` is null unless the harness exported `CLAUDE_SESSION_ID` to the command.
 
-**17c. Block cycles.** Set `outputCheck.mode` to `block`, request the banned sentence. Expect: one `reply` line with `outcome: "block"` per blocked attempt, then a final `pass` or `standdown` line for the same `promptIndex`.
+**17c. Block cycles.** Set `reply.mode` to `block`, request the banned sentence. Expect: one `reply` line with `outcome: "block"` per blocked attempt, then a final `pass` or `standdown` line for the same `promptIndex`.
 
-**17d. Checks off.** Set `outputCheck.mode` and `bannedCheck.mode` to `off`. Send the banned sentence. Expect: no injection, no block, but the `reply` line still carries the alerts (the log lints on its own). Set `events.mode` to `off` and repeat. Expect: no new lines, and no `vale` process in the Stop hook's timing.
+**17d. Checks off.** Set `reply.mode` and `files.mode` to `off`. Send the banned sentence. Expect: no injection, no block, but the `reply` line still carries the alerts (the log lints on its own). Set `events.mode` to `off` and repeat. Expect: no new lines, and no `vale` process in the Stop hook's timing.
 
 **17e. Compact.** Run `/compact`. Expect: a `session` line with `source: "compact"` and a `reminder` line at `promptIndex: 0`.
 
 ## Phase F — published text via gh (0.2.0)
 
-Edit `.just-say-so.json`: `{ "bannedCheck": { "mode": "block", "addons": ["gh"] } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)
+Edit `.just-say-so.json`: `{ "publish": { "gh": true } }`. The scratch repo has no GitHub remote, so even a command that slips past the gate cannot publish anything — it fails on "no such remote" instead. Preflight: `claude --version` must be ≥ 2.1.85 for the `if` filter in the hook wiring to apply; on older versions the hook fires on every Bash command, which changes the cost, not the outcome, of these scenarios. (MCP coverage needs a connected server — verify opportunistically in a real project.)
 
 **16. Plain-form control.** Ask: "Run this command: `gh pr comment 42 --body \"We leverage robust synergy.\"`". Expect: DENIED before execution, with `gh pr comment` named in the violation list. Ground truth: `claude --debug` shows pre-gate firing for the Bash call; the transcript contains `just-say-so: Vale alerts in text published by gh pr comment`. This control must pass before scenario 17 means anything — if it fails, the addon config or the hook wiring is broken, not the heredoc handling.
 

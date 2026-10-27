@@ -34,7 +34,7 @@ describe('subagent-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSubagentStart: false } });
+      const sandbox = makeSandbox({ rules: { onSubagentStart: false } });
       output = run(
         { session_id: 'MAIN_SESSION', agent_id: 'AGENT_8675309', agent_type: 'Explore', cwd: sandbox.work },
         sandbox.env

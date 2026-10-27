@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Add a term to this project's just-say-so allow list. Consent lives with
-// whoever invokes this — the /just-say-so:allow skill or a user-approved
-// Bash call — so the script itself just does the edit, deterministically.
+// Add a term to this project's Vale vocabulary. Consent lives with whoever
+// invokes this — the /just-say-so:allow skill or a user-approved Bash call —
+// so the script itself just does the edit, deterministically.
 import { addAllowTerm } from '../lib/allow.js';
 
 const term = process.argv.slice(2).join(' ').trim();
@@ -12,13 +12,13 @@ if (!term) {
 
 try {
   const result = addAllowTerm(term, process.cwd());
-  const where = result.method === 'vocabulary' ? 'the Vale vocabulary' : result.list;
   console.log(
     result.added
-      ? `just-say-so: added "${result.term}" to ${where} (${result.file})`
-      : `just-say-so: "${result.term}" is already in ${where} (${result.file})`
+      ? `just-say-so: added "${result.term}" to the Vale vocabulary (${result.file})`
+      : `just-say-so: "${result.term}" is already in the Vale vocabulary (${result.file})`
   );
+  if (result.configChanged) console.log(`just-say-so: added StylesPath/Vocab to ${result.configFile}`);
 } catch (err) {
-  console.error(`just-say-so: could not update config: ${err.message}`);
+  console.error(`just-say-so: could not add the term: ${err.message}`);
   process.exit(1);
 }

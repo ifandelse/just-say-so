@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { replyCheckMode, deliversNextPrompt, isShortMatch, dedupeOverlaps, recordReplyAlerts, formatReplyReport } from './reply-alerts.js';
+import {isShortMatch, dedupeOverlaps, recordReplyAlerts, formatReplyReport } from './reply-alerts.js';
 
 /*
  * Branch map — src/lib/reply-alerts.js
@@ -29,55 +29,6 @@ function alert(over = {}) {
 }
 
 describe('reply-alerts', () => {
-  describe('replyCheckMode', () => {
-    describe('when each configuration shape is given', () => {
-      let modes;
-
-      beforeEach(() => {
-        modes = {
-          off: replyCheckMode({ outputCheck: { mode: 'off' }, reminder: { mode: 'prompts' } }),
-          block: replyCheckMode({ outputCheck: { mode: 'block' }, reminder: { mode: 'off' } }),
-          warn: replyCheckMode({ outputCheck: { mode: 'warn' }, reminder: { mode: 'tokens' } }),
-          idle: replyCheckMode({ outputCheck: { mode: 'warn', deliver: 'next-reminder' }, reminder: { mode: 'off' } }),
-          bare: replyCheckMode({}),
-          warnNextPrompt: replyCheckMode({ outputCheck: { mode: 'warn' }, reminder: { mode: 'off' } }),
-          warnNoReminder: replyCheckMode({ outputCheck: { mode: 'warn', deliver: 'next-reminder' } })
-        };
-      });
-
-      it('should map each to its mode', () => {
-        expect(modes).toEqual({
-          off: 'off',
-          block: 'block',
-          warn: 'warn',
-          idle: 'idle',
-          bare: 'off',
-          warnNextPrompt: 'warn',
-          warnNoReminder: 'idle'
-        });
-      });
-    });
-  });
-
-  describe('deliversNextPrompt', () => {
-    describe('when each delivery setting is given', () => {
-      let results;
-
-      beforeEach(() => {
-        results = {
-          unset: deliversNextPrompt({ outputCheck: { mode: 'warn' } }),
-          bare: deliversNextPrompt({}),
-          nextPrompt: deliversNextPrompt({ outputCheck: { deliver: 'next-prompt' } }),
-          nextReminder: deliversNextPrompt({ outputCheck: { deliver: 'next-reminder' } })
-        };
-      });
-
-      it('should default to the next prompt', () => {
-        expect(results).toEqual({ unset: true, bare: true, nextPrompt: true, nextReminder: false });
-      });
-    });
-  });
-
   describe('isShortMatch', () => {
     describe('when each match shape is given', () => {
       let results;

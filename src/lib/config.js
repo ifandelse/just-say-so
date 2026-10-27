@@ -3,59 +3,51 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const DEFAULTS = {
-  reminder: {
-    // Since 0.6.0 the reply check below delivers the rules on the prompt
-    // after a flagged reply, so the interval is a safety net: it covers an
-    // install without vale, and drift Vale cannot see. 20 is wide enough
-    // to cost little and still arrive within a long session.
-    mode: 'prompts', // "prompts" | "tokens" | "off"
-    everyPrompts: 20,
-    everyTokens: 4000,
-    // Rules are present at the start of every context, then refreshed every
-    // N prompts. Trim this list to inject on fewer SessionStart sources.
-    onSessionStart: ['startup', 'resume', 'clear', 'compact'],
-    // Subagents start with fresh context and never see the main-session
-    // reminders; brief them at spawn too.
-    onSubagentStart: true
+  // Each target is one kind of text the model produces. A target's Vale
+  // rules live in .vale.ini, keyed by the name the text lints under; the
+  // config here only says what the plugin does with the result.
+  files: {
+    mode: 'warn', // "off" | "warn" | "block" — warn: edit-time facts; block adds the Stop gate
+    show: 'suggestion' // lowest alert level passed to the model at edit time: "error" | "warning" | "suggestion"
   },
-  bannedCheck: {
-    mode: 'warn', // "warn" | "block" | "off" — warn by default, like a linter; block is the opt-in hard gate
-    addons: [], // opt-in coverage bundles; "gh" is the only shipped one
+  publish: {
+    mode: 'block', // "off" | "warn" | "block" — nothing can un-publish, so block is the default once a source is on
+    gh: false, // check the gh commands that publish prose (pr/issue/release create|comment|edit|review, gh api)
+    mcp: [], // MCP tool-name patterns to check, e.g. "mcp__confluence__*"
     // A published value the extractor cannot read (an expansion, stdin, a
     // heredoc): "ask" prompts the user; "allow" and "deny" answer without
     // one. Under an automatic-permission harness mode, "ask" acts as
     // "allow" — a prompt nobody answers is a deny in headless runs.
-    unresolved: 'ask', // "ask" | "allow" | "deny"
-    mcpTools: [], // MCP tool-name patterns to check, e.g. "mcp__confluence__*"
-    exclude: ['**/package*.json', '**/*.lock', '**/node_modules/**', '**/*.min.*'],
-    include: [],
-    disableWords: [],
-    allowPhrases: [],
-    additions: { words: [], phrases: [], patterns: [] }
+    unresolved: 'ask' // "ask" | "allow" | "deny"
   },
-  outputCheck: {
-    mode: 'warn', // "off" | "warn" | "block"
-    // Where a warn-mode report goes: "next-prompt" injects the rules and the
-    // report on the prompt after a flagged reply; "next-reminder" holds it
-    // for the scheduled reminder, which needs reminder.mode on.
-    deliver: 'next-prompt' // "next-prompt" | "next-reminder"
+  reply: {
+    mode: 'warn' // "off" | "warn" | "block" — warn: count broken rules, report with the next rules injection; block: rewrite
+  },
+  rules: {
+    // Where the rules text goes out. Context start covers every source the
+    // harness reports; trim the list to inject on fewer. onViolation sends
+    // the rules plus the reply report on the prompt after a reply broke one.
+    onContextStart: ['startup', 'resume', 'clear', 'compact'],
+    onSubagentStart: true,
+    onViolation: true,
+    fullPath: null, // your own rules file, replaces rules/full.md
+    condensedPath: null, // replaces rules/condensed.md
+    messagesPath: null // overrides hook message strings, per key (rules/messages.json)
+  },
+  vale: {
+    config: null // path to a .vale.ini; default: nearest above the checked file, else the shipped fallback
   },
   events: {
     // The events log: one line per session start, rules injection, checked
     // reply, rejection, and allowed term, in the state directory. Rule names
     // and counts only. "off" writes nothing and skips the log-only reply lint.
     mode: 'on' // "on" | "off"
-  },
-  vale: {
-    config: null, // path to a .vale.ini; default: nearest above the checked file, else the shipped fallback
-    levels: 'suggestion' // lowest alert level passed to the model at edit time: "error" | "warning" | "suggestion"
-  },
-  rules: {
-    fullPath: null,
-    condensedPath: null,
-    messagesPath: null
   }
 };
+
+// Keys the 0.8.x config used. A file that still sets them configures
+// nothing now, so session start names them once.
+const LEGACY_KEYS = ['reminder', 'bannedCheck', 'outputCheck'];
 
 function readJson(file) {
   try {
@@ -96,6 +88,43 @@ export function findProjectConfig(cwd) {
     dir = parent;
   }
   return null;
+}
+
+// The config files in force for a cwd, in precedence order.
+function configFiles(cwd, env) {
+  const files = [globalConfigPath(env)];
+  const projectFile = cwd ? findProjectConfig(cwd) : null;
+  if (projectFile) files.push(projectFile);
+  if (env.JUST_SAY_SO_FORCE_CONFIG) files.push(env.JUST_SAY_SO_FORCE_CONFIG);
+  return files;
+}
+
+// [{ file, keys }] for each config file that still sets a 0.8.x key.
+export function findLegacyKeys(cwd, env = process.env) {
+  const out = [];
+  for (const file of configFiles(cwd, env)) {
+    const json = readJson(file);
+    if (!isObject(json)) continue;
+    const keys = LEGACY_KEYS.filter((k) => k in json);
+    if (keys.length > 0) out.push({ file, keys });
+  }
+  return out;
+}
+
+// The slice of config an events or rejection record carries.
+export function configSnapshot(config) {
+  return {
+    files: { mode: config.files?.mode ?? null },
+    publish: { mode: config.publish?.mode ?? null, gh: config.publish?.gh ?? null, mcp: (config.publish?.mcp ?? []).length },
+    reply: { mode: config.reply?.mode ?? null },
+    rules: { onViolation: config.rules?.onViolation ?? null }
+  };
+}
+
+// Whether any publish source is named and the mode is not off.
+export function publishOn(config) {
+  const p = config.publish ?? {};
+  return p.mode !== 'off' && (p.gh === true || (p.mcp ?? []).length > 0);
 }
 
 export function loadConfig(cwd, env = process.env) {

@@ -1,6 +1,6 @@
 ---
 name: allow
-description: Permit a term the checker flagged — writes it to the project's Vale vocabulary (accept.txt) when a .vale.ini names StylesPath and Vocab, otherwise to disableWords/allowPhrases in .just-say-so.json.
+description: Permit a term the checker flagged — appends it to the project's Vale vocabulary (accept.txt), adding the Vocab key to .vale.ini when it lacks one.
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/src/cli/allow.js" *)
 ---

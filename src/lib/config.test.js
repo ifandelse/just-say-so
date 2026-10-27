@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadConfig, merge, globalConfigPath, findProjectConfig, DEFAULTS } from './config.js';
+import { loadConfig, merge, globalConfigPath, findProjectConfig, findLegacyKeys, configSnapshot, publishOn, DEFAULTS } from './config.js';
 
 /*
  * Branch map — src/lib/config.js
@@ -11,6 +11,8 @@ import { loadConfig, merge, globalConfigPath, findProjectConfig, DEFAULTS } from
  *   loadConfig: JUST_SAY_SO_FORCE_CONFIG set → merges over the project layer
  *   findProjectConfig: found in cwd · found by walking up · not found → null · no cwd → null
  *   loadConfig: no files → defaults · global only · project over global · malformed JSON → ignored
+ *   findLegacyKeys: 0.8.x keys in any layer → [{file, keys}] · none → [] · malformed → skipped
+ *   configSnapshot: the slice a record carries · publishOn: mode + a named source
  */
 
 function tmpdir() {
@@ -147,16 +149,16 @@ describe('config', () => {
       beforeEach(() => {
         const dir = tmpdir();
         const globalFile = path.join(dir, 'config.json');
-        fs.writeFileSync(globalFile, JSON.stringify({ reminder: { everyPrompts: 3 } }));
+        fs.writeFileSync(globalFile, JSON.stringify({ files: { show: 'error' } }));
         result = loadConfig(dir, { JUST_SAY_SO_CONFIG: globalFile });
       });
 
       it('should merge it over the defaults', () => {
-        expect(result.reminder).toEqual({ ...DEFAULTS.reminder, everyPrompts: 3 });
+        expect(result.files).toEqual({ ...DEFAULTS.files, show: 'error' });
       });
 
       it('should leave untouched sections at their defaults', () => {
-        expect(result.bannedCheck).toEqual(DEFAULTS.bannedCheck);
+        expect(result.publish).toEqual(DEFAULTS.publish);
       });
     });
 
@@ -183,12 +185,12 @@ describe('config', () => {
         const dir = tmpdir();
         const globalFile = path.join(dir, 'config.json');
         const forcedFile = path.join(dir, 'ci.json');
-        fs.writeFileSync(globalFile, JSON.stringify({ reminder: { everyPrompts: 3 } }));
+        fs.writeFileSync(globalFile, JSON.stringify({ files: { show: 'error' } }));
         fs.writeFileSync(
           path.join(dir, '.just-say-so.json'),
-          JSON.stringify({ outputCheck: { mode: 'off' }, bannedCheck: { disableWords: ['ninja'] } })
+          JSON.stringify({ reply: { mode: 'off' }, publish: { mcp: ['mcp__jira__*'] } })
         );
-        fs.writeFileSync(forcedFile, JSON.stringify({ outputCheck: { mode: 'block' } }));
+        fs.writeFileSync(forcedFile, JSON.stringify({ reply: { mode: 'block' } }));
         result = loadConfig(dir, {
           JUST_SAY_SO_CONFIG: globalFile,
           JUST_SAY_SO_FORCE_CONFIG: forcedFile
@@ -196,11 +198,11 @@ describe('config', () => {
       });
 
       it('should let the forced fields beat the project while untouched fields fall through', () => {
-        expect({
-          outputMode: result.outputCheck.mode,
-          disableWords: result.bannedCheck.disableWords,
-          everyPrompts: result.reminder.everyPrompts
-        }).toEqual({ outputMode: 'block', disableWords: ['ninja'], everyPrompts: 3 });
+        expect({ replyMode: result.reply.mode, mcp: result.publish.mcp, show: result.files.show }).toEqual({
+          replyMode: 'block',
+          mcp: ['mcp__jira__*'],
+          show: 'error'
+        });
       });
     });
 
@@ -228,6 +230,91 @@ describe('config', () => {
 
       it('should ignore the file and return the defaults', () => {
         expect(result).toEqual(DEFAULTS);
+      });
+    });
+  });
+
+  describe('findLegacyKeys', () => {
+    describe('when the personal and project files each set an old key', () => {
+      let result, dir, globalFile;
+
+      beforeEach(() => {
+        dir = tmpdir();
+        globalFile = path.join(dir, 'global.json');
+        fs.writeFileSync(globalFile, JSON.stringify({ reminder: { mode: 'off' }, files: { mode: 'warn' } }));
+        fs.writeFileSync(path.join(dir, '.just-say-so.json'), JSON.stringify({ bannedCheck: { mode: 'block' }, outputCheck: {} }));
+        result = findLegacyKeys(dir, { JUST_SAY_SO_CONFIG: globalFile });
+      });
+
+      it('should list each file with the keys it still sets, in layer order', () => {
+        expect(result).toEqual([
+          { file: globalFile, keys: ['reminder'] },
+          { file: path.join(dir, '.just-say-so.json'), keys: ['bannedCheck', 'outputCheck'] }
+        ]);
+      });
+    });
+
+    describe('when the files are current or malformed', () => {
+      let result;
+
+      beforeEach(() => {
+        const dir = tmpdir();
+        const globalFile = path.join(dir, 'global.json');
+        fs.writeFileSync(globalFile, '{oops');
+        fs.writeFileSync(path.join(dir, '.just-say-so.json'), JSON.stringify({ reply: { mode: 'block' } }));
+        result = findLegacyKeys(dir, { JUST_SAY_SO_CONFIG: globalFile });
+      });
+
+      it('should report nothing', () => {
+        expect(result).toEqual([]);
+      });
+    });
+  });
+
+  describe('configSnapshot', () => {
+    describe('when given the defaults and a partial object', () => {
+      let full, partial;
+
+      beforeEach(() => {
+        full = configSnapshot(DEFAULTS);
+        partial = configSnapshot({ publish: { mcp: ['a', 'b'] } });
+      });
+
+      it('should carry the modes, the publish sources as a flag and a count, and onViolation', () => {
+        expect({ full, partial }).toEqual({
+          full: {
+            files: { mode: 'warn' },
+            publish: { mode: 'block', gh: false, mcp: 0 },
+            reply: { mode: 'warn' },
+            rules: { onViolation: true }
+          },
+          partial: {
+            files: { mode: null },
+            publish: { mode: null, gh: null, mcp: 2 },
+            reply: { mode: null },
+            rules: { onViolation: null }
+          }
+        });
+      });
+    });
+  });
+
+  describe('publishOn', () => {
+    describe('when each shape is given', () => {
+      let results;
+
+      beforeEach(() => {
+        results = [
+          publishOn(DEFAULTS),
+          publishOn({ publish: { mode: 'block', gh: true } }),
+          publishOn({ publish: { mode: 'warn', mcp: ['mcp__x__*'] } }),
+          publishOn({ publish: { mode: 'off', gh: true } }),
+          publishOn({})
+        ];
+      });
+
+      it('should be on only with a source named and the mode not off', () => {
+        expect(results).toEqual([false, true, true, false, false]);
       });
     });
   });

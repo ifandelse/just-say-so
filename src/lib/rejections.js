@@ -7,7 +7,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir } from './state.js';
-import { lintText, applyConfigExemptions, REPLY_NAME } from './vale.js';
+import { lintText, REPLY_NAME } from './vale.js';
+import { configSnapshot } from './config.js';
 import { pluginVersion } from './version.js';
 
 const COMMAND = /^\/just-say-so:restate(?:\s+([\s\S]*))?$/;
@@ -33,8 +34,7 @@ export function lintReply(text, config, configPath, env = process.env) {
   if (!text) return [];
   const raw = lintText(text, { name: REPLY_NAME, configPath, env });
   if (raw === null) return null;
-  const lines = String(text).split('\n');
-  return applyConfigExemptions(raw, config.bannedCheck, (_file, line) => lines[line - 1] ?? null).map((a) => ({
+  return raw.map((a) => ({
     check: a.Check,
     severity: a.Severity,
     line: a.Line,
@@ -72,8 +72,7 @@ export function newRecord({
     rejected,
     rewrite: null,
     version: pluginVersion(),
-    reminder: { mode: config.reminder?.mode ?? null, everyPrompts: config.reminder?.everyPrompts ?? null },
-    outputCheck: { mode: config.outputCheck?.mode ?? null, deliver: config.outputCheck?.deliver ?? null }
+    config: configSnapshot(config)
   };
 }
 

@@ -16,7 +16,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     forced) → ask · mode off → null
  *   publish check (Bash/MCP): mode off → null · gh addon absent → null ·
  *     no gh trigger → null · mcp pattern mismatch → null · empty text → null ·
- *     vale broken → null · alerts below levels → null · allowPhrases drop → null ·
+ *     vale broken → null ·
  *     errors + block → deny · alerts + warn → additionalContext ·
  *     anchor falls back to recorded projectDir
  */
@@ -184,7 +184,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' } });
       output = run(
         {
           session_id: SESSION,
@@ -205,7 +205,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { mode: 'warn', gh: true } });
       lintResponder([errorAlert()]);
       output = run(
         {
@@ -238,7 +238,7 @@ describe('pre-gate.run', () => {
     let names;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([]);
       run(
         {
@@ -261,7 +261,7 @@ describe('pre-gate.run', () => {
     let name;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       fs.writeFileSync(path.join(sandbox.work, 'body.md'), 'pure synergy\n');
       lintResponder([errorAlert()]);
       run(
@@ -285,7 +285,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([errorAlert()]);
       output = run(
         {
@@ -308,7 +308,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([errorAlert({ Severity: 'suggestion', Match: 'very' })]);
       output = run(
         {
@@ -348,7 +348,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { mode: 'warn', gh: true } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr view 42' } },
         sandbox.env
@@ -364,7 +364,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'off', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { mode: 'off', gh: true } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr comment 1 --body "synergy"' } },
         sandbox.env
@@ -380,7 +380,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', mcpTools: ['mcp__confluence__*'] } });
+      const sandbox = makeSandbox({ publish: { mcp: ['mcp__confluence__*'] } });
       lintResponder([errorAlert()]);
       output = run(
         {
@@ -408,7 +408,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mcpTools: ['mcp__confluence__*'] } });
+      const sandbox = makeSandbox({ publish: { mode: 'warn', mcp: ['mcp__confluence__*'] } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'mcp__jira__create_issue', tool_input: { body: 'synergy' } },
         sandbox.env
@@ -424,7 +424,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mcpTools: ['mcp__confluence__*'] } });
+      const sandbox = makeSandbox({ publish: { mode: 'warn', mcp: ['mcp__confluence__*'] } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'mcp__confluence__ping', tool_input: {} },
         sandbox.env
@@ -440,7 +440,7 @@ describe('pre-gate.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       mockSpawnSync.mockReturnValue({ error: new Error('ENOENT'), status: null });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr comment 1 --body "synergy"' } },
@@ -453,45 +453,6 @@ describe('pre-gate.run', () => {
     });
   });
 
-  describe('when every alert falls below the configured level floor', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'] }, vale: { levels: 'error' } });
-      lintResponder([errorAlert({ Severity: 'suggestion', Match: 'very' })]);
-      output = run(
-        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr comment 1 --body "very nice"' } },
-        sandbox.env
-      );
-    });
-
-    it('should return null', () => {
-      expect(output).toBeNull();
-    });
-  });
-
-  describe('when an allowed phrase covers the flagged span', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { addons: ['gh'], allowPhrases: ['robust regression'] } });
-      // The check lints the extracted --body value, so the span anchors to
-      // the payload text, never to the command string.
-      const body = 'the robust regression suite';
-      const command = `gh pr comment 1 --body "${body}"`;
-      const start = body.indexOf('robust') + 1; // Vale spans are 1-based columns
-      lintResponder([errorAlert({ Match: 'robust', Span: [start, start + 5], Line: 1 })]);
-      output = run(
-        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command } },
-        sandbox.env
-      );
-    });
-
-    it('should drop the alert and return null', () => {
-      expect(output).toBeNull();
-    });
-  });
-
   describe('when the event cwd has no project config but one was recorded', () => {
     let output;
 
@@ -500,7 +461,7 @@ describe('pre-gate.run', () => {
       const projectDir = fs.mkdtempSync(path.join(sandbox.work, 'proj-'));
       fs.writeFileSync(
         path.join(projectDir, '.just-say-so.json'),
-        JSON.stringify({ bannedCheck: { mode: 'block', addons: ['gh'] } })
+        JSON.stringify({ publish: { gh: true } })
       );
       writeSession(SESSION, { projectDir }, sandbox.env);
       lintResponder([errorAlert()]);
@@ -524,7 +485,7 @@ describe('pre-gate.run', () => {
 describe('pre-gate publish check with extracted payloads', () => {
   describe('when a flag-heavy command publishes a clean body file', () => {
     it('should stay silent (the command string is never linted)', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       const body = path.join(sandbox.work, 'body.md');
       fs.writeFileSync(body, 'clean words\n');
       lintResponder([]);
@@ -543,7 +504,7 @@ describe('pre-gate publish check with extracted payloads', () => {
 
   describe('when a dirty body file publishes in block mode', () => {
     it('should deny and label the alert with the flag', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       const body = path.join(sandbox.work, 'body.md');
       fs.writeFileSync(body, 'pure synergy\n');
       lintResponder([errorAlert()]);
@@ -564,14 +525,14 @@ describe('pre-gate publish check with extracted payloads', () => {
   describe('when the body is a command substitution in block mode', () => {
     const input = (extra = {}) => ({
       session_id: SESSION,
-      cwd: makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'], ...extra.bc } }).work,
+      cwd: makeSandbox({ publish: { gh: true, ...extra.publish } }).work,
       tool_name: 'Bash',
       tool_input: { command: 'gh pr edit 197 --body "$(cat body.md)"' },
       ...extra.input
     });
 
     it('should ask by default', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([]);
       const output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 1 --body "$(cat b)"' } },
@@ -582,7 +543,7 @@ describe('pre-gate publish check with extracted payloads', () => {
     });
 
     it('should allow with a note under an automatic-permission mode', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([]);
       const output = run(
         {
@@ -599,7 +560,7 @@ describe('pre-gate publish check with extracted payloads', () => {
     });
 
     it('should deny when unresolved is configured to deny', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'], unresolved: 'deny' } });
+      const sandbox = makeSandbox({ publish: { gh: true, unresolved: 'deny' } });
       lintResponder([]);
       const output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 1 --body "$(cat b)"' } },
@@ -612,7 +573,7 @@ describe('pre-gate publish check with extracted payloads', () => {
 
   describe('when a covered command has no text flags', () => {
     it('should stay silent', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([]);
       const output = run(
         { session_id: SESSION, cwd: sandbox.work, tool_name: 'Bash', tool_input: { command: 'gh pr edit 5 --add-label bug' } },
@@ -624,7 +585,7 @@ describe('pre-gate publish check with extracted payloads', () => {
 
   describe('when gh api writes a prose field in block mode', () => {
     it('should deny on a dirty field value', () => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      const sandbox = makeSandbox({ publish: { gh: true } });
       lintResponder([errorAlert()]);
       const output = run(
         {

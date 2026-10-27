@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { findProjectConfig } from './config.js';
 import { findValeConfig } from './vale.js';
-import { readKey, insertKey, withPackage, packageUrl } from './vale-ini.js';
+import { readKey, setKey, withPackage, packageUrl } from './vale-ini.js';
 import { DEFAULT_VOCAB } from './allow.js';
 import { pluginVersion } from './version.js';
 
@@ -41,9 +41,21 @@ export function parseArgs(argv) {
   return { opts, errors };
 }
 
+function git(args, cwd) {
+  const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
 function repoRoot(cwd) {
-  const r = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.trim() : cwd;
+  return git(['rev-parse', '--show-toplevel'], cwd) ?? cwd;
+}
+
+// Where git runs pre-commit for this checkout: a linked worktree keeps its
+// hooks in the main repository, and core.hooksPath moves them anywhere.
+function hooksDir(root) {
+  const p = git(['rev-parse', '--git-path', 'hooks'], root);
+  if (!p) return null;
+  return path.resolve(root, p);
 }
 
 const FRESH_INI = (url) =>
@@ -64,7 +76,8 @@ const FRESH_INI = (url) =>
 // Vale fails outright (E100) when Vocab names a vocabulary that has no
 // directory, so the key and the accept file are written together.
 function ensureVocabulary(configFile, stylesPath, vocab, write) {
-  const accept = path.join(path.dirname(configFile), stylesPath, 'config', 'vocabularies', vocab, 'accept.txt');
+  // StylesPath is relative to the config file, or absolute; resolve keeps both.
+  const accept = path.join(path.resolve(path.dirname(configFile), stylesPath), 'config', 'vocabularies', vocab, 'accept.txt');
   if (fs.existsSync(accept)) return null;
   if (write) {
     fs.mkdirSync(path.dirname(accept), { recursive: true });
@@ -91,13 +104,16 @@ function setupValeConfig(root, url, write) {
     text = pinned.text;
     lines.push(`${write ? 'pinned' : 'would pin'} the JustSaySo package at ${url} in ${existing}`);
   }
+  // An empty `Vocab =` line is replaced in place, never duplicated: Vale
+  // reads the later of two lines, and the vocabulary has to be created
+  // where that later value points.
   if (!readKey(text, 'StylesPath')) {
-    text = insertKey(text, 'StylesPath', 'styles');
-    lines.push(`${write ? 'added' : 'would add'} StylesPath = styles to ${existing}`);
+    text = setKey(text, 'StylesPath', 'styles');
+    lines.push(`${write ? 'set' : 'would set'} StylesPath = styles in ${existing}`);
   }
   if (!readKey(text, 'Vocab')) {
-    text = insertKey(text, 'Vocab', DEFAULT_VOCAB);
-    lines.push(`${write ? 'added' : 'would add'} Vocab = ${DEFAULT_VOCAB} to ${existing}`);
+    text = setKey(text, 'Vocab', DEFAULT_VOCAB);
+    lines.push(`${write ? 'set' : 'would set'} Vocab = ${DEFAULT_VOCAB} in ${existing}`);
   }
   if (lines.length === 0) lines.push(`${existing} already loads the JustSaySo package at this version`);
   else if (write) fs.writeFileSync(existing, text);
@@ -110,7 +126,9 @@ function syncStyles(root, write, env) {
   if (!write) return ['would run vale sync'];
   const r = spawnSync('vale', ['sync'], { cwd: root, encoding: 'utf8', timeout: 120_000, env });
   if (r.error) return ['vale sync skipped: vale is not on PATH. Install it and run vale sync in the repo.'];
-  if (r.status !== 0) return [`vale sync failed (exit ${r.status}): ${String(r.stderr || r.stdout).trim().split('\n').pop()}`];
+  // Vale prints the reason first and "Execution stopped" last.
+  const reason = String(r.stderr || r.stdout).split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+  if (r.status !== 0) return [`vale sync failed (exit ${r.status}): ${reason}`];
   return ['ran vale sync'];
 }
 
@@ -161,7 +179,7 @@ function setupHook(root, mode, tag, write) {
   const hasPreCommit = fs.existsSync(path.join(root, '.pre-commit-config.yaml'));
   const hasHusky = fs.existsSync(path.join(root, '.husky'));
   const hasPackage = fs.existsSync(path.join(root, 'package.json'));
-  const hasGit = fs.existsSync(path.join(root, '.git'));
+  const hasGit = fs.existsSync(path.join(root, '.git')); // a directory, or a file in a linked worktree
   const chosen =
     mode !== 'auto' ? mode : hasPreCommit ? 'pre-commit' : hasHusky ? 'husky' : hasPackage ? 'git' : hasGit ? 'pre-commit' : 'none';
   const devDep = `npm install --save-dev github:ifandelse/just-say-so#${tag}`;
@@ -190,10 +208,15 @@ function setupHook(root, mode, tag, write) {
     return lines;
   }
   // chosen === 'git'
-  const hook = path.join(root, '.git', 'hooks', 'pre-commit');
-  if (!hasGit) return ['commit gate: no .git directory here, nothing to install'];
+  if (!hasGit) return ['commit gate: no .git here, nothing to install'];
+  const dir = hooksDir(root);
+  if (!dir) return ['commit gate: git could not say where this checkout keeps its hooks; nothing written'];
+  const hook = path.join(dir, 'pre-commit');
   if (fs.existsSync(hook)) return [`commit gate: ${hook} exists; add "node_modules/.bin/just-say-so-staged" to it by hand`, `commit gate: run: ${devDep}`];
-  if (write) fs.writeFileSync(hook, GIT_HOOK.replace('TAG', tag), { mode: 0o755 });
+  if (write) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(hook, GIT_HOOK.replace('TAG', tag), { mode: 0o755 });
+  }
   return [`commit gate: ${write ? 'wrote' : 'would write'} ${hook}`, `commit gate: the gate comes from the dev dependency; run: ${devDep}`];
 }
 

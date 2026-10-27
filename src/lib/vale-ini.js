@@ -24,10 +24,11 @@ export function insertKey(text, key, value) {
   return text.slice(0, at) + line + text.slice(at);
 }
 
-// Replace the value of an existing `key = ...` line, or insert one.
+// Replace an existing `key = ...` line whole, or insert one. The whole
+// line is rewritten so an empty `Vocab =` becomes `Vocab = Project`.
 export function setKey(text, key, value) {
-  const re = new RegExp(`^([ \\t]*${key}[ \\t]*=[ \\t]*).*$`, 'm');
-  return re.test(text) ? text.replace(re, `$1${value}`) : insertKey(text, key, value);
+  const re = new RegExp(`^[ \\t]*${key}[ \\t]*=.*$`, 'm');
+  return re.test(text) ? text.replace(re, `${key} = ${value}`) : insertKey(text, key, value);
 }
 
 /** The Packages entries, trimmed, in order; [] when the key is absent. */

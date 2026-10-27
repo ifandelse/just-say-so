@@ -16,21 +16,27 @@ import { pluginVersion } from './version.js';
  *     --dry-run · unknown argument
  *   repo root from git, cwd when git fails
  *   vale config: fresh file with the vocabulary created · existing file
- *     pinned/amended with the vocabulary created · already current
+ *     pinned/amended with the vocabulary created · already current ·
+ *     absolute StylesPath resolved · empty Vocab line replaced in place
  *   vale sync: ran · missing binary · failed · dry run
  *   plugin config: nothing given · fresh · merged over existing · malformed
  *   hook: auto picks pre-commit > husky > git > pre-commit(no git: none) ·
- *     husky appends once · git writes once, reports an existing hook ·
- *     none · no .git
+ *     husky appends once · git writes once where `git rev-parse --git-path
+ *     hooks` points (linked worktrees), reports an existing hook, reports
+ *     when git cannot say · none · no .git
  */
 
 function tmpdir() {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jss-init-')));
 }
 
-function tools({ git = true, sync = { status: 0 } } = {}) {
-  mockSpawnSync.mockImplementation((cmd, args, opts) => {
-    if (cmd === 'git') return git ? { status: 0, stdout: `${opts.cwd}\n` } : { status: 128, stdout: '' };
+function tools({ git = true, sync = { status: 0 }, hooks = '.git/hooks' } = {}) {
+  mockSpawnSync.mockImplementation((cmd, args) => {
+    if (cmd === 'git') {
+      if (!git) return { status: 128, stdout: '' };
+      // git -C <cwd> rev-parse --show-toplevel | --git-path hooks
+      return { status: 0, stdout: `${args.includes('--git-path') ? hooks : args[1]}\n` };
+    }
     if (cmd === 'vale' && args[0] === 'sync') return sync;
     return { status: 0, stdout: '' };
   });
@@ -108,8 +114,8 @@ describe('init', () => {
       expect(result.lines).toEqual([
         `project root: ${root}`,
         `pinned the JustSaySo package at ${URL} in ${path.join(root, '.vale.ini')}`,
-        `added StylesPath = styles to ${path.join(root, '.vale.ini')}`,
-        `added Vocab = Project to ${path.join(root, '.vale.ini')}`,
+        `set StylesPath = styles in ${path.join(root, '.vale.ini')}`,
+        `set Vocab = Project in ${path.join(root, '.vale.ini')}`,
         `created ${path.join(root, 'styles', 'config', 'vocabularies', 'Project', 'accept.txt')}`,
         'ran vale sync',
         `updated ${path.join(root, '.just-say-so.json')}: {"files":{"mode":"block"}}`,
@@ -207,7 +213,70 @@ describe('init', () => {
       ]);
       expect(bare.find((l) => l.startsWith('commit gate:'))).toBe('commit gate: add this to .pre-commit-config.yaml (the file does not exist yet) and run pre-commit install:');
       expect(none.filter((l) => l.startsWith('commit gate'))).toEqual(['commit gate: skipped']);
-      expect(noGit.filter((l) => l.startsWith('commit gate'))).toEqual(['commit gate: no .git directory here, nothing to install']);
+      expect(noGit.filter((l) => l.startsWith('commit gate'))).toEqual(['commit gate: no .git here, nothing to install']);
+    });
+  });
+
+  describe('when the config has an absolute StylesPath and an empty Vocab line', () => {
+    let root, styles, result, ini;
+
+    beforeEach(() => {
+      root = tmpdir();
+      styles = tmpdir();
+      fs.writeFileSync(path.join(root, '.vale.ini'), `StylesPath = ${styles}\nVocab =\nPackages = ${URL}\n[*]\nBasedOnStyles = JustSaySo\n`);
+      tools();
+      result = runInit(root, ['--hook', 'none'], {});
+      ini = fs.readFileSync(path.join(root, '.vale.ini'), 'utf8');
+    });
+
+    it('should replace the empty key in place and create the vocabulary under the absolute path', () => {
+      expect(result.lines.slice(1, 3)).toEqual([
+        `set Vocab = Project in ${path.join(root, '.vale.ini')}`,
+        `created ${path.join(styles, 'config', 'vocabularies', 'Project', 'accept.txt')}`
+      ]);
+      expect(ini).toBe(`StylesPath = ${styles}\nVocab = Project\nPackages = ${URL}\n[*]\nBasedOnStyles = JustSaySo\n`);
+      expect(fs.existsSync(path.join(root, 'config'))).toBe(false);
+    });
+  });
+
+  describe('when the checkout is a linked worktree whose hooks live elsewhere', () => {
+    let root, hooks, result;
+
+    beforeEach(() => {
+      root = tmpdir();
+      hooks = path.join(tmpdir(), 'main', '.git', 'hooks');
+      fs.writeFileSync(path.join(root, '.git'), 'gitdir: /elsewhere/.git/worktrees/x\n');
+      fs.writeFileSync(path.join(root, 'package.json'), '{}');
+      fs.writeFileSync(path.join(root, '.vale.ini'), `StylesPath = styles\nVocab = Project\nPackages = ${URL}\n`);
+      tools({ hooks });
+      result = runInit(root, [], {});
+    });
+
+    it('should write the hook where git says the hooks are', () => {
+      expect(result.lines).toContain(`commit gate: wrote ${path.join(hooks, 'pre-commit')}`);
+      expect(fs.existsSync(path.join(hooks, 'pre-commit'))).toBe(true);
+    });
+  });
+
+  describe('when git cannot name the hooks directory', () => {
+    let result;
+
+    beforeEach(() => {
+      const root = tmpdir();
+      fs.mkdirSync(path.join(root, '.git'));
+      fs.writeFileSync(path.join(root, '.vale.ini'), `StylesPath = styles\nVocab = Project\nPackages = ${URL}\n`);
+      mockSpawnSync.mockImplementation((cmd, args) => {
+        if (cmd === 'git' && args.includes('--git-path')) return { status: 128, stdout: '' };
+        if (cmd === 'git') return { status: 0, stdout: `${args[1]}\n` };
+        return { status: 0, stdout: '' };
+      });
+      result = runInit(root, ['--hook', 'git'], {});
+    });
+
+    it('should say so and write nothing', () => {
+      expect(result.lines.filter((l) => l.startsWith('commit gate'))).toEqual([
+        'commit gate: git could not say where this checkout keeps its hooks; nothing written'
+      ]);
     });
   });
 

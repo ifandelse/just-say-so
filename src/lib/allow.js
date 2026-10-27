@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig } from './config.js';
 import { findValeConfig } from './vale.js';
-import { readKey, insertKey } from './vale-ini.js';
+import { readKey, setKey } from './vale-ini.js';
 import { logEvent } from './events.js';
 
 // The vocabulary a project gets when its .vale.ini names none. Not
@@ -24,20 +24,22 @@ export function vocabTarget(cwd) {
   }
   let text = fs.readFileSync(configFile, 'utf8');
   const original = text;
+  // An empty key is replaced in place: Vale reads the later of two lines.
   let stylesPath = readKey(text, 'StylesPath');
   if (!stylesPath) {
     stylesPath = 'styles';
-    text = insertKey(text, 'StylesPath', stylesPath);
+    text = setKey(text, 'StylesPath', stylesPath);
   }
   let vocab = readKey(text, 'Vocab');
   if (!vocab) {
     vocab = DEFAULT_VOCAB;
-    text = insertKey(text, 'Vocab', vocab);
+    text = setKey(text, 'Vocab', vocab);
   }
   const configChanged = text !== original;
   if (configChanged) fs.writeFileSync(configFile, text);
+  // StylesPath is relative to the config file, or absolute; resolve keeps both.
   return {
-    file: path.join(path.dirname(configFile), stylesPath, 'config', 'vocabularies', vocab, 'accept.txt'),
+    file: path.join(path.resolve(path.dirname(configFile), stylesPath), 'config', 'vocabularies', vocab, 'accept.txt'),
     configFile,
     configChanged
   };

@@ -10,6 +10,7 @@ import { eventsFile, readEvents } from './events.js';
  *   vocabTarget: .vale.ini with StylesPath+Vocab → accept.txt path, ini untouched ·
  *                missing Vocab → inserted before the first section, default name ·
  *                missing both → both inserted; a sectionless ini gets them appended ·
+ *                an empty Vocab line is replaced in place · an absolute StylesPath is kept ·
  *                no .vale.ini above cwd → throw
  *   addToVocabulary: new file → created · exact duplicate → added: false ·
  *                a different casing is a new entry (Vale matches exactly) ·
@@ -71,6 +72,27 @@ describe('allow', () => {
       it('should insert the default Vocab before the first section', () => {
         expect(result).toEqual({ file: acceptPath(root, DEFAULT_VOCAB), configFile: path.join(root, '.vale.ini'), configChanged: true });
         expect(after).toBe(`StylesPath = styles\nVocab = ${DEFAULT_VOCAB}\n\n[*]\nBasedOnStyles = JustSaySo\n`);
+      });
+    });
+
+    describe('when the .vale.ini has an empty Vocab line and an absolute StylesPath', () => {
+      let root, styles, result, after;
+
+      beforeEach(() => {
+        root = tmpdir();
+        styles = tmpdir();
+        fs.writeFileSync(path.join(root, '.vale.ini'), `StylesPath = ${styles}\nVocab =\n\n[*]\nBasedOnStyles = X\n`);
+        result = vocabTarget(root);
+        after = fs.readFileSync(path.join(root, '.vale.ini'), 'utf8');
+      });
+
+      it('should replace the empty line and point at the absolute styles directory', () => {
+        expect(result).toEqual({
+          file: path.join(styles, 'config', 'vocabularies', DEFAULT_VOCAB, 'accept.txt'),
+          configFile: path.join(root, '.vale.ini'),
+          configChanged: true
+        });
+        expect(after).toBe(`StylesPath = ${styles}\nVocab = ${DEFAULT_VOCAB}\n\n[*]\nBasedOnStyles = X\n`);
       });
     });
 

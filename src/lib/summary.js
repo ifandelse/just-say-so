@@ -109,13 +109,24 @@ export function summarize(events, rejections, { since = null, until = null, proj
     return mode;
   };
 
-  // Join each rejection to the turn it rejected: the turn at the record's
-  // prompt index minus one in the same session, inside the window. The
-  // joined turn supplies the time, project, and distance a rate uses.
-  const turnByKey = new Map(turns.map((t) => [`${t.session}|${t.promptIndex}`, t]));
-  const joinedRec = rec
-    .map((r) => ({ record: r, turn: turnByKey.get(`${r.session}|${(r.promptIndex ?? 0) - 1}`) ?? null }))
-    .filter((x) => x.turn !== null);
+  // Join each rejection to the turn it rejected: the latest turn before
+  // the restate, in the same session, at the record's prompt index minus
+  // one. Chronology does the work that the index cannot: compaction and
+  // /clear reuse indexes, so a later turn at the same index is never a
+  // stand-in, and the search runs over the whole log so a window that
+  // opens after the rejected turn still finds it. A rejection counts in
+  // a rate only when its joined turn is inside the window; the joined
+  // turn supplies the time, project, and distance the rate uses.
+  const allTurns = scoped.filter((e) => e.e === 'reply' && FINAL.has(e.outcome)).sort((a, b) => a.t.localeCompare(b.t));
+  const joinedRec = [];
+  for (const r of rec) {
+    const wanted = (r.promptIndex ?? 0) - 1;
+    let turn = null;
+    for (const t of allTurns) {
+      if (t.session === r.session && t.promptIndex === wanted && t.t < r.t) turn = t;
+    }
+    if (turn && inWindow(turn.t, since, until)) joinedRec.push({ record: r, turn });
+  }
   const joined = joinedRec.length;
 
   // Rejection rate, overall, per project, per week.

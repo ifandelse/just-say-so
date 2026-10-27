@@ -25,7 +25,9 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *     change mid-session attributes each reply to the snapshot in force
  *   rates: joined rejections only, overall, per project, per week, per
  *     bucket · unlogged sessions and a window boundary between the
- *     rejected turn and the restate leave the rejection out of every rate
+ *     rejected turn and the restate leave the rejection out of every rate ·
+ *     the join is chronological, so a reused index after compaction never
+ *     stands in for the rejected turn
  *   formatSummary: empty · full · unavailable rates
  */
 
@@ -341,6 +343,38 @@ describe('summary', () => {
         reply('s1', A, 4, 2, 1, 'pass', [BUZZ])
       ];
     }
+  });
+
+  describe('when compaction reuses the rejected turn index and the window opens after the original reply', () => {
+    let whole, windowed;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [
+        session('s1', A, 0),
+        reply('s1', A, 1, 1, 1, 'pass', []),
+        reply('s1', A, 2, 2, 2, 'pass', []),
+        reply('s1', A, 3, 3, 3, 'pass', [LEV]),
+        restate('s1', A, 4, 4),
+        reply('s1', A, 5, 4, 0, 'pass', []),
+        { ...session('s1', A, 6), source: 'compact' },
+        reply('s1', A, 7, 1, 0, 'pass', []),
+        reply('s1', A, 8, 2, 0, 'pass', []),
+        reply('s1', A, 9, 3, 0, 'pass', []),
+        reply('s1', A, 10, 4, 0, 'pass', [])
+      ];
+      const rejections = [rejection('s1', A, 4, 4, 3, 'x', [rb('JustSaySo.Leverage', 'error', 'leverage')], [])];
+      whole = summarize(events, rejections);
+      windowed = summarize(events, rejections, { since: at(4) });
+    });
+
+    it('should join to the turn before the restate, never to the reused index after compaction', () => {
+      expect(whole.volume).toMatchObject({ turns: 8, rejections: 1, joined: 1, unjoined: 0 });
+      expect(whole.distance.map((d) => [d.bucket, d.rejections])).toEqual([['0', 0], ['1-2', 0], ['3-5', 1], ['6-10', 0], ['11+', 0]]);
+      expect(windowed.volume).toMatchObject({ turns: 5, rejections: 1, joined: 0, unjoined: 1 });
+      expect(windowed.rejectionRate.per100).toBe(0);
+      expect(windowed.distance.map((d) => d.rejections)).toEqual([0, 0, 0, 0, 0]);
+    });
   });
 
   describe('when a project filter is given', () => {

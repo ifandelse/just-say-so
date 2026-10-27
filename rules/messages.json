@@ -24,7 +24,7 @@
   "legacyConfigKeys": "just-say-so: {file} sets {keys}, which 0.9.0 no longer reads. The config is keyed by target now (files, publish, reply, rules). See the README section Upgrading from 0.8.x.",
   "publishIntro": "just-say-so: Vale alerts in text published by {target}:",
   "publishUnresolvedAsk": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. Allow only if the published text follows the communication rules. Put the text in a flag value or a file to get it checked.",
-  "publishUnresolvedDeny": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. bannedCheck.unresolved is \"deny\". Put the text in a flag value or a file the checker can read, then retry.",
+  "publishUnresolvedDeny": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. publish.unresolved is \"deny\". Put the text in a flag value or a file the checker can read, then retry.",
   "publishUnresolvedNote": "Unchecked values: {constructs}.",
   "stopGateIntro": "just-say-so: error-level Vale alerts remain in files this session wrote:",
   "stopGateStandDown": "just-say-so: the same Vale errors remain after a rewrite; not blocking again. These alerts are waived for the rest of this session. To exempt a term for good, run /just-say-so:allow \"<collocation>\"; to exempt the file, add its path to .vale.ini with an empty BasedOnStyles.",

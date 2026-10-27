@@ -9,7 +9,8 @@
 import path from 'node:path';
 import { loadConfig, findProjectConfig, globalConfigPath } from '../config.js';
 import { loadMessages, fill } from '../rules.js';
-import { extractGhTexts, matchesMcpTool, collectStrings } from '../addons.js';
+import fs from 'node:fs';
+import { extractGhTexts, matchesMcpTool, collectProseFields } from '../addons.js';
 import { readSession } from '../state.js';
 import {
   resolveValeConfig,
@@ -21,6 +22,7 @@ import {
 } from '../vale.js';
 
 const FILE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+const ARTIFACT_TOOL = 'Artifact';
 const VALE_CONFIG_NAMES = ['.vale.ini', '_vale.ini', 'vale.ini'];
 
 // The policy surface: the plugin's config files, Vale configs, and the
@@ -64,13 +66,15 @@ function unresolvedPolicy(publish, input) {
   return AUTO_PERMISSION_MODES.includes(input.permission_mode) ? 'allow' : 'ask';
 }
 
-// gh commands and MCP tools publish text humans read. The check lints the
-// extracted payloads, never the raw command: flags and paths are shell
-// syntax, and a punctuation rule reads `--body` as prose and false-denies.
-// Each payload lints alone under a `<source>.<tool>.<field>.publish` name
-// (gh.pr.body.publish, mcp.jira.create_issue.publish), so a config section
-// can pick rules per target and document-level rules stay out of a
-// fragment's way, and line numbers match the payload.
+// gh commands, MCP tools, and the Artifact tool publish text humans read.
+// The check lints the extracted payloads, never the raw command: flags and
+// paths are shell syntax, and a punctuation rule reads `--body` as prose
+// and false-denies. Each payload lints alone under a
+// `<source>.<tool>.<field>.publish` name (gh.pr.body.publish,
+// mcp.jira.create_issue.description.publish) or, for an artifact page,
+// `artifact.<file>` with its own extension, so a config section can pick
+// rules per target, document-level rules stay out of a fragment's way,
+// and line numbers match the payload.
 function runPublishCheck(toolName, toolInput, input, env) {
   const anchor = commandAnchor(input, env);
   const config = loadConfig(anchor, env);
@@ -90,13 +94,35 @@ function runPublishCheck(toolName, toolInput, input, env) {
       ...p,
       name: publishName({ source: 'gh', tool: p.target.split(' ')[1], field: fieldFromLabel(p.label) })
     }));
+  } else if (toolName === ARTIFACT_TOOL) {
+    // The Artifact tool publishes a local page. Only a publish carries
+    // one: reads, listings, deletes, opens, and asset uploads do not.
+    if (publish.artifact !== true) return null;
+    const action = toolInput.action ?? 'publish';
+    if (action !== 'publish' || toolInput.asset === true || !toolInput.file_path) return null;
+    const file = path.resolve(input.cwd ?? '.', String(toolInput.file_path));
+    target = ARTIFACT_TOOL;
+    unresolved = [];
+    let text = null;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {
+      unresolved.push({ label: path.basename(file), reason: 'cannot read the page' });
+    }
+    // The page keeps its extension so Vale parses HTML as HTML; the
+    // artifact. prefix lets a section single it out ([artifact.*]).
+    payloads = text === null ? [] : [{ label: path.basename(file), text, name: `artifact.${path.basename(file)}` }];
   } else {
     if (!matchesMcpTool(toolName, publish.mcp)) return null;
-    const text = collectStrings(toolInput).join('\n');
-    // mcp__server__tool → mcp.server.tool.publish; one fragment per call
-    // until per-field extraction lands, so a section matches by tool.
+    // mcp__server__tool → mcp.server.tool.<field>.publish, one fragment
+    // per prose field, so a title and a body can carry different rules
+    // and an id never lints as prose.
     const tool = toolName.replace(/^mcp__/, '').replace(/__/g, '.');
-    payloads = text ? [{ label: toolName, text, name: publishName({ source: 'mcp', tool }) }] : [];
+    payloads = collectProseFields(toolInput).map((f) => ({
+      label: `${toolName} ${f.path}`,
+      text: f.text,
+      name: publishName({ source: 'mcp', tool, field: f.field })
+    }));
     unresolved = [];
     target = toolName;
   }
@@ -173,7 +199,7 @@ export function run(input, env = process.env) {
   const toolName = String(input.tool_name ?? '');
   const toolInput = input.tool_input ?? {};
 
-  if (toolName === 'Bash' || toolName.startsWith('mcp__')) {
+  if (toolName === 'Bash' || toolName === ARTIFACT_TOOL || toolName.startsWith('mcp__')) {
     return runPublishCheck(toolName, toolInput, input, env);
   }
   if (!FILE_TOOLS.includes(toolName)) return null;

@@ -206,6 +206,7 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "mode": "block", // "off" | "warn" | "block" — nothing can un-publish, so block is the default
     "gh": false, // check the gh commands that publish prose (see Checking published text)
     "mcp": [], // MCP tool-name patterns to check, for example "mcp__confluence__*"
+    "artifact": true, // check the page the Artifact tool publishes
     "unresolved": "ask" // a published value the checker cannot read: "ask" | "allow" | "deny"
     // ("ask" acts as "allow" under automatic-permission harness modes)
   },
@@ -275,15 +276,18 @@ The file gate catches what the agent writes to disk. PR comments and Confluence 
 
 A value the extractor cannot read is **unresolved**: a `$(...)` substitution, a variable, backticks, stdin, a heredoc, or a `gh api --input` file that is not JSON. The checker refuses to guess what the shell will produce. `publish.unresolved` decides what happens in block mode. `"ask"` (the default) raises a permission prompt that names the construct. `"allow"` lets the call through with an "Unchecked values" note in the hook output. `"deny"` rejects the call. Under a harness permission mode that answers prompts automatically (`bypassPermissions`, `dontAsk`, `auto`), a configured `"ask"` acts as `"allow"`. A prompt nobody answers is a deny in a headless run, and that false deny is worse than a visible warning. Headless pipelines that want strictness set `"unresolved": "deny"`, typically through `JUST_SAY_SO_FORCE_CONFIG`.
 
-`"publish": { "mcp": ["mcp__confluence__*", "mcp__jira__*"] }` names the MCP tools to check, with `*` wildcards. On a matching call, the checker scans every string argument, nested fields included. You name the tool; you never have to know which argument carries the body. The trade-off is an occasional flag on a non-prose field such as an ID or a query — a vocabulary entry handles those.
+`"publish": { "mcp": ["mcp__confluence__*", "mcp__jira__*"] }` names the MCP tools to check, with `*` wildcards. On a matching call, the checker lints every string argument that holds whitespace, nested fields included, as its own fragment. A string without whitespace is an id, a key, or a URL, and is skipped. You name the tool; you never have to know which argument carries the body. Each fragment lints as `mcp.<server>.<tool>.<field>.publish`, where the field is the leaf key (`mcp.jira.create_issue.description.publish`), so a `[mcp.jira.*.publish]` section applies to every Jira field and a `[*.title.publish]` section to titles alone.
 
-Each value lints as its own fragment, named `gh.<subcommand>.<field>.publish` for a gh command (`gh.pr.body.publish`, `gh.api.body.publish`) and `mcp.<server>.<tool>.publish` for an MCP call. The `[*.publish]` section of your config applies, and a narrower glob such as `[gh.*.title.publish]` applies to one field — lexical rules judge a fragment fine, document-level rules do not.
+`"publish": { "artifact": true }`, the default, checks the page the `Artifact` tool publishes. The hook reads the page at `file_path` before the call and lints it as `artifact.<file>` with its own extension (`artifact.report.html`), so Vale parses HTML as HTML and a `[*.html]` section applies, and an `[artifact.*]` section can single artifacts out. Reads, listings, opens, deletes, and asset uploads are not publishes and pass untouched. A page the hook cannot read is unresolved, like a `gh` value it cannot read.
+
+Each value lints as its own fragment, named `gh.<subcommand>.<field>.publish` for a gh command (`gh.pr.body.publish`, `gh.api.body.publish`) and `mcp.<server>.<tool>.<field>.publish` for an MCP field. The `[*.publish]` section of your config applies, and a narrower glob such as `[gh.*.title.publish]` applies to one field — lexical rules judge a fragment fine, document-level rules do not.
 
 Timing matters more here than at file writes. In `block`, the hook denies the call before the tool runs, so GitHub never receives a flagged comment. This is the one place the plugin still blocks before an action instead of gating at Stop, because no later gate can un-publish. In `warn`, the call proceeds, the text goes out, and the agent gets the report after the fact. If you turned this on because your agent publishes, use `block`.
 
 Known gaps, on purpose:
 
 - `gh api` is covered only through the prose keys above. A string under any other key, in a field or an `--input` body, goes out unchecked.
+- An MCP field whose prose has no whitespace, a one-word title say, is skipped as an id.
 - The checker reads a `--body-file` at check time, and the file can change before the command runs. Every pre-commit-style checker shares that gap.
 - On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands. The `if` filter in the hook wiring arrived in that release. The results are identical. Older versions pay a small startup cost per command.
 

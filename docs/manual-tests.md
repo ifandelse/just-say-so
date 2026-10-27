@@ -165,6 +165,12 @@ EOF
 
 **21a. Init.** Run `/just-say-so:init --gh --reply block`. Expect: the skill runs the CLI without a permission prompt, `.vale.ini` and `styles/` appear, `.just-say-so.json` holds the two settings, and the doctor report at the end has no warnings. Run it again: every line says the setup is current. Run `/just-say-so:allow "robust regression"`: the term lands in `styles/config/vocabularies/Project/accept.txt`.
 
+## Phase J — publish fields and the Artifact gate (0.12.0)
+
+**22. Artifact gate.** Write `report.html` containing "pure synergy" and ask the model to publish it as an artifact. Expect: the call is denied before anything is published, the reason names `Artifact` and the alert, and the transcript shows the lint under `artifact.report.html`. Ask it to list artifacts: no hook output. This is the live check of the `Artifact` tool name in PreToolUse events.
+
+**22a. MCP fields.** With `publish.mcp` naming a Jira or Confluence tool, ask the model to create a page whose title is one word and whose body holds "pure synergy". Expect: the deny names the body's JSON path and not the title, and the lint names are `mcp.<server>.<tool>.<field>.publish`.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

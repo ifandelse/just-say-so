@@ -38,13 +38,13 @@ function tmpFile() {
 
 const CONFIG = {
   files: { mode: 'warn' },
-  publish: { mode: 'block', gh: true, mcp: ['mcp__jira__*'] },
+  publish: { mode: 'block', gh: true, mcp: ['mcp__jira__*'], artifact: false },
   reply: { mode: 'warn' },
   rules: { onViolation: true }
 };
 const SNAPSHOT = {
   files: { mode: 'warn' },
-  publish: { mode: 'block', gh: true, mcp: 1 },
+  publish: { mode: 'block', gh: true, mcp: 1, artifact: false },
   reply: { mode: 'warn' },
   rules: { onViolation: true }
 };

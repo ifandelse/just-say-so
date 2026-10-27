@@ -320,9 +320,27 @@ export function matchesMcpTool(toolName, patterns) {
   return (patterns ?? []).some((p) => globToRegExp(p).test(String(toolName)));
 }
 
-// Every string value in a tool input, nested fields included. The checker
-// scans the whole pile: naming a target is easy to get right, while naming
-// the prose-bearing fields per tool invites silent misses.
+// The prose fields of a tool input: every string value that holds
+// whitespace, with its JSON path and leaf field name. A string without
+// whitespace is an id, a key, a URL, or a token, and lints as nothing; a
+// string with whitespace is text a reader sees. Arrays take the parent's
+// field name, so comments[2].body is the field "body" at path
+// "comments[2].body". No per-tool field map is needed, so a new MCP tool
+// is covered the day it is named in publish.mcp.
+export function collectProseFields(value, trail = [], field = null) {
+  if (typeof value === 'string') {
+    return /\s/.test(value.trim()) ? [{ path: trail.join('') || '$', field: field ?? 'value', text: value }] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((v, i) => collectProseFields(v, [...trail, `[${i}]`], field));
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value).flatMap(([k, v]) => collectProseFields(v, [...trail, trail.length ? `.${k}` : k], k));
+  }
+  return [];
+}
+
+// Every string value in a tool input, nested fields included.
 export function collectStrings(value) {
   if (typeof value === 'string') return [value];
   if (Array.isArray(value)) return value.flatMap(collectStrings);

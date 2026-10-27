@@ -109,7 +109,7 @@ describe('doctor', () => {
 
     it('should list the facts, read each target, print the raw sections, and warn only about the restated list', () => {
       expect(report.facts.slice(2)).toEqual([
-        'targets: files warn (show suggestion) · publish block, gh, mcp 1 pattern(s) · reply block',
+        'targets: files warn (show suggestion) · publish block, gh, mcp 1 pattern(s), artifact · reply block',
         'rules: context start [startup, resume, clear, compact] · subagents yes · on violation yes',
         expect.stringMatching(/^vale config: .*\.vale\.ini \(nearest above cwd\)$/),
         expect.stringMatching(/^packages: https:\/\/github\.com\/ifandelse\/just-say-so\/releases\/download\/v[\d.]+\/JustSaySo\.zip$/),
@@ -119,6 +119,7 @@ describe('doctor', () => {
       expect(report.targets.map((t) => [t.label, t.line.replace(/\s+/g, ' ').trim(), t.sections])).toEqual([
         ['reply', 'reply reply.reply JustSaySo 1/2 · errors 1 · off: JustSaySo.Intensifiers', '[*] [*.reply]'],
         ['publish', 'publish gh.pr.body.publish JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
+        ['artifact', 'artifact artifact.page.html JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
         ['files .md', 'files .md doc.md JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
         ['files .html', 'files .html page.html JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
         ['files .js', 'files .js code.js JustSaySo 2/2 · acme 1/1 · errors 2', '[*]']
@@ -172,6 +173,7 @@ describe('doctor', () => {
         expect.stringMatching(/^The JustSaySo style is installed but no section lists it/),
         'files .md is in block mode but no error-level rule is enabled for doc.md, so it can never block.',
         'publish is in block mode but no error-level rule is enabled for gh.pr.body.publish, so it can never block.',
+        'artifact is in block mode but no error-level rule is enabled for artifact.page.html, so it can never block.',
         'reply is in block mode but no error-level rule is enabled for reply.reply, so it can never block.'
       ]);
     });
@@ -193,13 +195,16 @@ describe('doctor', () => {
     it('should warn about the unreadable config and name the explicit one', () => {
       expect(unreadable.warnings.some((w) => w.startsWith('vale ls-config could not read'))).toBe(true);
       expect(explicit.facts.find((f) => f.startsWith('vale config:'))).toMatch(/custom\.ini \(vale\.config\)$/);
-      expect(explicit.warnings).toEqual(['The JustSaySo style is not installed under any styles path this config reads.']);
+      expect(explicit.warnings).toEqual([
+        'The JustSaySo style is not installed under any styles path this config reads.',
+        'artifact is in block mode but no error-level rule is enabled for artifact.page.html, so it can never block.'
+      ]);
     });
   });
 
   describe('TARGETS', () => {
     it('should name one lint target per plugin target and the three file kinds', () => {
-      expect(TARGETS.map(([label]) => label)).toEqual(['reply', 'publish', 'files .md', 'files .html', 'files .js']);
+      expect(TARGETS.map(([label]) => label)).toEqual(['reply', 'publish', 'artifact', 'files .md', 'files .html', 'files .js']);
     });
   });
 });

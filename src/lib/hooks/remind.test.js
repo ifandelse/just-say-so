@@ -139,7 +139,7 @@ describe('remind.run', () => {
           version: expect.any(String),
           config: {
             files: { mode: 'warn' },
-            publish: { mode: 'block', gh: false, mcp: 0 },
+            publish: { mode: 'block', gh: false, mcp: 0, artifact: true },
             reply: { mode: 'warn' },
             rules: { onViolation: true }
           }

@@ -38,6 +38,15 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/pre-gate.js\""
           }
         ]
+      },
+      {
+        "matcher": "Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/src/hooks/pre-gate.js\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

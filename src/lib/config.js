@@ -14,6 +14,7 @@ export const DEFAULTS = {
     mode: 'block', // "off" | "warn" | "block" — nothing can un-publish, so block is the default once a source is on
     gh: false, // check the gh commands that publish prose (pr/issue/release create|comment|edit|review, gh api)
     mcp: [], // MCP tool-name patterns to check, e.g. "mcp__confluence__*"
+    artifact: true, // check the page the Artifact tool publishes; the one publish source every session has
     // A published value the extractor cannot read (an expansion, stdin, a
     // heredoc): "ask" prompts the user; "allow" and "deny" answer without
     // one. Under an automatic-permission harness mode, "ask" acts as
@@ -115,16 +116,21 @@ export function findLegacyKeys(cwd, env = process.env) {
 export function configSnapshot(config) {
   return {
     files: { mode: config.files?.mode ?? null },
-    publish: { mode: config.publish?.mode ?? null, gh: config.publish?.gh ?? null, mcp: (config.publish?.mcp ?? []).length },
+    publish: {
+      mode: config.publish?.mode ?? null,
+      gh: config.publish?.gh ?? null,
+      mcp: (config.publish?.mcp ?? []).length,
+      artifact: config.publish?.artifact ?? null
+    },
     reply: { mode: config.reply?.mode ?? null },
     rules: { onViolation: config.rules?.onViolation ?? null }
   };
 }
 
-// Whether any publish source is named and the mode is not off.
+// Whether any publish source is on and the mode is not off.
 export function publishOn(config) {
   const p = config.publish ?? {};
-  return p.mode !== 'off' && (p.gh === true || (p.mcp ?? []).length > 0);
+  return p.mode !== 'off' && (p.gh === true || (p.mcp ?? []).length > 0 || p.artifact === true);
 }
 
 export function loadConfig(cwd, env = process.env) {

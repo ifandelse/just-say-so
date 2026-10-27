@@ -56,6 +56,29 @@ describe('doctor and init CLIs', () => {
     });
   });
 
+  describe('when the summary CLI runs on an empty state directory', () => {
+    let result, json, bad;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      result = run('summary.js', [], sandbox);
+      json = run('summary.js', ['--json', '--since', '30d'], sandbox);
+      bad = run('summary.js', ['--since', 'yesterday'], sandbox);
+    });
+
+    it('should say there are no records, print the object as JSON, and reject a bad span', () => {
+      expect({ status: result.status, stdout: result.stdout }).toEqual({
+        status: 0,
+        stdout: 'just-say-so summary\n\nNo records in the window. The events log and the rejections file are empty, missing, or outside the window.\n'
+      });
+      expect(JSON.parse(json.stdout).volume.turns).toBe(0);
+      expect({ status: bad.status, stderr: bad.stderr }).toEqual({
+        status: 1,
+        stderr: 'just-say-so summary: --since takes an ISO date or a span such as 30d or 6w, not yesterday\n'
+      });
+    });
+  });
+
   describe('when init runs with a bad argument', () => {
     let result;
 

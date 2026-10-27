@@ -4,7 +4,6 @@ extends: existence
 message: "Banned filler frame: '%s'. Delete it and state the point directly."
 level: error
 ignorecase: true
-nonword: true
 tokens:
   - "(?<![\\w-])structural[\\s\\u00A0-]+spine(?![\\w-])"
   - "(?<![\\w-])load[\\s\\u00A0-]+bearing(?![\\w-])"

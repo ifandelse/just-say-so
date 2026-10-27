@@ -32,23 +32,27 @@ function spawnHook(script, input, env) {
 }
 
 describe('hook protocol', () => {
-  describe('when the reminder interval is reached over five spawned prompts', () => {
-    let results;
+  describe('when a flagged reply is followed by two spawned prompts', () => {
+    let stop, prompts;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'prompts', everyPrompts: 5 } });
-      const event = { session_id: 'PROTO_SESSION', cwd: sandbox.work, prompt: 'hi' };
-      results = [1, 2, 3, 4, 5].map(() => spawnHook('remind.js', event, sandbox.env));
+      const sandbox = withFakeVale(makeSandbox());
+      const session = { session_id: 'PROTO_SESSION', cwd: sandbox.work };
+      stop = spawnHook('check-output.js', { ...session, last_assistant_message: 'we leverage synergy' }, sandbox.env);
+      prompts = [1, 2].map(() => spawnHook('remind.js', { ...session, prompt: 'hi' }, sandbox.env));
     });
 
     it('should exit 0 every time', () => {
-      expect(results.map((r) => r.status)).toEqual([0, 0, 0, 0, 0]);
+      expect([stop, ...prompts].map((r) => r.status)).toEqual([0, 0, 0]);
     });
 
-    it('should stay silent for four prompts and emit parseable JSON on the fifth', () => {
-      expect(results.slice(0, 4).map((r) => r.stdout)).toEqual(['', '', '', '']);
-      const fifth = JSON.parse(results[4].stdout);
-      expect(fifth.hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
+    it('should inject the rules with the report on the next prompt only', () => {
+      const first = JSON.parse(prompts[0].stdout);
+      expect({ event: first.hookSpecificOutput.hookEventName, reported: first.hookSpecificOutput.additionalContext.includes('Recent replies broke'), second: prompts[1].stdout }).toEqual({
+        event: 'UserPromptSubmit',
+        reported: true,
+        second: ''
+      });
     });
   });
 
@@ -79,7 +83,7 @@ describe('hook protocol', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = withFakeVale(makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } }));
+      const sandbox = withFakeVale(makeSandbox({ publish: { gh: true } }));
       result = spawnHook(
         'pre-gate.js',
         {
@@ -130,7 +134,7 @@ describe('hook protocol', () => {
     let result;
 
     beforeEach(() => {
-      const sandbox = withFakeVale(makeSandbox({ outputCheck: { mode: 'warn' } }));
+      const sandbox = withFakeVale(makeSandbox({ reply: { mode: 'warn' } }));
       result = spawnHook(
         'check-output.js',
         { session_id: 'PROTO_SESSION', cwd: sandbox.work, last_assistant_message: 'we leverage synergy' },

@@ -15,8 +15,6 @@ import {
   alertKey,
   resolveValeConfig,
   lintPath,
-  applyConfigExemptions,
-  fileLineReader,
   severityRank,
   formatAlerts,
   countBySeverity
@@ -76,8 +74,7 @@ export function run(input, env = process.env) {
   // Anchor config discovery on the file being written, not the event's cwd
   // (subagent events can carry a cwd outside the project — seen live).
   const config = loadConfig(path.dirname(abs), env);
-  const bc = config.bannedCheck;
-  if (bc.mode === 'off') return null;
+  if (config.files.mode === 'off') return null;
 
   const configPath = resolveValeConfig(path.dirname(abs), config);
   const raw = lintPath(abs, { configPath, env });
@@ -90,17 +87,12 @@ export function run(input, env = process.env) {
     // unreadable after a successful lint is unexpected; fall back to whole file
   }
   const ranges = content === null ? null : addedRanges(toolName, toolInput, content);
-  const scoped = raw.filter((a) => inRanges(a.Line, ranges));
-  const alerts = applyConfigExemptions(scoped, bc, fileLineReader());
+  const alerts = raw.filter((a) => inRanges(a.Line, ranges));
 
-  const fileErrors = applyConfigExemptions(
-    raw.filter((a) => a.Severity === 'error'),
-    bc,
-    fileLineReader()
-  );
+  const fileErrors = raw.filter((a) => a.Severity === 'error');
   recordErrors(input.session_id ?? 'unknown', abs, fileErrors, ranges, env);
 
-  const visible = alerts.filter((a) => severityRank(a.Severity) <= severityRank(config.vale.levels));
+  const visible = alerts.filter((a) => severityRank(a.Severity) <= severityRank(config.files.show));
   if (visible.length === 0) return null;
 
   const messages = loadMessages(config);

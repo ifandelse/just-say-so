@@ -6,9 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /*
- * Integration: the allow CLI's process contract — argv in, config file and
- * stdout/stderr/exit code out. The list-selection logic lives in
- * test/lib/allow.test.js.
+ * Integration: the allow CLI's process contract — argv in, vocabulary file
+ * and stdout/stderr/exit code out. The ini editing lives in
+ * src/lib/allow.test.js.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -23,20 +23,22 @@ function runCli(args, cwd) {
 }
 
 describe('allow CLI', () => {
-  describe('when given a multiword term as separate args', () => {
-    let cwd, result;
+  describe('when given a multiword term as separate args and the ini lacks a Vocab', () => {
+    let cwd, result, acceptFile;
 
     beforeEach(() => {
-      cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-cli-'));
+      cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jss-cli-')));
+      fs.writeFileSync(path.join(cwd, '.vale.ini'), 'StylesPath = styles\n');
+      acceptFile = path.join(cwd, 'styles', 'config', 'vocabularies', 'Project', 'accept.txt');
       result = runCli(['robust', 'regression'], cwd);
     });
 
-    it('should exit 0, report the add, and write the config', () => {
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('added "robust regression" to allowPhrases');
-      expect(JSON.parse(fs.readFileSync(path.join(cwd, '.just-say-so.json'), 'utf8'))).toEqual({
-        bannedCheck: { allowPhrases: ['robust regression'] }
+    it('should exit 0, report both writes, and create the vocabulary', () => {
+      expect({ status: result.status, stdout: result.stdout }).toEqual({
+        status: 0,
+        stdout: `just-say-so: added "robust regression" to the Vale vocabulary (${acceptFile})\njust-say-so: added StylesPath/Vocab to ${path.join(cwd, '.vale.ini')}\n`
       });
+      expect(fs.readFileSync(acceptFile, 'utf8')).toBe('robust regression\n');
     });
   });
 
@@ -55,19 +57,18 @@ describe('allow CLI', () => {
     });
   });
 
-  describe('when the existing config is malformed', () => {
+  describe('when no .vale.ini exists', () => {
     let cwd, result;
 
     beforeEach(() => {
       cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-cli-'));
-      fs.writeFileSync(path.join(cwd, '.just-say-so.json'), '{oops');
       result = runCli(['robust'], cwd);
     });
 
-    it('should exit 1 and leave the file untouched', () => {
+    it('should exit 1 and say what to add', () => {
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('could not update config');
-      expect(fs.readFileSync(path.join(cwd, '.just-say-so.json'), 'utf8')).toBe('{oops');
+      expect(result.stderr).toContain('could not add the term: no .vale.ini above');
+      expect(fs.readdirSync(cwd)).toEqual([]);
     });
   });
 });

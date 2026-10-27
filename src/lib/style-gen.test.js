@@ -2,11 +2,39 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildStyleFiles } from './style-gen.js';
+import { buildStyleFiles, termPattern } from './style-gen.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 describe('style-gen', () => {
+  describe('termPattern', () => {
+    describe('when given a word, a phrase, and a curly-quoted term', () => {
+      let word, phrase, curly;
+
+      beforeEach(() => {
+        word = termPattern('robust');
+        phrase = termPattern('load-bearing');
+        curly = termPattern('it’s');
+      });
+
+      it('should bound the term by non-word characters and join phrase tokens with a flexible separator', () => {
+        expect({ word, phrase, curly }).toEqual({
+          word: '(?<![\\w-])robust(?![\\w-])',
+          phrase: '(?<![\\w-])load[\\s\\u00A0-]+bearing(?![\\w-])',
+          curly: "(?<![\\w-])it's(?![\\w-])"
+        });
+      });
+
+      it('should match a hyphenated phrase but not the word inside an identifier', () => {
+        expect({
+          phrase: new RegExp(phrase, 'i').test('a LOAD BEARING wall'),
+          hyphen: new RegExp(phrase, 'i').test('load-bearing'),
+          ident: new RegExp(word, 'i').test('robust-websocket')
+        }).toEqual({ phrase: true, hyphen: true, ident: false });
+      });
+    });
+  });
+
   describe('buildStyleFiles', () => {
     describe('when the banned set has every entry kind', () => {
       let files;
@@ -48,6 +76,10 @@ describe('style-gen', () => {
       it('should emit contextual terms at suggestion level', () => {
         expect(files['Intensifiers.yml']).toContain('level: suggestion');
         expect(files['Intensifiers.yml']).toContain('(?<![\\\\w-])very(?![\\\\w-])');
+      });
+
+      it('should never set nonword, so a Vale vocabulary can exempt a term', () => {
+        expect(Object.values(files).filter((c) => /^nonword:/m.test(c))).toEqual([]);
       });
 
       it('should mark every file as generated', () => {

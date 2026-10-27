@@ -16,8 +16,8 @@ import {
   lintText,
   severityRank,
   countBySeverity,
-  applyConfigExemptions,
-  fileLineReader,
+  
+  
   formatAlerts,
   publishName,
   fieldFromLabel,
@@ -377,132 +377,6 @@ describe('vale', () => {
 
     it('should count the three known levels and ignore the rest', () => {
       expect(counts).toEqual({ error: 1, warning: 1, suggestion: 2 });
-    });
-  });
-
-  describe('applyConfigExemptions', () => {
-    describe('when a disabled word matches with different case and hyphenation', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions(
-          [alert({ Match: 'Cutting Edge' })],
-          { disableWords: ['cutting-edge'] },
-          () => null
-        );
-      });
-
-      it('should drop the alert', () => {
-        expect(result).toEqual([]);
-      });
-    });
-
-    describe('when the alert span sits inside an allowed phrase on its line', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions(
-          [alert({ Match: 'robust', Span: [3, 8], Line: 1, file: 'F' })],
-          { disableWords: [], allowPhrases: ['robust regression'] },
-          () => 'a robust regression suite'
-        );
-      });
-
-      it('should drop the alert', () => {
-        expect(result).toEqual([]);
-      });
-    });
-
-    describe('when the allowed phrase is elsewhere on the line', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions(
-          [alert({ Match: 'robust', Span: [30, 35], Line: 1, file: 'F' })],
-          { disableWords: [], allowPhrases: ['robust regression'] },
-          () => 'a robust regression suite is robust'
-        );
-      });
-
-      it('should keep the alert', () => {
-        expect(result).toHaveLength(1);
-      });
-    });
-
-    describe('when the line cannot be read', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions(
-          [alert({ Match: 'robust' })],
-          { disableWords: [], allowPhrases: ['robust regression'] },
-          () => null
-        );
-      });
-
-      it('should keep the alert', () => {
-        expect(result).toHaveLength(1);
-      });
-    });
-
-    describe('when the alert carries no span', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions(
-          [alert({ Match: 'robust', Span: undefined })],
-          { disableWords: [], allowPhrases: ['robust regression'] },
-          () => 'a robust regression suite'
-        );
-      });
-
-      it('should keep the alert', () => {
-        expect(result).toHaveLength(1);
-      });
-    });
-
-    describe('when no exemptions are configured', () => {
-      let result;
-
-      beforeEach(() => {
-        result = applyConfigExemptions([alert()], {}, () => null);
-      });
-
-      it('should keep everything', () => {
-        expect(result).toHaveLength(1);
-      });
-    });
-  });
-
-  describe('fileLineReader', () => {
-    describe('when the file exists', () => {
-      let reader, first, second, again;
-
-      beforeEach(() => {
-        const dir = tmp();
-        const file = path.join(dir, 'lines.md');
-        fs.writeFileSync(file, 'one\ntwo\n');
-        reader = fileLineReader();
-        first = reader(file, 1);
-        second = reader(file, 2);
-        again = reader(file, 99);
-      });
-
-      it('should return line content by 1-based number and null past the end', () => {
-        expect([first, second, again]).toEqual(['one', 'two', null]);
-      });
-    });
-
-    describe('when the file is missing', () => {
-      let result;
-
-      beforeEach(() => {
-        result = fileLineReader()('/nope/missing.md', 1);
-      });
-
-      it('should return null', () => {
-        expect(result).toBeNull();
-      });
     });
   });
 

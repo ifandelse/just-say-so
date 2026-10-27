@@ -1,32 +1,60 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { findProjectConfig, loadConfig } from './config.js';
+import { loadConfig } from './config.js';
 import { findValeConfig } from './vale.js';
 import { logEvent } from './events.js';
 
-// A multiword term is a collocation ("robust regression") → allowPhrases;
-// a single token is a whole-term exemption → disableWords.
-export function listFor(term) {
-  return /\s/.test(term.trim()) ? 'allowPhrases' : 'disableWords';
+// The vocabulary a project gets when its .vale.ini names none. Not
+// "JustSaySo": a package that ships a vocabulary of the same name would
+// overwrite it on vale sync.
+export const DEFAULT_VOCAB = 'Project';
+
+// The ini subset we read is a flat `key = value` line; that covers every
+// config Vale's own docs show.
+function readKey(text, key) {
+  return new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`, 'm').exec(text)?.[1] ?? null;
 }
 
-// A Vale config that names both StylesPath and Vocab can take the term
-// natively: Vale adds every accept.txt entry to the exception list of every
-// active rule, across all styles. The ini subset we parse is a flat
-// `key = value` line; that covers every config Vale's own docs show.
-function vocabTarget(cwd) {
+// Insert `key = value` before the first section header, so it lands in the
+// global block where Vale reads it.
+function insertKey(text, key, value) {
+  const line = `${key} = ${value}\n`;
+  const at = text.search(/^\s*\[/m);
+  if (at === -1) return text.replace(/\n?$/, '\n') + line;
+  return text.slice(0, at) + line + text.slice(at);
+}
+
+/**
+ * The accept.txt a term goes to, creating the Vocab (and StylesPath) keys
+ * in the nearest .vale.ini when it lacks them. Returns { file, configFile,
+ * configChanged }. Throws when no .vale.ini sits above cwd: the plugin's
+ * fallback config is not a file to write into, and the project needs its
+ * own before it can hold exceptions.
+ */
+export function vocabTarget(cwd) {
   const configFile = findValeConfig(cwd);
-  if (!configFile) return null;
-  let text;
-  try {
-    text = fs.readFileSync(configFile, 'utf8');
-  } catch {
-    return null;
+  if (!configFile) {
+    throw new Error(`no .vale.ini above ${cwd}; add one with the JustSaySo package first (see the README)`);
   }
-  const stylesPath = /^\s*StylesPath\s*=\s*(.+?)\s*$/m.exec(text)?.[1];
-  const vocab = /^\s*Vocab\s*=\s*(.+?)\s*$/m.exec(text)?.[1];
-  if (!stylesPath || !vocab) return null;
-  return path.join(path.dirname(configFile), stylesPath, 'config', 'vocabularies', vocab, 'accept.txt');
+  let text = fs.readFileSync(configFile, 'utf8');
+  const original = text;
+  let stylesPath = readKey(text, 'StylesPath');
+  if (!stylesPath) {
+    stylesPath = 'styles';
+    text = insertKey(text, 'StylesPath', stylesPath);
+  }
+  let vocab = readKey(text, 'Vocab');
+  if (!vocab) {
+    vocab = DEFAULT_VOCAB;
+    text = insertKey(text, 'Vocab', vocab);
+  }
+  const configChanged = text !== original;
+  if (configChanged) fs.writeFileSync(configFile, text);
+  return {
+    file: path.join(path.dirname(configFile), stylesPath, 'config', 'vocabularies', vocab, 'accept.txt'),
+    configFile,
+    configChanged
+  };
 }
 
 function addToVocabulary(file, term) {
@@ -36,55 +64,35 @@ function addToVocabulary(file, term) {
   } catch {
     // a missing accept.txt starts empty
   }
-  const added = !lines.some((l) => l.trim().toLowerCase() === term.toLowerCase());
+  // Vale reads each entry as a case-sensitive expression, so "Robust" and
+  // "robust" are two exemptions; compare exactly or the second is lost.
+  const added = !lines.some((l) => l.trim() === term);
   if (added) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, [...lines, term].join('\n') + '\n');
   }
-  return { method: 'vocabulary', file, term, added };
-}
-
-function addToConfig(term, cwd) {
-  const existing = findProjectConfig(cwd);
-  const file = existing ?? path.join(cwd, '.just-say-so.json');
-  const config = existing ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-
-  const list = listFor(term);
-  const bannedCheck = (config.bannedCheck ??= {});
-  const terms = (bannedCheck[list] ??= []);
-  const added = !terms.some((t) => String(t).toLowerCase() === term.toLowerCase());
-  if (added) terms.push(term);
-
-  fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-  return { method: 'config', file, list, term, added };
+  return added;
 }
 
 /**
- * Permit a term the checker flagged. Preferred destination: the project's
- * Vale vocabulary (accept.txt), when a .vale.ini above cwd names StylesPath
- * and Vocab. Otherwise the term goes to .just-say-so.json as before — the
- * hooks apply disableWords/allowPhrases to Vale alerts, so both routes
- * exempt the term. Throws on a malformed existing config file rather than
- * clobbering it.
+ * Permit a term the checker flagged: append it to the project's Vale
+ * vocabulary (accept.txt). Vale adds every accepted entry to the exception
+ * list of every active rule, across all styles, and a multiword entry
+ * exempts only that collocation. The same file serves the editor, the
+ * commit hook, CI, and the hooks, so there is no second place to look.
  */
 export function addAllowTerm(term, cwd, env = process.env) {
   const cleaned = String(term ?? '').trim();
   if (!cleaned) throw new Error('no term given');
 
-  const vocabFile = vocabTarget(cwd);
-  const result = vocabFile ? addToVocabulary(vocabFile, cleaned) : addToConfig(cleaned, cwd);
+  const target = vocabTarget(cwd);
+  const added = addToVocabulary(target.file, cleaned);
+  const result = { term: cleaned, file: target.file, added, configFile: target.configFile, configChanged: target.configChanged };
   // The CLI runs outside a hook, so the session id is whatever the harness
   // exported; null when it exported nothing.
   logEvent(
     'allow',
-    {
-      session: env.CLAUDE_SESSION_ID ?? null,
-      project: cwd ?? null,
-      term: result.term,
-      method: result.method,
-      list: result.list ?? null,
-      added: result.added
-    },
+    { session: env.CLAUDE_SESSION_ID ?? null, project: cwd ?? null, term: cleaned, file: target.file, added },
     { config: loadConfig(cwd, env), env }
   );
   return result;

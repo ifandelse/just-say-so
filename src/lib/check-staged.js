@@ -14,7 +14,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadConfig } from './config.js';
 import {
-  applyConfigExemptions,
   countBySeverity,
   probeVale,
   resolveValeConfig,
@@ -287,16 +286,10 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
     }
 
     const raw = lintFiles(files, lintRoot, configPath, env);
-    const readLine = lineReaderAt(lintRoot);
-    const exempted = new Map();
-    for (const [file, alerts] of raw) {
-      const left = applyConfigExemptions(alerts, config.bannedCheck, readLine);
-      if (left.length > 0) exempted.set(file, left);
-    }
 
     const added = parseAddedLines(diffText);
     for (const file of untracked) added.set(file, allLines(path.join(lintRoot, file)));
-    const { kept, unmapped } = selectAlerts(exempted, added, fileLevel);
+    const { kept, unmapped } = selectAlerts(raw, added, fileLevel);
     const { lines, totals } = renderReport(kept, scope, files.length);
     const notices = [];
     if (unmapped.length > 0) {
@@ -324,22 +317,4 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
 function allLines(file) {
   const count = fs.readFileSync(file, 'utf8').split('\n').length;
   return new Set(Array.from({ length: count }, (_, i) => i + 1));
-}
-
-// Alerts carry repo-relative paths; the exemption filter needs real line
-// text, which lives under the lint root (the materialized index in staged
-// mode, the working tree in base mode).
-function lineReaderAt(rootDir) {
-  const cache = new Map();
-  return (file, line) => {
-    if (!cache.has(file)) {
-      try {
-        cache.set(file, fs.readFileSync(path.join(rootDir, file), 'utf8').split('\n'));
-      } catch {
-        cache.set(file, null);
-      }
-    }
-    const lines = cache.get(file);
-    return lines ? (lines[line - 1] ?? null) : null;
-  };
 }

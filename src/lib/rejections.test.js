@@ -37,9 +37,16 @@ function tmpFile() {
 }
 
 const CONFIG = {
-  reminder: { mode: 'prompts', everyPrompts: 20 },
-  outputCheck: { mode: 'warn', deliver: 'next-prompt' },
-  bannedCheck: { disableWords: ['ninja'], allowPhrases: [] }
+  files: { mode: 'warn' },
+  publish: { mode: 'block', gh: true, mcp: ['mcp__jira__*'] },
+  reply: { mode: 'warn' },
+  rules: { onViolation: true }
+};
+const SNAPSHOT = {
+  files: { mode: 'warn' },
+  publish: { mode: 'block', gh: true, mcp: 1 },
+  reply: { mode: 'warn' },
+  rules: { onViolation: true }
 };
 
 function valeAlert(over = {}) {
@@ -146,10 +153,11 @@ describe('rejections', () => {
         result = lintReply('we ship synergy\nvery fast\nninja', CONFIG, shippedConfigPath());
       });
 
-      it('should map every level and drop the disabled word', () => {
+      it('should map every level', () => {
         expect(result).toEqual([
           { check: 'JustSaySo.Buzzwords', severity: 'error', line: 1, match: 'synergy', message: "Banned buzzword: 'synergy'." },
-          { check: 'JustSaySo.Intensifiers', severity: 'suggestion', line: 2, match: 'very', message: "Empty intensifier: 'very'." }
+          { check: 'JustSaySo.Intensifiers', severity: 'suggestion', line: 2, match: 'very', message: "Empty intensifier: 'very'." },
+          { check: 'JustSaySo.Buzzwords', severity: 'error', line: 3, match: 'ninja', message: "Banned buzzword: 'synergy'." }
         ]);
       });
     });
@@ -183,8 +191,7 @@ describe('rejections', () => {
         rejected: { text: 'old reply', alerts: [] },
         rewrite: null,
         version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
-        reminder: { mode: 'prompts', everyPrompts: 20 },
-        outputCheck: { mode: 'warn', deliver: 'next-prompt' }
+        config: SNAPSHOT
       });
     });
   });

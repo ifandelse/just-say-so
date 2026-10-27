@@ -1,6 +1,6 @@
 ---
 name: remind
-description: Re-inject the condensed just-say-so communication rules — a manual version of the interval reminder.
+description: Re-inject the condensed just-say-so communication rules now, by hand.
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/src/cli/print-rules.js" *)
 ---

@@ -1,6 +1,6 @@
 // Stop logic, two jobs, both Vale-backed. The reply check lints the final
-// assistant message (off by default; outputCheck.mode). The session gate
-// runs when bannedCheck.mode is "block": it re-lints the files this session
+// assistant message (reply.mode). The session gate runs when files.mode is
+// "block": it re-lints the files this session
 // wrote whose edit-time errors are still outstanding, and blocks the turn
 // while any remain. The gate holds the model to its own additions only —
 // the outstanding set was recorded per edit, so the user's WIP and a legacy
@@ -10,9 +10,7 @@
 // stop_hook_active flag that drives the stand-down is per turn, so without
 // the waiver every later turn would block once more on the same lines. Reply "warn" records per-rule counts in session state and returns
 // nothing: the next rules injection reports them, so the engineer never
-// sees a rewrite of a reply they already read. "warn" with nothing to
-// deliver through (next-reminder delivery and no scheduled reminder) is
-// idle (replyCheckMode) and skips the lint. A third job runs regardless
+// sees a rewrite of a reply they already read. A third job runs regardless
 // of either mode: when a /just-say-so:restate prompt opened a rejection
 // record, the reply that ends the turn is the rewrite, and it goes into
 // that record. A blocked reply is not the rewrite, so the record stays
@@ -28,15 +26,13 @@ import { loadMessages } from '../rules.js';
 import { lastAssistantText, lastExchange } from '../transcript.js';
 import { logEvent, eventsOn, summarizeAlerts } from '../events.js';
 import { readSession, writeSession } from '../state.js';
-import { replyCheckMode, recordReplyAlerts } from '../reply-alerts.js';
+import { recordReplyAlerts } from '../reply-alerts.js';
 import { rejectionsFile, lintReply, completeRecord } from '../rejections.js';
 import {
   alertKey,
   resolveValeConfig,
   lintText,
   lintPath,
-  applyConfigExemptions,
-  fileLineReader,
   formatAlerts,
   REPLY_NAME
 } from '../vale.js';
@@ -49,7 +45,7 @@ function replyText(input) {
     : lastAssistantText(input.transcript_path);
 }
 
-// Every level, exemptions applied. null when vale is missing or broken:
+// Every level. null when vale is missing or broken:
 // the check treats that as clean (session-start told the user), the log
 // records that the reply went unlinted.
 function lintReplyAllLevels(input, config, configPath, env) {
@@ -59,8 +55,7 @@ function lintReplyAllLevels(input, config, configPath, env) {
   const raw = lintText(text, { name: REPLY_NAME, configPath, env });
   if (raw === null) return null;
 
-  const lines = text.split('\n');
-  return applyConfigExemptions(raw, config.bannedCheck, (_file, line) => lines[line - 1] ?? null).map((a) => ({
+  return raw.map((a) => ({
     ...a,
     file: 'reply' // stable key — the temp path changes per run
   }));
@@ -104,7 +99,7 @@ function checkGate(state, config, env) {
     if (raw === null) continue; // vale broke mid-session: never block on stale records
 
     const errors = subtractWaived(
-      applyConfigExemptions(raw.filter((a) => a.Severity === 'error'), config.bannedCheck, fileLineReader()),
+      raw.filter((a) => a.Severity === 'error'),
       waived[file] ?? []
     );
     const budget = new Map();
@@ -137,9 +132,9 @@ export function run(input, env = process.env) {
     if (recorded && findProjectConfig(recorded)) configAnchor = recorded;
   }
   const config = loadConfig(configAnchor, env);
-  const replyMode = replyCheckMode(config);
+  const replyMode = config.reply.mode;
   const replyOn = replyMode === 'warn' || replyMode === 'block';
-  const gateOn = config.bannedCheck.mode === 'block';
+  const gateOn = config.files.mode === 'block';
 
   const state = readSession(sessionId, env);
   const configPath = resolveValeConfig(configAnchor, config);

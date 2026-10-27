@@ -22,10 +22,6 @@ export function readRules(kind, config) {
   return fs.readFileSync(file, 'utf8');
 }
 
-function toEntry(item) {
-  return typeof item === 'string' ? { term: item } : item;
-}
-
 // {key} placeholders; unknown keys stay literal so a typo is visible.
 export function fill(template, vars = {}) {
   return String(template).replace(/\{(\w+)\}/g, (match, key) => (key in vars ? vars[key] : match));
@@ -45,23 +41,4 @@ export function loadMessages(config) {
   } catch {
     return shipped;
   }
-}
-
-/**
- * Load rules/banned.json, drop terms listed in bannedCheck.disableWords,
- * and append bannedCheck.additions.
- */
-export function loadBanned(config) {
-  const base = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'rules', 'banned.json'), 'utf8'));
-  const disabled = new Set((config?.bannedCheck?.disableWords ?? []).map((s) => s.toLowerCase()));
-  const additions = config?.bannedCheck?.additions ?? {};
-  const keep = (entry) => !disabled.has(entry.term.toLowerCase());
-
-  return {
-    words: [...(base.words ?? []).filter(keep), ...(additions.words ?? []).map(toEntry)],
-    phrases: [...(base.phrases ?? []).filter(keep), ...(additions.phrases ?? []).map(toEntry)],
-    patterns: [...(base.patterns ?? []), ...(additions.patterns ?? [])],
-    contextual: (base.contextual ?? []).filter(keep),
-    allow: [...(config?.bannedCheck?.allowPhrases ?? [])]
-  };
 }

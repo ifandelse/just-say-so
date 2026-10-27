@@ -16,8 +16,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *   Write with alerts → whole-file intro + systemMessage + errors recorded ·
  *   Edit located → alerts outside the added ranges filtered, in-range shown ·
  *   errors cleared by a later edit → state entry removed, silence ·
- *   levels floor hides sub-error alerts → null output, state still updated ·
- *   disableWords drops the only alert → null ·
+ *   files.show floor hides sub-error alerts → null output, state still updated ·
  *   file unreadable after lint → whole-file fallback
  */
 
@@ -101,7 +100,7 @@ describe('check-vale.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' } });
       output = run(
         {
           session_id: SESSION,
@@ -343,7 +342,7 @@ describe('check-vale.run', () => {
     let output, state, file;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ vale: { levels: 'error' } });
+      const sandbox = makeSandbox({ files: { show: 'error' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'very nice\n');
       respond({ 'doc.md': [errorAlert({ Severity: 'suggestion', Match: 'very', Span: [1, 4] })] });
@@ -357,25 +356,6 @@ describe('check-vale.run', () => {
     it('should return null and record no errors', () => {
       expect(output).toBeNull();
       expect(state.valeFiles).toEqual({});
-    });
-  });
-
-  describe('when disableWords exempts the only alert', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { disableWords: ['synergy'] } });
-      const file = path.join(sandbox.work, 'doc.md');
-      fs.writeFileSync(file, 'pure synergy\n');
-      respond({ 'doc.md': [errorAlert({ Span: [6, 12] })] });
-      output = run(
-        { session_id: SESSION, cwd: sandbox.work, tool_name: 'Write', tool_input: { file_path: file, content: 'pure synergy\n' } },
-        sandbox.env
-      );
-    });
-
-    it('should return null', () => {
-      expect(output).toBeNull();
     });
   });
 

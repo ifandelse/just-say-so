@@ -6,7 +6,7 @@ import { readRules } from '../rules.js';
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
-  if (!config.reminder.onSubagentStart) return null;
+  if (!config.rules.onSubagentStart) return null;
   return {
     hookSpecificOutput: {
       hookEventName: 'SubagentStart',

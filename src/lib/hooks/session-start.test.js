@@ -6,7 +6,6 @@ const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
 import { run } from './session-start.js';
-import { run as runRemind } from './remind.js';
 import { readSession, writeSession, stateDir } from '../state.js';
 import { eventsFile, readEvents } from '../events.js';
 import { makeSandbox } from '../../../test/helpers/sandbox.js';
@@ -23,10 +22,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     rules injection) · probe passes → no message · checks off → no probe
  *   reply counts: injection carries the report · compact resets them ·
  *     resume clears them and keeps the counters · no injection → kept
- *   interval baseline: resume/startup injection moves promptAtLastReminder to
- *     promptCount and clears the token baseline, so the next prompt does not
- *     inject again · no injection → baselines untouched
- *   reply check idle (warn + next-reminder + reminder off) → notice, joined with valeMissing
+ *   legacy 0.8.x keys in a config file → notice naming the file and keys
  *   vale config notice: a chat.md section → dead-section notice · no reply/publish
  *     formats → mapping notice · ls-config fails → no notice · checks off → not inspected
  *   events: session event with the config snapshot and the probe result ·
@@ -63,7 +59,7 @@ describe('session-start.run', () => {
     beforeEach(() => {
       sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'compact' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
       events = readEvents(eventsFile(sandbox.env));
@@ -80,10 +76,10 @@ describe('session-start.run', () => {
           source: 'compact',
           vale: true,
           config: {
-            reminder: { mode: 'prompts', everyPrompts: 20 },
-            outputCheck: { mode: 'warn', deliver: 'next-prompt' },
-            bannedCheck: { mode: 'warn' },
-            vale: { levels: 'suggestion' }
+            files: { mode: 'warn' },
+            publish: { mode: 'block', gh: false, mcp: 0 },
+            reply: { mode: 'warn' },
+            rules: { onViolation: true }
           }
         },
         {
@@ -112,7 +108,6 @@ describe('session-start.run', () => {
       expect(state).toEqual({
         promptCount: 0,
         promptAtLastReminder: null,
-        contextAtLastReminder: null,
         replyAlerts: {},
         pendingRewrite: null,
         projectDir: null,
@@ -130,7 +125,7 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'clear' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
@@ -149,7 +144,7 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
@@ -168,38 +163,18 @@ describe('session-start.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox();
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'resume' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should deliver the report, clear the counts, keep the prompt count, and reset the interval', () => {
+    it('should deliver the report, clear the counts, keep the prompt count, and mark the injection', () => {
       expect({
         reported: output.hookSpecificOutput.additionalContext.includes('"synergy" (2)'),
         replyAlerts: state.replyAlerts,
         promptCount: state.promptCount,
-        promptAtLastReminder: state.promptAtLastReminder,
-        contextAtLastReminder: state.contextAtLastReminder
-      }).toEqual({ reported: true, replyAlerts: {}, promptCount: 4, promptAtLastReminder: 4, contextAtLastReminder: null });
-    });
-  });
-
-  describe('when a resume delivers the report one prompt short of the interval', () => {
-    let resumed, nextPrompt;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox();
-      valePresent();
-      writeSession(SESSION, { promptCount: 19, promptAtLastReminder: 0, replyAlerts: COUNTS }, sandbox.env);
-      resumed = run({ session_id: SESSION, cwd: sandbox.work, source: 'resume' }, sandbox.env);
-      nextPrompt = runRemind({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
-    });
-
-    it('should inject once on resume and stay silent on the next prompt', () => {
-      expect({ resumed: resumed.hookSpecificOutput.hookEventName, nextPrompt }).toEqual({
-        resumed: 'SessionStart',
-        nextPrompt: null
-      });
+        promptAtLastReminder: state.promptAtLastReminder
+      }).toEqual({ reported: true, replyAlerts: {}, promptCount: 4, promptAtLastReminder: 4 });
     });
   });
 
@@ -207,9 +182,9 @@ describe('session-start.run', () => {
     let output, state, events;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      const sandbox = makeSandbox({ rules: { onContextStart: ['compact'] } });
       valePresent();
-      writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
+      writeSession(SESSION, { promptCount: 4, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
       events = readEvents(eventsFile(sandbox.env));
@@ -221,17 +196,11 @@ describe('session-start.run', () => {
       ]);
     });
 
-    it('should neither inject nor reset, and keep the reply counts for the next reminder', () => {
-      expect({
-        output,
-        promptCount: state.promptCount,
-        replyAlerts: state.replyAlerts,
-        contextAtLastReminder: state.contextAtLastReminder
-      }).toEqual({
+    it('should neither inject nor reset, and keep the reply counts for the next injection', () => {
+      expect({ output, promptCount: state.promptCount, replyAlerts: state.replyAlerts }).toEqual({
         output: null,
         promptCount: 4,
-        replyAlerts: COUNTS,
-        contextAtLastReminder: 900
+        replyAlerts: COUNTS
       });
     });
   });
@@ -240,7 +209,7 @@ describe('session-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSessionStart: ['startup'] } });
+      const sandbox = makeSandbox({ rules: { onContextStart: ['startup'] } });
       valePresent();
       output = run({ session_id: SESSION, cwd: sandbox.work }, sandbox.env);
     });
@@ -288,7 +257,7 @@ describe('session-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      const sandbox = makeSandbox({ rules: { onContextStart: ['compact'] } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
     });
@@ -302,7 +271,7 @@ describe('session-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      const sandbox = makeSandbox({ rules: { onContextStart: ['compact'] } });
       valePresent({ Formats: {}, SBaseStyles: { '*.chat.md': ['X'] }, SChecks: { '{**/,}fragment.chat.md': {} } });
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
     });
@@ -320,7 +289,7 @@ describe('session-start.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      const sandbox = makeSandbox({ rules: { onContextStart: ['compact'] } });
       valePresent(null);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
     });
@@ -330,14 +299,30 @@ describe('session-start.run', () => {
     });
   });
 
+  describe('when a config file still sets 0.8.x keys', () => {
+    let output, sandbox;
+
+    beforeEach(() => {
+      sandbox = makeSandbox({ rules: { onContextStart: ['compact'] }, bannedCheck: { mode: 'block' }, reminder: { mode: 'off' } });
+      valePresent();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should name the file and the keys it no longer reads', () => {
+      expect(output).toEqual({
+        systemMessage: `just-say-so: ${sandbox.configFile} sets reminder, bannedCheck, which 0.9.0 no longer reads. The config is keyed by target now (files, publish, reply, rules). See the README section Upgrading from 0.8.x.`
+      });
+    });
+  });
+
   describe('when every check is off', () => {
     let output;
 
     beforeEach(() => {
       const sandbox = makeSandbox({
-        reminder: { onSessionStart: ['compact'] },
-        bannedCheck: { mode: 'off' },
-        outputCheck: { mode: 'off' }
+        rules: { onContextStart: ['compact'] },
+        files: { mode: 'off' },
+        reply: { mode: 'off' }
       });
       valePresent({ Formats: {}, SBaseStyles: { '*.chat.md': ['X'] }, SChecks: {} });
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
@@ -349,47 +334,11 @@ describe('session-start.run', () => {
     });
   });
 
-  describe('when the reply check is warn but the reminder is off', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({
-        reminder: { mode: 'off' },
-        bannedCheck: { mode: 'off' },
-        outputCheck: { mode: 'warn', deliver: 'next-reminder' }
-      });
-      valeMissing();
-      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
-    });
-
-    it('should say the reply check is idle, and probe for the log without complaining', () => {
-      expect(output.systemMessage).toContain('The reply check is idle.');
-      expect(mockSpawnSync).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('when the reply check is idle and vale is missing for the edit check', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({ reminder: { mode: 'off' }, outputCheck: { mode: 'warn', deliver: 'next-reminder' } });
-      valeMissing();
-      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
-    });
-
-    it('should join both notices on separate lines', () => {
-      expect(output.systemMessage.split('\n')).toEqual([
-        expect.stringContaining('vale binary is missing'),
-        expect.stringContaining('The reply check is idle.')
-      ]);
-    });
-  });
-
   describe('when every check mode and the events log are off and vale is missing', () => {
     let output, logged;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' }, outputCheck: { mode: 'off' }, events: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' }, reply: { mode: 'off' }, events: { mode: 'off' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       logged = fs.existsSync(eventsFile(sandbox.env));
@@ -405,7 +354,7 @@ describe('session-start.run', () => {
     let output, vale;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' }, outputCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ files: { mode: 'off' }, reply: { mode: 'off' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       vale = readEvents(eventsFile(sandbox.env))[0].vale;

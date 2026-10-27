@@ -16,8 +16,6 @@ import {
   lintText,
   publishName,
   fieldFromLabel,
-  applyConfigExemptions,
-  severityRank,
   formatAlerts,
   countBySeverity
 } from '../vale.js';
@@ -60,8 +58,8 @@ function countsLine(messages, alerts) {
 // "allow", and the warning note stays visible in the hook output.
 const AUTO_PERMISSION_MODES = ['bypassPermissions', 'dontAsk', 'auto'];
 
-function unresolvedPolicy(bc, input) {
-  const configured = bc.unresolved ?? 'ask';
+function unresolvedPolicy(publish, input) {
+  const configured = publish.unresolved ?? 'ask';
   if (configured !== 'ask') return configured;
   return AUTO_PERMISSION_MODES.includes(input.permission_mode) ? 'allow' : 'ask';
 }
@@ -76,12 +74,12 @@ function unresolvedPolicy(bc, input) {
 function runPublishCheck(toolName, toolInput, input, env) {
   const anchor = commandAnchor(input, env);
   const config = loadConfig(anchor, env);
-  const bc = config.bannedCheck;
-  if (bc.mode === 'off') return null;
+  const publish = config.publish;
+  if (publish.mode === 'off') return null;
 
   let payloads, unresolved, target;
   if (toolName === 'Bash') {
-    if (!(bc.addons ?? []).includes('gh')) return null;
+    if (publish.gh !== true) return null;
     const extracted = extractGhTexts(toolInput.command);
     if (!extracted) return null;
     ({ payloads, unresolved, target } = extracted);
@@ -93,7 +91,7 @@ function runPublishCheck(toolName, toolInput, input, env) {
       name: publishName({ source: 'gh', tool: p.target.split(' ')[1], field: fieldFromLabel(p.label) })
     }));
   } else {
-    if (!matchesMcpTool(toolName, bc.mcpTools)) return null;
+    if (!matchesMcpTool(toolName, publish.mcp)) return null;
     const text = collectStrings(toolInput).join('\n');
     // mcp__server__tool → mcp.server.tool.publish; one fragment per call
     // until per-field extraction lands, so a section matches by tool.
@@ -109,13 +107,7 @@ function runPublishCheck(toolName, toolInput, input, env) {
   for (const payload of payloads) {
     const raw = lintText(payload.text, { name: payload.name, configPath, env });
     if (raw === null) return null; // vale missing or broken: silent, session-start told the user
-    const lines = payload.text.split('\n');
-    const alerts = applyConfigExemptions(raw, bc, (_file, line) => lines[line - 1] ?? null);
-    for (const a of alerts) {
-      if (severityRank(a.Severity) <= severityRank(config.vale.levels)) {
-        visible.push({ ...a, file: payload.label });
-      }
-    }
+    for (const a of raw) visible.push({ ...a, file: payload.label });
   }
 
   const messages = loadMessages(config);
@@ -125,7 +117,7 @@ function runPublishCheck(toolName, toolInput, input, env) {
   const unresolvedNote = unresolved.length > 0 ? fill(messages.publishUnresolvedNote, { constructs }) : '';
   const hasErrors = visible.some((a) => a.Severity === 'error');
 
-  if (bc.mode === 'block' && hasErrors) {
+  if (publish.mode === 'block' && hasErrors) {
     const parts = [intro, detail, `${messages.rewriteInstruction} ${messages.escapeHatch}`];
     if (unresolvedNote) parts.push(unresolvedNote);
     return {
@@ -137,8 +129,8 @@ function runPublishCheck(toolName, toolInput, input, env) {
     };
   }
 
-  if (bc.mode === 'block' && unresolved.length > 0) {
-    const policy = unresolvedPolicy(bc, input);
+  if (publish.mode === 'block' && unresolved.length > 0) {
+    const policy = unresolvedPolicy(publish, input);
     if (policy === 'deny') {
       return {
         hookSpecificOutput: {
@@ -190,7 +182,7 @@ export function run(input, env = process.env) {
   if (!filePath || !isPolicyFile(filePath, env)) return null;
 
   const config = loadConfig(path.dirname(filePath), env);
-  if (config.bannedCheck.mode === 'off') return null;
+  if (config.files.mode === 'off') return null;
 
   const messages = loadMessages(config);
   return {

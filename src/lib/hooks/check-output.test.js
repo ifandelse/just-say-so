@@ -15,12 +15,11 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  * Branch map — src/lib/hooks/check-output.js
  *   both modes off → null · anchor falls back to recorded projectDir ·
  *   reply: last_assistant_message preferred · transcript fallback · no text →
- *     no reply errors · vale broken → treated clean · exemptions apply ·
+ *     no reply errors · vale broken → treated clean ·
  *     errors only (warnings never gate the reply)
- *   warn: counts recorded, nothing returned · counts accumulate · warn with
- *     next-reminder delivery and the reminder off → idle, no lint
+ *   warn: counts recorded, nothing returned · counts accumulate
  *   block (reply): decision block with outputIntro
- *   gate (bannedCheck block): outstanding errors re-lint → remaining block
+ *   gate (files block): outstanding errors re-lint → remaining block
  *     with file paths · fixed → record cleared, no block · vale broken →
  *     skip file, keep record · empty record pruned · budget caps a
  *     pre-existing twin · warn reply + gate block → gate blocks alone
@@ -94,7 +93,7 @@ describe('check-output.run', () => {
     let output, events, state;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ reply: { mode: 'off' } });
       respond({ 'reply.reply': [errorAlert(), warningAlert()] });
       const transcript = writeTranscript(sandbox.work, 't.jsonl', [
         { type: 'assistant', message: { id: 'm1', model: 'claude-fable-5-1', content: [{ type: 'text', text: 'we ship synergy' }] } }
@@ -138,7 +137,7 @@ describe('check-output.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       fs.mkdirSync(eventsFile(sandbox.env), { recursive: true });
       respond({ 'reply.reply': [errorAlert()] });
       output = run(
@@ -156,7 +155,7 @@ describe('check-output.run', () => {
     let output, logged;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'off' }, events: { mode: 'off' } });
+      const sandbox = makeSandbox({ reply: { mode: 'off' }, events: { mode: 'off' } });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'we ship synergy' },
         sandbox.env
@@ -174,7 +173,7 @@ describe('check-output.run', () => {
     let output, state, records;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
+      const sandbox = makeSandbox({ reply: { mode: 'off' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R1', rejected: { text: 'synergy wins', alerts: [] }, rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R1' }, sandbox.env);
       respond({ 'reply.reply': [errorAlert()] });
@@ -211,7 +210,7 @@ describe('check-output.run', () => {
     let state, records;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      const sandbox = makeSandbox({ reply: { mode: 'warn' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R2', rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R2' }, sandbox.env);
       respond({ 'reply.reply': [errorAlert()] });
@@ -233,7 +232,7 @@ describe('check-output.run', () => {
     let first, second, afterFirst, afterSecond, events;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R3', rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R3' }, sandbox.env);
       respond({ 'reply.reply': [errorAlert()] });
@@ -272,7 +271,7 @@ describe('check-output.run', () => {
     let output, pending, rewriteText, events;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R4', rewrite: null });
       writeSession(
         SESSION,
@@ -306,7 +305,7 @@ describe('check-output.run', () => {
     let output, state, sandbox;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      sandbox = makeSandbox({ reply: { mode: 'warn' } });
       respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
@@ -335,7 +334,7 @@ describe('check-output.run', () => {
     let state, sandbox;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
+      sandbox = makeSandbox({ reply: { mode: 'warn' } });
       respond({ 'reply.reply': [errorAlert()] });
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy again' }, sandbox.env);
@@ -347,33 +346,11 @@ describe('check-output.run', () => {
     });
   });
 
-  describe('when warn mode has no reminder to deliver through', () => {
-    let output, state, sandbox;
-
-    beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'warn', deliver: 'next-reminder' }, reminder: { mode: 'off' } });
-      respond({ 'reply.reply': [errorAlert()] });
-      output = run(
-        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
-        sandbox.env
-      );
-      state = readSession(SESSION, sandbox.env);
-    });
-
-    it('should record nothing for the check, with the one lint serving the log', () => {
-      expect({ output, replyAlerts: state.replyAlerts, linted: mockSpawnSync.mock.calls.length }).toEqual({
-        output: null,
-        replyAlerts: {},
-        linted: 1
-      });
-    });
-  });
-
   describe('when the reply has errors in block mode', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
@@ -392,7 +369,7 @@ describe('check-output.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       respond({});
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'The tests pass.' },
@@ -409,7 +386,7 @@ describe('check-output.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       const transcript = writeTranscript(sandbox.work, 'reply.jsonl', [
         { type: 'assistant', message: { id: 'MSG', content: [{ type: 'text', text: 'we ship synergy' }] } }
       ]);
@@ -426,7 +403,7 @@ describe('check-output.run', () => {
     let output;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       respond({ 'reply.reply': [errorAlert()] });
       output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' }, sandbox.env);
     });
@@ -440,7 +417,7 @@ describe('check-output.run', () => {
     let output, alerts;
 
     beforeEach(() => {
-      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
       mockSpawnSync.mockReturnValue({ error: new Error('ENOENT'), status: null });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
@@ -454,30 +431,11 @@ describe('check-output.run', () => {
     });
   });
 
-  describe('when an allowed phrase covers the reply match', () => {
-    let output;
-
-    beforeEach(() => {
-      const sandbox = makeSandbox({
-        outputCheck: { mode: 'block' },
-        bannedCheck: { allowPhrases: ['robust regression'] }
-      });
-      const reply = 'the robust regression suite passed';
-      const start = reply.indexOf('robust') + 1;
-      respond({ 'reply.reply': [errorAlert({ Match: 'robust', Span: [start, start + 5] })] });
-      output = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: reply }, sandbox.env);
-    });
-
-    it('should return null', () => {
-      expect(output).toBeNull();
-    });
-  });
-
   describe('when the session gate finds a recorded error still present', () => {
     let output, state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -501,7 +459,7 @@ describe('check-output.run', () => {
     let output, state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'clean\n');
       writeSession(SESSION, { ...gateRecord(file), lastStopBlock: 'STALE' }, sandbox.env);
@@ -521,7 +479,7 @@ describe('check-output.run', () => {
     let output, state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -540,7 +498,7 @@ describe('check-output.run', () => {
     let state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       writeSession(SESSION, { valeFiles: { [file]: { outstanding: [] } } }, sandbox.env);
       respond({});
@@ -557,7 +515,7 @@ describe('check-output.run', () => {
     let output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'synergy\nsynergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -575,7 +533,7 @@ describe('check-output.run', () => {
     let first, output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -598,7 +556,7 @@ describe('check-output.run', () => {
     let standDown, nextTurn, state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -626,7 +584,7 @@ describe('check-output.run', () => {
     let output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\nmore synergy\n');
       writeSession(
@@ -661,7 +619,7 @@ describe('check-output.run', () => {
     let output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'intro\npure synergy\n');
       writeSession(
@@ -685,7 +643,7 @@ describe('check-output.run', () => {
     let output, state, sandbox;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ reply: { mode: 'block' } });
       respond({ 'reply.reply': [errorAlert()] });
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
       output = run(
@@ -707,7 +665,7 @@ describe('check-output.run', () => {
     let output, state, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'gone.md');
       writeSession(
         SESSION,
@@ -733,7 +691,7 @@ describe('check-output.run', () => {
     let output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy and delve\n');
       writeSession(
@@ -764,7 +722,7 @@ describe('check-output.run', () => {
     let output, sandbox, file;
 
     beforeEach(() => {
-      sandbox = makeSandbox({ outputCheck: { mode: 'warn' }, bannedCheck: { mode: 'block' } });
+      sandbox = makeSandbox({ reply: { mode: 'warn' }, files: { mode: 'block' } });
       file = path.join(sandbox.work, 'doc.md');
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
@@ -791,7 +749,7 @@ describe('check-output.run', () => {
     beforeEach(() => {
       sandbox = makeSandbox();
       const projectDir = fs.mkdtempSync(path.join(sandbox.work, 'proj-'));
-      fs.writeFileSync(path.join(projectDir, '.just-say-so.json'), JSON.stringify({ outputCheck: { mode: 'block' } }));
+      fs.writeFileSync(path.join(projectDir, '.just-say-so.json'), JSON.stringify({ reply: { mode: 'block' } }));
       writeSession(SESSION, { projectDir }, sandbox.env);
       respond({ 'reply.reply': [errorAlert()] });
       output = run(

@@ -4,7 +4,6 @@ extends: existence
 message: "Empty intensifier: '%s'. Replace it with a measurement or a concrete consequence."
 level: suggestion
 ignorecase: true
-nonword: true
 tokens:
   - "(?<![\\w-])very(?![\\w-])"
   - "(?<![\\w-])truly(?![\\w-])"

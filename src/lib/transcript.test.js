@@ -2,14 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { contextSize, lastAssistantText, lastExchange } from './transcript.js';
+import { lastAssistantText, lastExchange } from './transcript.js';
 import { writeTranscript } from '../../test/helpers/sandbox.js';
 
 /*
  * Branch map — src/lib/transcript.js
  *   parseLines: unreadable file → [] · blank line skipped · malformed line skipped
- *   contextSize: usage under message · usage at top level · missing cache fields → 0 ·
- *                usage without numeric input_tokens skipped · no usage anywhere → null
  *   textOf: content string · content array (non-text blocks filtered) · neither → ''
  *   lastAssistantText: no assistant → '' · assistant without message id → that entry only ·
  *                      assistant with id spanning several entries
@@ -25,85 +23,6 @@ function tmpdir() {
 }
 
 describe('transcript', () => {
-  describe('contextSize', () => {
-    describe('when the newest usage sits under message with cache fields', () => {
-      let result;
-
-      beforeEach(() => {
-        const file = writeTranscript(tmpdir(), 't.jsonl', [
-          { type: 'assistant', message: { usage: { input_tokens: 1, cache_read_input_tokens: 2 } } },
-          '',
-          '{malformed line',
-          {
-            type: 'assistant',
-            message: {
-              usage: { input_tokens: 100, cache_read_input_tokens: 200, cache_creation_input_tokens: 50 }
-            }
-          }
-        ]);
-        result = contextSize(file);
-      });
-
-      it('should sum input and cache tokens of the newest entry, skipping junk lines', () => {
-        expect(result).toBe(350);
-      });
-    });
-
-    describe('when usage sits at the top level with cache fields missing', () => {
-      let result;
-
-      beforeEach(() => {
-        const file = writeTranscript(tmpdir(), 't.jsonl', [{ usage: { input_tokens: 90210 } }]);
-        result = contextSize(file);
-      });
-
-      it('should treat missing cache fields as zero', () => {
-        expect(result).toBe(90210);
-      });
-    });
-
-    describe('when a newer usage block lacks numeric input_tokens', () => {
-      let result;
-
-      beforeEach(() => {
-        const file = writeTranscript(tmpdir(), 't.jsonl', [
-          { type: 'assistant', message: { usage: { input_tokens: 500 } } },
-          { type: 'assistant', message: { usage: { input_tokens: 'E_COLD_CALZONE' } } }
-        ]);
-        result = contextSize(file);
-      });
-
-      it('should keep scanning back to the last valid one', () => {
-        expect(result).toBe(500);
-      });
-    });
-
-    describe('when no entry carries usage', () => {
-      let result;
-
-      beforeEach(() => {
-        const file = writeTranscript(tmpdir(), 't.jsonl', [{ type: 'user', message: { content: 'hi' } }]);
-        result = contextSize(file);
-      });
-
-      it('should return null', () => {
-        expect(result).toBe(null);
-      });
-    });
-
-    describe('when the transcript file is missing', () => {
-      let result;
-
-      beforeEach(() => {
-        result = contextSize('/nope/missing.jsonl');
-      });
-
-      it('should return null instead of throwing', () => {
-        expect(result).toBe(null);
-      });
-    });
-  });
-
   describe('lastAssistantText', () => {
     describe('when the last assistant message spans several entries', () => {
       let result;

@@ -1,14 +1,12 @@
-// Vale runner: config discovery, subprocess invocation, alert shaping, and
-// the config-level exemptions (disableWords / allowPhrases) that keep the
-// plugin's escape hatches working whether or not a repo has a vocabulary.
-// Every failure path returns null — a broken or missing binary makes the
+// Vale runner: config discovery, subprocess invocation, and alert shaping.
+// Exemptions are Vale's job (a vocabulary accept.txt), so nothing here
+// filters alerts by term. Every failure path returns null — a broken or missing binary makes the
 // checks silent, never broken; session-start owns telling the user once.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { termRegex } from './matcher.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONFIG_NAMES = ['.vale.ini', '_vale.ini', 'vale.ini'];
@@ -188,60 +186,6 @@ export function countBySeverity(alerts) {
   return counts;
 }
 
-// Terms compare the way the matcher matches: case-insensitive, hyphen and
-// space interchangeable.
-function foldTerm(s) {
-  return String(s).toLowerCase().replace(/[\s -]+/g, ' ').trim();
-}
-
-/**
- * Apply the config escape hatches to Vale alerts. disableWords drops every
- * alert whose matched text is the disabled term; allowPhrases drops alerts
- * whose span sits inside an allowed phrase on the same line. lineTextFor
- * supplies line content (file, line) => string|null; alerts whose line
- * cannot be read stay.
- */
-export function applyConfigExemptions(alerts, bannedCheck, lineTextFor) {
-  const disabled = new Set((bannedCheck?.disableWords ?? []).map(foldTerm));
-  const allow = bannedCheck?.allowPhrases ?? [];
-
-  return alerts.filter((a) => {
-    if (disabled.has(foldTerm(a.Match))) return false;
-    if (allow.length === 0) return true;
-    const line = lineTextFor(a.file, a.Line);
-    if (typeof line !== 'string') return true;
-    const [start, end] = a.Span ?? [];
-    if (!start || !end) return true;
-    for (const phrase of allow) {
-      for (const m of line.matchAll(termRegex(phrase))) {
-        const s = m.index + 1; // Vale spans are 1-based columns
-        const e = m.index + m[0].length;
-        if (start >= s && end <= e) return false;
-      }
-    }
-    return true;
-  });
-}
-
-// Reads file lines lazily and caches per file; the shape lintPath alerts
-// expect for applyConfigExemptions.
-export function fileLineReader() {
-  const cache = new Map();
-  return (file, line) => {
-    if (!cache.has(file)) {
-      try {
-        cache.set(file, fs.readFileSync(file, 'utf8').split('\n'));
-      } catch {
-        cache.set(file, null);
-      }
-    }
-    const lines = cache.get(file);
-    return lines ? (lines[line - 1] ?? null) : null;
-  };
-}
-
-// Rule + lowercased match: alert identity that survives line shifts. The
-// Stop gate and the reply-check counts both key on it.
 export function alertKey(a) {
   return `${a.Check}|${String(a.Match).toLowerCase()}`;
 }

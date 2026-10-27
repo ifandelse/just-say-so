@@ -1,40 +1,35 @@
 # Adapters
 
-just-say-so separates payload from delivery. The payload — `rules/*.md`, `rules/banned.json`, the `JustSaySo` Vale style generated from it, and the logic in `src/lib/` — assumes no harness. The Claude Code adapter (`hooks/`, `src/hooks/`, `skills/`) is the first delivery mechanism. This document records what an adapter for another harness needs, based on research verified 2026-09.
-
-⚠️ The research below predates the Vale engine (0.2.x checker design: a pre-write banned-term scan on `PreToolUse`). The current design runs Vale on `PostToolUse` for files, gates the turn at `Stop`, and keeps `PreToolUse` only for the policy-file confirmation and the gh/MCP pre-publication check. The per-harness event findings still hold; re-map them to the new events before building an adapter.
+just-say-so separates payload from delivery. The payload is the manifest (`rules/manifest.json`), the `JustSaySo` Vale style generated from it, and the logic in `src/lib/`, none of which assumes a harness. The Claude Code adapter is `hooks/hooks.json`, the stdin shims in `src/hooks/`, and `skills/`. This document records what an adapter for another harness has to provide, verified against the vendor docs on 2026-10-27. The feature table is in the README under "Other harnesses".
 
 ## The contract
 
-An adapter provides three behaviors, reusing `src/lib/`:
+An adapter maps the harness's events onto six functions in `src/lib/` and translates each return value into the harness's output shape. The functions take plain objects and return plain objects; nothing in them reads a Claude Code field.
 
-1. **Periodic injection** — on the harness's prompt-submit event, run the counter/threshold logic (`state.js`, `transcript.js` or the harness's own token data) and inject `readRules('condensed', config)`.
-2. **Rules commands** — a user-invocable command that injects `readRules('full' | 'condensed', config)`. `node src/cli/print-rules.js [full|condensed]` prints the resolved text for any command format.
-3. **Banned-term gate** — on the harness's pre-tool-use event, run `findViolations(extractedText, loadBanned(config))` and translate the result into that harness's deny/feedback shape.
+| Moment | Function | What the harness must supply | What comes back |
+| --- | --- | --- | --- |
+| Context start, subagent start | `contextRules(config, cwd, env)` in `rule-state.js` | a working directory | the condensed rules, adjusted to the project's Vale config |
+| Each prompt | `run(input, env)` in `hooks/remind.js` | `session_id`, `cwd`, `prompt`, and a transcript the `transcript.js` readers understand for `restate` | the rules plus the report when counts wait, else nothing |
+| After a file write | `run(input, env)` in `hooks/check-vale.js` | `tool_name`, `tool_input` with `file_path` and the edit's `content` or `new_string` | the edit-scoped alerts, and the error record for the Stop gate |
+| Before a publish | `run(input, env)` in `hooks/pre-gate.js` | `tool_name` and `tool_input`: a `command` for gh, the arguments for MCP, a `file_path` for an artifact | a deny, an ask, or advisory context |
+| End of turn | `run(input, env)` in `hooks/check-output.js` | `last_assistant_message`, or a transcript path, plus `stop_hook_active` | a block with the alerts, a stand-down, or nothing |
+| Commands | `src/cli/*.js` | a command surface that can run `node` | text |
 
-Config comes from the same files (`~/.config/just-say-so/just-say-so.json`, `.just-say-so.json`), so one config drives every harness.
+The lint targets are a contract too: a reply lints as `reply.reply`, a published field as `<source>.<tool>.<field>.publish`, and an artifact page as `artifact.<file>`. Keep those names and a project's `.vale.ini` works unchanged under every harness.
 
-## Landscape
+Config comes from the same files (`~/.config/just-say-so/just-say-so.json`, `.just-say-so.json`), and the commit gate, `/init`, `/doctor`, and the config-adjusted reminder text need no hooks at all.
 
-The Claude Code hook protocol (JSON on stdin, `hookSpecificOutput` on stdout, exit 2 blocks) became the de-facto convention. Per harness:
+## Per-harness constraints
 
-| Harness | Prompt-submit event | Pre-tool-use event | Command format | Adapter cost |
-| --- | --- | --- | --- | --- |
-| Codex CLI | `UserPromptSubmit` → `additionalContext` | `PreToolUse` → `deny`/`allow` only; `"ask"` is parsed but not supported yet | skills in `.agents/skills/` | Moderate — file edits arrive as `apply_patch` patch strings in `tool_input.command`, so the adapter must parse the patch and check added lines only; the config-confirmation gate degrades without `"ask"`. |
-| Cursor | `beforeSubmitPrompt` | `preToolUse` | skills (`.cursor/skills/`) | Wiring, mostly — ships a Claude-format compatibility layer; CLI event coverage still unverified. |
-| Copilot CLI | Config-file `userPromptSubmitted` hooks have their output **dropped** — per-prompt injection needs the SDK, or `sessionStart` prompt-hooks (new interactive sessions only, no resume) plus `postToolUse` `additionalContext` | `preToolUse` → `allow`/`deny`/`ask` + `modifiedArgs` (`ask` becomes `deny` under the cloud agent) | skills (`.github/skills/`, reads `.claude/skills/`) | Moderate — no per-prompt injection from config hooks; tool names differ (`create`/`edit`, with a Claude-name mapping) and `toolArgs` shapes are undocumented. |
-| Gemini CLI | `BeforeAgent` → `additionalContext` | `BeforeTool` → `decision: deny` | TOML in `.gemini/commands/` | Event-name mapping. Bonus: `AfterAgent` can reject the model's prose — the only first-class chat-text gate in any harness. |
-| OpenCode | `chat.message` | `tool.execute.before` (throw to block) | `.opencode/command/*.md` | Small TypeScript plugin wrapping `src/lib/` (Bun runtime, in-process). |
-| Everything on AGENTS.md | — | — | — | Static floor: paste `rules/full.md` into AGENTS.md. Session-start only, no periodicity, no gate. |
-| Aider | none | none | none | Out of scope — the project is dormant and has no hook mechanism. |
-
-## Known constraints per harness (verified against vendor docs, 2026-09-20)
-
-- **Codex**: `permissionDecision: "ask"` is parsed but not supported — the docs say so explicitly, alongside `continue`, `stopReason`, and `suppressOutput`. Deny/allow work; `updatedInput` and `additionalContext` are documented outputs. File edits are `apply_patch` patches, not `content`/`new_string` fields: `extractText` in the banned-check needs a Codex-specific patch parser that scans only added lines, or context lines around an edit will false-positive.
-- **Cursor**: CLI hook-event coverage is not officially enumerated. Confirm `beforeSubmitPrompt` fires in the CLI before relying on it.
-- **Copilot**: command and HTTP `userPromptSubmitted` hooks have their output dropped entirely (the docs state this outright; only SDK programmatic hooks can modify the prompt). Periodic injection must ride `sessionStart` prompt-hooks — which fire only for new interactive sessions, not resume — or `postToolUse` `additionalContext`. Hook timeouts fail open, even for policy hooks. `preToolUse` supports `ask`, but the cloud agent downgrades it to `deny`.
-- **Gemini**: hooks sit behind `hooksConfig.enabled` in settings.
+| Harness | Context start | Prompt-time injection | End of turn | Before a tool | After a write | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Codex CLI | `SessionStart` with `source` in startup, resume, clear, compact, fork; `additionalContext` | `UserPromptSubmit` `additionalContext` | `Stop` with `last_assistant_message` and `stop_hook_active` | `PreToolUse` with `tool_name`, `tool_input`; deny and `updatedInput`; `ask` parsed but not supported | `PostToolUse` `additionalContext`; edits are `apply_patch` patch strings in `tool_input.command` | `SubagentStart` accepts `additionalContext`. Set `publish.unresolved` to `allow` or `deny`, since `ask` falls through. Needs a patch parser for added lines. |
+| Cursor | `sessionStart` with `additional_context`; no source; `preCompact` observational | none: `beforeSubmitPrompt` can only block | `afterAgentResponse` has `text` but no output; `stop` has `followup_message` | `preToolUse` deny only; `beforeShellExecution` and `beforeMCPExecution` allow, deny, ask, with `command` or `tool_input` | `postToolUse` with `additional_context` | `subagentStart` can deny, not inject. The report has to ride a tool result or the next session start. |
+| Copilot CLI | `sessionStart` with `source` in startup, resume, new; `additionalContext` | config hooks cannot inject on `userPromptSubmitted`; `userPromptTransformed` returns `modifiedTransformedPrompt` | `agentStop` with `transcriptPath` and `decision: block` | `preToolUse` with `toolName`, `toolArgs`; allow, deny, ask, `modifiedArgs`; fail-closed on a crash | `postToolUse` with `toolResult` and `additionalContext` | Hooks load from `~/.copilot/hooks/`, `.github/hooks/*.json`, and plugins. `subagentStart` prepends `additionalContext`. The cloud agent downgrades ask to deny. |
+| Gemini CLI | `SessionStart` with `source` in startup, resume, clear; `additionalContext` | `BeforeAgent` receives `prompt`, returns `additionalContext` | `AfterAgent` receives `prompt_response`; `decision: deny` retries with `reason` | `BeforeTool` with `tool_name`, `tool_input`; deny; no ask | `AfterTool` with `tool_response` and `additionalContext` | No subagent events. Commands are TOML under `.gemini/commands/`. |
+| OpenCode | `experimental.chat.system.transform` pushes to the system prompt on each request; `experimental.session.compacting` adds context | `chat.message` sees the message; whether it can append model-visible text is undocumented | `session.idle` event; the reply is read through the client; nothing blocks | `tool.execute.before` with `tool`, `sessionID`, `callID`, `output.args`; throw to block; `permission.ask` sets allow or deny | `tool.execute.after` with `output.output` to append to | A TypeScript plugin on Bun that imports `src/lib/` in process. No subagent hook documented. |
+| AGENTS.md only | paste `rules/full.md` | none | none | none | none | The commit gate still works. |
 
 ## Skills travel farther than hooks
 
-Agent Skills (SKILL.md, agentskills.io) is an open standard with 40+ adopters, and several harnesses read each other's skill directories. The `skills/` folder in this repo is already the portable command surface; adapters mostly need symlinks or copies into the harness's expected path.
+Agent Skills (SKILL.md, agentskills.io) is an open standard that several harnesses read from each other's directories. The `skills/` folder in this repo is the portable command surface; an adapter mostly copies or links it into the harness's path and rewrites the two that need a different format (Gemini's TOML, OpenCode's command files).

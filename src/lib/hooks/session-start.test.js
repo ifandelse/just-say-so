@@ -27,6 +27,8 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     promptCount and clears the token baseline, so the next prompt does not
  *     inject again · no injection → baselines untouched
  *   reply check idle (warn + next-reminder + reminder off) → notice, joined with valeMissing
+ *   vale config notice: a chat.md section → dead-section notice · no reply/publish
+ *     formats → mapping notice · ls-config fails → no notice · checks off → not inspected
  *   events: session event with the config snapshot and the probe result ·
  *     reminder event (trigger session) only on injection, promptIndex 0 after a
  *     reset · checks off still probe for the log · events off → no probe, no file
@@ -36,8 +38,14 @@ const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', 
 
 const SESSION = 'START_SESSION';
 
-function valePresent() {
-  mockSpawnSync.mockReturnValue({ status: 0, stdout: '' });
+const MAPPED_CONFIG = { Formats: { reply: 'md', publish: 'md' }, SBaseStyles: { '*.reply': ['JustSaySo'] }, SChecks: {} };
+
+// The probe answers `ls-dirs`; the config notice reads `ls-config`.
+function valePresent(lsConfig = MAPPED_CONFIG) {
+  mockSpawnSync.mockImplementation((_cmd, args) => {
+    if (args[0] === 'ls-config') return lsConfig === null ? { status: 2, stdout: '' } : { status: 0, stdout: JSON.stringify(lsConfig) };
+    return { status: 0, stdout: '' };
+  });
 }
 
 function valeMissing() {
@@ -287,6 +295,57 @@ describe('session-start.run', () => {
 
     it('should return the notice alone', () => {
       expect(output).toEqual({ systemMessage: expect.stringContaining('vale binary is missing') });
+    });
+  });
+
+  describe('when the resolved Vale config still has chat.md sections and no formats mapping', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      valePresent({ Formats: {}, SBaseStyles: { '*.chat.md': ['X'] }, SChecks: { '{**/,}fragment.chat.md': {} } });
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should name the dead sections and the missing mapping, once', () => {
+      expect(output).toEqual({
+        systemMessage: expect.stringMatching(
+          /^just-say-so: the Vale config has a \[\*\.chat\.md\], \[\{\*\*\/,\}fragment\.chat\.md\] section[^]*\njust-say-so: the Vale config does not map the reply and publish extensions/
+        )
+      });
+    });
+  });
+
+  describe('when vale cannot read the resolved config', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
+      valePresent(null);
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should stay silent rather than guess', () => {
+      expect(output).toBeNull();
+    });
+  });
+
+  describe('when every check is off', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({
+        reminder: { onSessionStart: ['compact'] },
+        bannedCheck: { mode: 'off' },
+        outputCheck: { mode: 'off' }
+      });
+      valePresent({ Formats: {}, SBaseStyles: { '*.chat.md': ['X'] }, SChecks: {} });
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should not inspect the config or warn', () => {
+      expect(output).toBeNull();
+      expect(mockSpawnSync.mock.calls.map((c) => c[1][0])).not.toContain('ls-config');
     });
   });
 

@@ -95,7 +95,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
-      respond({ 'reply.chat.md': [errorAlert(), warningAlert()] });
+      respond({ 'reply.reply': [errorAlert(), warningAlert()] });
       const transcript = writeTranscript(sandbox.work, 't.jsonl', [
         { type: 'assistant', message: { id: 'm1', model: 'claude-fable-5-1', content: [{ type: 'text', text: 'we ship synergy' }] } }
       ]);
@@ -140,7 +140,7 @@ describe('check-output.run', () => {
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
       fs.mkdirSync(eventsFile(sandbox.env), { recursive: true });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
         sandbox.env
@@ -177,7 +177,7 @@ describe('check-output.run', () => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'off' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R1', rejected: { text: 'synergy wins', alerts: [] }, rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R1' }, sandbox.env);
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' },
         sandbox.env
@@ -214,7 +214,7 @@ describe('check-output.run', () => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R2', rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R2' }, sandbox.env);
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
       records = readRecords(rejectionsFile(sandbox.env));
@@ -236,7 +236,7 @@ describe('check-output.run', () => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
       appendRecord(rejectionsFile(sandbox.env), { id: 'R3', rewrite: null });
       writeSession(SESSION, { pendingRewrite: 'R3' }, sandbox.env);
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       first = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still' }, sandbox.env);
       afterFirst = { pending: readSession(SESSION, sandbox.env).pendingRewrite, rewrite: readRecords(rejectionsFile(sandbox.env))[0].rewrite };
       respond({});
@@ -279,7 +279,7 @@ describe('check-output.run', () => {
         { pendingRewrite: 'R4', lastStopBlock: JSON.stringify(['reply|JustSaySo.Buzzwords|synergy']) },
         sandbox.env
       );
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy still', stop_hook_active: true },
         sandbox.env
@@ -307,7 +307,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
         sandbox.env
@@ -336,7 +336,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       sandbox = makeSandbox({ outputCheck: { mode: 'warn' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy again' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
@@ -352,7 +352,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       sandbox = makeSandbox({ outputCheck: { mode: 'warn', deliver: 'next-reminder' }, reminder: { mode: 'off' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
         sandbox.env
@@ -374,7 +374,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
         sandbox.env
@@ -413,7 +413,7 @@ describe('check-output.run', () => {
       const transcript = writeTranscript(sandbox.work, 'reply.jsonl', [
         { type: 'assistant', message: { id: 'MSG', content: [{ type: 'text', text: 'we ship synergy' }] } }
       ]);
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: transcript }, sandbox.env);
     });
 
@@ -427,7 +427,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run({ session_id: SESSION, cwd: sandbox.work, transcript_path: '/nope/missing.jsonl' }, sandbox.env);
     });
 
@@ -464,7 +464,7 @@ describe('check-output.run', () => {
       });
       const reply = 'the robust regression suite passed';
       const start = reply.indexOf('robust') + 1;
-      respond({ 'reply.chat.md': [errorAlert({ Match: 'robust', Span: [start, start + 5] })] });
+      respond({ 'reply.reply': [errorAlert({ Match: 'robust', Span: [start, start + 5] })] });
       output = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: reply }, sandbox.env);
     });
 
@@ -686,7 +686,7 @@ describe('check-output.run', () => {
 
     beforeEach(() => {
       sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' }, sandbox.env);
       output = run(
         { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins', stop_hook_active: true },
@@ -769,7 +769,7 @@ describe('check-output.run', () => {
       fs.writeFileSync(file, 'pure synergy\n');
       writeSession(SESSION, gateRecord(file), sandbox.env);
       respond({
-        'reply.chat.md': [errorAlert({ Match: 'delve', Message: "Banned buzzword: 'delve'." })],
+        'reply.reply': [errorAlert({ Match: 'delve', Message: "Banned buzzword: 'delve'." })],
         'doc.md': [errorAlert({ Span: [6, 12] })]
       });
       output = run(
@@ -793,7 +793,7 @@ describe('check-output.run', () => {
       const projectDir = fs.mkdtempSync(path.join(sandbox.work, 'proj-'));
       fs.writeFileSync(path.join(projectDir, '.just-say-so.json'), JSON.stringify({ outputCheck: { mode: 'block' } }));
       writeSession(SESSION, { projectDir }, sandbox.env);
-      respond({ 'reply.chat.md': [errorAlert()] });
+      respond({ 'reply.reply': [errorAlert()] });
       output = run(
         {
           session_id: SESSION,

@@ -14,6 +14,8 @@ import { readSession } from '../state.js';
 import {
   resolveValeConfig,
   lintText,
+  publishName,
+  fieldFromLabel,
   applyConfigExemptions,
   severityRank,
   formatAlerts,
@@ -67,9 +69,10 @@ function unresolvedPolicy(bc, input) {
 // gh commands and MCP tools publish text humans read. The check lints the
 // extracted payloads, never the raw command: flags and paths are shell
 // syntax, and a punctuation rule reads `--body` as prose and false-denies.
-// Each payload lints alone under the `*.chat.md` name, selecting the
-// reduced chat section of the config, so document-level rules stay out of
-// a fragment's way and line numbers match the payload.
+// Each payload lints alone under a `<source>.<tool>.<field>.publish` name
+// (gh.pr.body.publish, mcp.jira.create_issue.publish), so a config section
+// can pick rules per target and document-level rules stay out of a
+// fragment's way, and line numbers match the payload.
 function runPublishCheck(toolName, toolInput, input, env) {
   const anchor = commandAnchor(input, env);
   const config = loadConfig(anchor, env);
@@ -82,10 +85,20 @@ function runPublishCheck(toolName, toolInput, input, env) {
     const extracted = extractGhTexts(toolInput.command);
     if (!extracted) return null;
     ({ payloads, unresolved, target } = extracted);
+    // Each payload names the gh invocation it came from, so a compound
+    // command lints its api title as gh.api.title.publish even when a pr
+    // command came first.
+    payloads = payloads.map((p) => ({
+      ...p,
+      name: publishName({ source: 'gh', tool: p.target.split(' ')[1], field: fieldFromLabel(p.label) })
+    }));
   } else {
     if (!matchesMcpTool(toolName, bc.mcpTools)) return null;
     const text = collectStrings(toolInput).join('\n');
-    payloads = text ? [{ label: toolName, text }] : [];
+    // mcp__server__tool → mcp.server.tool.publish; one fragment per call
+    // until per-field extraction lands, so a section matches by tool.
+    const tool = toolName.replace(/^mcp__/, '').replace(/__/g, '.');
+    payloads = text ? [{ label: toolName, text, name: publishName({ source: 'mcp', tool }) }] : [];
     unresolved = [];
     target = toolName;
   }
@@ -94,7 +107,7 @@ function runPublishCheck(toolName, toolInput, input, env) {
   const configPath = resolveValeConfig(anchor, config);
   const visible = [];
   for (const payload of payloads) {
-    const raw = lintText(payload.text, { name: 'fragment.chat.md', configPath, env });
+    const raw = lintText(payload.text, { name: payload.name, configPath, env });
     if (raw === null) return null; // vale missing or broken: silent, session-start told the user
     const lines = payload.text.split('\n');
     const alerts = applyConfigExemptions(raw, bc, (_file, line) => lines[line - 1] ?? null);

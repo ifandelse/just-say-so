@@ -54,6 +54,33 @@ export function probeVale(env = process.env) {
   return !r.error && r.status === 0;
 }
 
+/**
+ * What a Vale config says about the reply and publish targets, for the
+ * session-start notice. Reads the resolved config through `vale ls-config`
+ * so package-supplied sections count. Returns null when vale cannot read it.
+ */
+export function inspectValeConfig(configPath, env = process.env) {
+  const r = spawnSync('vale', ['ls-config', `--config=${configPath}`], {
+    cwd: path.dirname(path.resolve(configPath)),
+    encoding: 'utf8',
+    timeout: SPAWN_TIMEOUT_MS,
+    env
+  });
+  if (r.error || r.status !== 0) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(r.stdout || '{}');
+  } catch {
+    return null;
+  }
+  const formats = parsed.Formats ?? {};
+  const sections = [...Object.keys(parsed.SBaseStyles ?? {}), ...Object.keys(parsed.SChecks ?? {})];
+  return {
+    formatsMapped: formats.reply === 'md' && formats.publish === 'md',
+    chatSections: [...new Set(sections.filter((g) => g.includes('chat.md')))]
+  };
+}
+
 function parseAlerts(stdout, cwd) {
   let parsed;
   try {
@@ -93,12 +120,47 @@ export function lintPath(filePath, { configPath, env = process.env } = {}) {
   return parseAlerts(r.stdout, cwd);
 }
 
+// The names text lints under are the contract with the Vale config: a
+// section such as [*.reply] or [gh.*.title.publish] selects rules for one
+// target, and [*.md] never matches either, so a project's document rules
+// stay out of chat. The shipped package maps both extensions to Markdown
+// in [formats].
+export const REPLY_NAME = 'reply.reply';
+
+// A part may carry its own dots (mcp tool "jira.create_issue"); anything
+// else outside [A-Za-z0-9_.-] becomes an underscore.
+function fragmentPart(s) {
+  return String(s ?? '')
+    .replace(/[^A-Za-z0-9_.-]+/g, '_')
+    .replace(/^[_.]+|[_.]+$/g, '');
+}
+
+// The leaf field a gh label names: `--body-file` → body, `-f comments[][body]`
+// → body, `--input comments[3].body` → body. Unknown shapes keep their text.
+export function fieldFromLabel(label) {
+  const last = String(label ?? '').trim().split(/\s+/).pop() ?? '';
+  const segments = last.split(/[.[\]]+/).filter(Boolean);
+  const leaf = segments.length > 0 ? segments[segments.length - 1] : last;
+  return leaf.replace(/^-+/, '').replace(/-file$/, '');
+}
+
+/**
+ * The name a published fragment lints under: `<source>.<tool>.<field>.publish`,
+ * for example `gh.pr.body.publish` or `mcp.jira.create_issue.publish` when
+ * the field is unknown. Parts are reduced to [A-Za-z0-9_-] so a name is
+ * always a single path segment.
+ */
+export function publishName({ source, tool, field } = {}) {
+  const parts = [source, tool, field].map(fragmentPart).filter(Boolean);
+  return `${parts.join('.')}.publish`;
+}
+
 /**
  * Lint a text fragment under a chosen filename (the name is the contract:
- * `*.chat.md` selects the reduced chat section of the config). Returns an
- * alert array or null on failure.
+ * `reply.reply` and `*.publish` select the target sections of the config).
+ * Returns an alert array or null on failure.
  */
-export function lintText(text, { name = 'reply.chat.md', configPath, env = process.env } = {}) {
+export function lintText(text, { name = REPLY_NAME, configPath, env = process.env } = {}) {
   let dir;
   try {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'just-say-so-'));

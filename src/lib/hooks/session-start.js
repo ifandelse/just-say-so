@@ -6,9 +6,9 @@
 // every edit is worse than one line at startup.
 // Returns the hook output object, or null for silence.
 import { loadConfig } from '../config.js';
-import { readRules, loadMessages } from '../rules.js';
+import { readRules, loadMessages, fill } from '../rules.js';
 import { readSession, writeSession, resetSession, cleanupSessions } from '../state.js';
-import { probeVale } from '../vale.js';
+import { probeVale, resolveValeConfig, inspectValeConfig } from '../vale.js';
 import { replyCheckMode, formatReplyReport } from '../reply-alerts.js';
 import { logEvent, eventsOn } from '../events.js';
 
@@ -55,6 +55,17 @@ export function run(input, env = process.env) {
   const valeFound = checksOn || eventsOn(config) ? probeVale(env) : null;
   const notices = [];
   if (checksOn && valeFound === false) notices.push(messages.valeMissing);
+  // The names changed in 0.9.0: a [*.chat.md] section from an older config
+  // matches nothing now, and a config without the [formats] mapping lints
+  // chat as plain text. Both are quiet failures, so this is the one place
+  // that says so.
+  if (checksOn && valeFound) {
+    const seen = inspectValeConfig(resolveValeConfig(input.cwd, config), env);
+    if (seen?.chatSections.length > 0) {
+      notices.push(fill(messages.valeChatSectionDead, { sections: seen.chatSections.map((g) => `[${g}]`).join(', ') }));
+    }
+    if (seen && !seen.formatsMapped) notices.push(messages.valeFormatsMissing);
+  }
   if (replyMode === 'idle') notices.push(messages.replyCheckIdle);
 
   const project = input.cwd ?? null;

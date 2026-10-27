@@ -88,7 +88,7 @@ Edit `.just-say-so.json`: add `"outputCheck": { "mode": "block" }`.
 
 **14. Reply check, block.** Say: "Reply with exactly this sentence: we leverage synergy." Expect: the model finishes, the Stop hook bounces the reply with the Vale alerts, and the model continues with a rewrite. If the rewrite still carries the same alerts, the hook reports once (`not blocking again`) instead of looping. Note the UX; this is why `block` is not the default.
 
-**15. Warn report (0.5.0).** Switch `outputCheck.mode` to `"warn"` with `"deliver": "next-reminder"`, set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, and repeat. Expect: the reply stands, nothing prints, and the next prompt gets nothing either. On the third prompt the reminder fires with the report under the rules (transcript grep: `Recent replies broke these rules`), naming `JustSaySo.Leverage "leverage"` and `JustSaySo.Buzzwords "synergy"` with counts. With ai-tells loaded in `[*.chat.md]`, "leverage" appears once, under the JustSaySo rule (0.5.1, issue #1). The session state file (`~/.local/state/just-say-so/sessions/<id>.json` or `$CLAUDE_PLUGIN_DATA/state/...`) shows `replyAlerts` filled before the reminder and `{}` after.
+**15. Warn report (0.5.0).** Switch `outputCheck.mode` to `"warn"` with `"deliver": "next-reminder"`, set `reminder.mode` to `"prompts"` with `everyPrompts` at 3, and repeat. Expect: the reply stands, nothing prints, and the next prompt gets nothing either. On the third prompt the reminder fires with the report under the rules (transcript grep: `Recent replies broke these rules`), naming `JustSaySo.Leverage "leverage"` and `JustSaySo.Buzzwords "synergy"` with counts. With ai-tells loaded in `[*.reply]`, "leverage" appears once, under the JustSaySo rule (0.5.1, issue #1). The session state file (`~/.local/state/just-say-so/sessions/<id>.json` or `$CLAUDE_PLUGIN_DATA/state/...`) shows `replyAlerts` filled before the reminder and `{}` after.
 
 **15a. The model stays quiet (0.5.0, resolves an open question).** Continue from 15. On the prompt that carries the report, ask an unrelated question. Expect: the answer neither acknowledges the report ("Noted, I'll avoid...") nor revises or repeats the earlier reply. Record the exact wording if it does; the instruction text is `replyReportInstruction` in `rules/messages.json`, and the fix is there, not in code.
 
@@ -148,7 +148,9 @@ EOF
 
 **18. Missing binary notice.** Make `vale` unreachable by renaming it (`mv "$(command -v vale)" "$(command -v vale)_off"`) — a stripped PATH also loses node on a Homebrew machine, so renaming is the reliable route. Start a session. Expect one system line at session start naming the missing binary; the checks then skip every write, and nothing breaks. Rename the binary back afterwards.
 
-**19. Project `.vale.ini` wins.** Drop a `.vale.ini` in the scratch repo with `MinAlertLevel = suggestion`, a style of your choice, and a `[*.chat.md]` section. Ground truth: alerts in check feedback now name your styles' rules, not only `JustSaySo.*`.
+**19. Project `.vale.ini` wins.** Drop a `.vale.ini` in the scratch repo with `MinAlertLevel = suggestion`, a style of your choice, and a `[*.reply]` section. Ground truth: alerts in check feedback now name your styles' rules, not only `JustSaySo.*`.
+
+**19a. Dead chat section notice (0.9.0).** Add a `[*.chat.md]` section to that `.vale.ini` and start a session. Expect one system line naming the section and the rename. Remove the JustSaySo package line (or the `[formats]` lines) and start again. Expect the second notice about the missing mapping. With the package synced and no chat section, expect no notice.
 
 ## Recording results
 

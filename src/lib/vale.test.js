@@ -18,7 +18,10 @@ import {
   countBySeverity,
   applyConfigExemptions,
   fileLineReader,
-  formatAlerts
+  formatAlerts,
+  publishName,
+  fieldFromLabel,
+  inspectValeConfig
 } from './vale.js';
 
 function tmp() {
@@ -315,7 +318,7 @@ describe('vale', () => {
 
       it('should write the text to the named temp file before linting', () => {
         expect(writtenText).toBe('We flumo daily.');
-        expect(mockSpawnSync.mock.calls[0][1][2]).toBe('reply.chat.md');
+        expect(mockSpawnSync.mock.calls[0][1][2]).toBe('reply.reply');
       });
 
       it('should return the alerts', () => {
@@ -570,6 +573,81 @@ describe('vale', () => {
 
     it('should fold case so edits that re-case a match still count as the same error', () => {
       expect(key).toBe('JustSaySo.Buzzwords|synergy');
+    });
+  });
+  describe('fieldFromLabel', () => {
+    it('should reduce every gh label shape to its leaf field', () => {
+      expect(
+        ['--body', '--body-file', '--notes-file', '-F', '-f body', '-f comments[][body]', '--input comments[3].body', '--title'].map(fieldFromLabel)
+      ).toEqual(['body', 'body', 'notes', 'F', 'body', 'body', 'body', 'title']);
+    });
+  });
+
+  describe('publishName', () => {
+    it('should join the parts it is given and end in .publish', () => {
+      expect([
+        publishName({ source: 'gh', tool: 'pr', field: 'body' }),
+        publishName({ source: 'mcp', tool: 'jira.create_issue' }),
+        publishName({ source: 'mcp', tool: 'odd name/with:chars' }),
+        publishName()
+      ]).toEqual(['gh.pr.body.publish', 'mcp.jira.create_issue.publish', 'mcp.odd_name_with_chars.publish', '.publish']);
+    });
+  });
+
+  describe('inspectValeConfig', () => {
+    describe('when the resolved config maps both formats and has no chat section', () => {
+      let result;
+
+      beforeEach(() => {
+        mockSpawnSync.mockReturnValue({
+          status: 0,
+          stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, SBaseStyles: { '*.reply': ['JustSaySo'] }, SChecks: {} })
+        });
+        result = inspectValeConfig('/proj/.vale.ini', {});
+      });
+
+      it('should run ls-config against that config from its directory', () => {
+        expect(mockSpawnSync.mock.calls[0].slice(0, 2)).toEqual(['vale', ['ls-config', '--config=/proj/.vale.ini']]);
+        expect(mockSpawnSync.mock.calls[0][2].cwd).toBe('/proj');
+      });
+
+      it('should report the mapping and no dead sections', () => {
+        expect(result).toEqual({ formatsMapped: true, chatSections: [] });
+      });
+    });
+
+    describe('when the config still carries chat.md sections and no formats', () => {
+      let result;
+
+      beforeEach(() => {
+        mockSpawnSync.mockReturnValue({
+          status: 0,
+          stdout: JSON.stringify({
+            Formats: {},
+            SBaseStyles: { '*.chat.md': ['X'], '*.md': ['X'] },
+            SChecks: { '*.chat.md': { 'X.Y': false }, '{**/,}fragment.chat.md': {} }
+          })
+        });
+        result = inspectValeConfig('/proj/.vale.ini', {});
+      });
+
+      it('should list each dead section once and report the missing mapping', () => {
+        expect(result).toEqual({ formatsMapped: false, chatSections: ['*.chat.md', '{**/,}fragment.chat.md'] });
+      });
+    });
+
+    describe('when vale fails or prints something other than JSON', () => {
+      let failed, garbage;
+
+      beforeEach(() => {
+        mockSpawnSync.mockReturnValueOnce({ status: 2, stdout: '' }).mockReturnValueOnce({ status: 0, stdout: 'nope' });
+        failed = inspectValeConfig('/proj/.vale.ini', {});
+        garbage = inspectValeConfig('/proj/.vale.ini', {});
+      });
+
+      it('should return null both times', () => {
+        expect([failed, garbage]).toEqual([null, null]);
+      });
     });
   });
 });

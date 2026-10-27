@@ -164,8 +164,10 @@ function splitFlag(token) {
 /**
  * The text a gh command publishes, extracted for linting. Returns null when
  * the command is not a covered gh invocation. Otherwise returns
- * { target, payloads, unresolved }: payloads are { label, text } literals
- * ready to lint, and unresolved are { label, reason } values the extractor
+ * { target, payloads, unresolved }: target is the first covered gh
+ * invocation, payloads are { label, text, target } literals ready to lint,
+ * each naming the invocation it came from (a compound command can carry
+ * several), and unresolved are { label, reason } values the extractor
  * refused to guess at — expansions, stdin, heredocs, unreadable files. The
  * caller decides what an unresolved value means; the extractor only
  * refuses to invent text.
@@ -176,6 +178,9 @@ export function extractGhTexts(command, { readFile } = {}) {
   const payloads = [];
   const unresolved = [];
   let target = null;
+  // The gh invocation the loop is inside; the closures below stamp it on
+  // each payload they push.
+  let segTarget = null;
 
   const fileContents = (label, token) => {
     if (token.unsafe) {
@@ -187,7 +192,7 @@ export function extractGhTexts(command, { readFile } = {}) {
       return;
     }
     try {
-      payloads.push({ label, text: read(token.value) });
+      payloads.push({ label, text: read(token.value), target: segTarget });
     } catch {
       unresolved.push({ label, reason: `cannot read ${token.value}` });
     }
@@ -221,7 +226,7 @@ export function extractGhTexts(command, { readFile } = {}) {
       return;
     }
     for (const { path: at, text: value } of proseStringsIn(parsed, '', [])) {
-      payloads.push({ label: `--input ${at}`, text: value });
+      payloads.push({ label: `--input ${at}`, text: value, target: segTarget });
     }
   };
 
@@ -232,7 +237,7 @@ export function extractGhTexts(command, { readFile } = {}) {
     const isApi = a === 'api';
     const isTrigger = /^(pr|issue|release)$/.test(a ?? '') && /^(create|comment|edit|review)$/.test(b ?? '');
     if (!isApi && !isTrigger) continue;
-    const segTarget = isApi ? 'gh api' : `gh ${a} ${b}`;
+    segTarget = isApi ? 'gh api' : `gh ${a} ${b}`;
     if (!target) target = segTarget;
 
     let j = i + (isApi ? 2 : 3);
@@ -269,18 +274,22 @@ export function extractGhTexts(command, { readFile } = {}) {
         } else if (valueToken.unsafe) {
           unresolved.push({ label, reason: 'shell expansion in the value' });
         } else if (rest) {
-          payloads.push({ label, text: rest });
+          payloads.push({ label, text: rest, target: segTarget });
         }
         continue;
       }
 
       if (FILE_FLAGS[flag]) {
+        // -F is --body-file on pr/issue and --notes-file on release; the
+        // label names the field, so the fragment name does not depend on
+        // which spelling the model chose.
+        const label = flag === '-F' ? (a === 'release' ? '--notes-file' : '--body-file') : FILE_FLAGS[flag];
         if (!valueToken) {
-          unresolved.push({ label: flag, reason: 'missing value' });
+          unresolved.push({ label, reason: 'missing value' });
           continue;
         }
         if (!inline) j++;
-        fileContents(FILE_FLAGS[flag], valueToken);
+        fileContents(label, valueToken);
         continue;
       }
       if (VALUE_FLAGS[flag]) {
@@ -293,7 +302,7 @@ export function extractGhTexts(command, { readFile } = {}) {
         if (valueToken.unsafe) {
           unresolved.push({ label, reason: 'shell expansion in the value' });
         } else if (valueToken.value) {
-          payloads.push({ label, text: valueToken.value });
+          payloads.push({ label, text: valueToken.value, target: segTarget });
         }
       }
     }

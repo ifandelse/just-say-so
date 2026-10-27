@@ -29,8 +29,10 @@ The plugin does this through hooks. A hook is a command your harness runs at a f
 | `PostToolUse`      | Runs Vale on the file a tool just wrote (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`). The hook drops alerts outside the lines this edit added, so on a legacy file the agent answers only for its own additions. The hook records errors for the Stop gate, and keeps an earlier edit's unfixed errors on record when a later edit to the same file is clean.                                                                                            |
 | `Stop`             | In `files.mode: "block"`, the session gate: re-lint the recorded files and block the turn while their errors remain. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. Also the reply check (`reply.mode`): `block` forces a rewrite; `warn`, the default, records per-rule counts, which ride the next rules injection as a report. After `/just-say-so:restate`, adds the rewrite to the rejection record. |
 
-You also get four commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
+You also get six commands. They work in environments without hooks (like desktop apps), and anywhere you want manual control:
 
+- `/just-say-so:init [flags]` — set a project up: a `.vale.ini` that loads the JustSaySo package, `vale sync`, the plugin config for the targets you name, and the commit gate for the repo's hook tooling. See [Setting a project up](#setting-a-project-up).
+- `/just-say-so:doctor` — how the plugin reads this project: the Vale binary and config in force, which rules each target lints under, the raw section settings, and every warning. See [The doctor](#the-doctor).
 - `/just-say-so:rules` — load the full rules into context for the rest of the session.
 - `/just-say-so:remind` — inject the condensed reminder now.
 - `/just-say-so:restate [reason]` — the previous reply broke the rules in a way you noticed. The model rewrites it under the condensed rules, and the plugin saves the rejected reply, your reason, and the rewrite as a labeled example. See [Rejected replies](#rejected-replies).
@@ -102,7 +104,7 @@ node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everythin
 
 **Configuration** is the `.vale.ini` alone: the nearest one above the file, or the shipped fallback when there is none. A term you allowed during a session lives in that config's vocabulary, so it is allowed at commit time too.
 
-**Installing it** in a repository, by preference:
+**Installing it** in a repository: `/just-say-so:init` does it for the hook tooling the repo already has, and prints the step it cannot do itself (a dev dependency install or `pre-commit install`). By hand, by preference:
 
 1. **The [pre-commit framework](https://pre-commit.com).** This repo ships [.pre-commit-hooks.yaml](.pre-commit-hooks.yaml). Pin the hook at a tag, and the framework clones the script at that revision:
 
@@ -134,6 +136,21 @@ Do not point a hook at the Claude plugin cache. The path there is machine-specif
 - `vale` on your PATH: `brew install vale`, or another installer from [vale.sh](https://vale.sh). Without it, the hooks skip the checks and the reminders still work. `SessionStart` prints one notice.
   - ⚠️ A different tool, an STE linter, also installs a binary named `vale`. This plugin uses errata-ai vale — the one brew installs. If you have both, put errata-ai's first on PATH.
 - Claude Code 2.1.85 or newer, for the command filter the `gh` addon uses. Details are under [Checking published text](#checking-published-text-gh-and-mcp-tools).
+
+### Setting a project up
+
+Run `/just-say-so:init` in the project. It does four things and prints each one:
+
+1. Writes a `.vale.ini` when the project has none: `StylesPath = styles`, `Vocab = Project` with an empty `accept.txt`, the JustSaySo package pinned at the plugin's version, and `[*] BasedOnStyles = JustSaySo`. When a `.vale.ini` exists, it pins the package and adds the two keys only if they are missing, and never touches your sections.
+2. Runs `vale sync`.
+3. Writes `.just-say-so.json` for the flags you gave, merged over an existing file: `--files`, `--publish`, `--reply` take `off|warn|block`; `--gh` turns on the gh check; `--mcp <pattern>` names an MCP tool pattern and repeats. No flags means the defaults apply and no file is written.
+4. Wires the commit gate. `--hook auto` (the default) picks the pre-commit framework when `.pre-commit-config.yaml` exists, Husky when `.husky/` exists, a plain `.git/hooks/pre-commit` when the repo has a `package.json`, and otherwise prints the pre-commit snippet. The framework config is never edited; the snippet is printed for you to add. The Husky and plain-git hooks run `node_modules/.bin/just-say-so-staged`, so the dev dependency install the output names is the step you run yourself.
+
+`--dry-run` prints every step without writing. The doctor report follows every run.
+
+### The doctor
+
+`/just-say-so:doctor` prints the setup facts, then one line per target with the styles in force, the count of error-level rules, and any rules of a selected style that are off, then the raw section settings in the order Vale applies them, then the warnings. The target lines are the plugin's reading of the Vale config, the same reading the context-start reminder uses, and the raw settings sit beside them so you can check that reading against the config when they disagree. Warnings cover: a missing or wrong `vale` binary, 0.8.x keys in a config file, no `.vale.ini` above the directory, the package pinned at a different tag than the plugin, packages listed but not synced, a `Vocab` that names a missing vocabulary (Vale stops with E100 until it exists), the `reply` and `publish` formats not mapped, a leftover `chat.md` section, a section that restates `BasedOnStyles`, the JustSaySo style installed but selected nowhere, and a target in block mode with no error-level rule. The command exits 1 when there are warnings, so a script can gate on it.
 
 ### Plugin install
 

@@ -91,7 +91,7 @@ export function findProjectConfig(cwd) {
 }
 
 // The config files in force for a cwd, in precedence order.
-function configFiles(cwd, env) {
+export function configFiles(cwd, env) {
   const files = [globalConfigPath(env)];
   const projectFile = cwd ? findProjectConfig(cwd) : null;
   if (projectFile) files.push(projectFile);

@@ -181,6 +181,18 @@ else
   skip 'both spellings allowed'
 fi
 
+echo '— doctor'
+new_env s13
+OUT=$(cd "$W" && JUST_SAY_SO_STATE_DIR="$STATE" JUST_SAY_SO_CONFIG="$GLOBAL" node "$PLUGIN/src/cli/doctor.js" 2>&1); CODE=$?
+contains 'just-say-so doctor' && contains 'No .vale.ini above this directory' && [ "$CODE" -eq 1 ]; check 'doctor reports the fallback and exits 1' $?
+if [ "$HAVE_VALE" -eq 1 ]; then
+  (cd "$W" && JUST_SAY_SO_STATE_DIR="$STATE" JUST_SAY_SO_CONFIG="$GLOBAL" node "$PLUGIN/src/cli/init.js" --hook none --dry-run >/dev/null 2>&1)
+  OUT=$(ls "$W")
+  ! contains '.vale.ini'; check 'init --dry-run writes nothing' $?
+else
+  skip 'init dry run'
+fi
+
 echo '— resilience'
 GARBAGE_OK=0
 for s in remind.js pre-gate.js check-vale.js session-start.js subagent-start.js check-output.js; do

@@ -35,7 +35,7 @@ const SPAWN_TIMEOUT_MS = 10_000;
 const NAMED_RULES_CAP = 12;
 const GLOBAL = '*';
 
-function lsConfig(configPath, env) {
+export function lsConfig(configPath, env) {
   let r;
   try {
     r = spawnSync('vale', ['ls-config', `--config=${configPath}`], {

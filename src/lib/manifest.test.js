@@ -17,6 +17,7 @@ import {
 /*
  * Branch map — src/lib/manifest.js
  *   loadManifest: shipped · rules.manifest override (tilde expanded) ·
+ *     relative paths resolve against the project directory ·
  *     rules.extra appends sections and the ids with a short text ·
  *     malformed extra ignored
  *   renderRules condensed: title, intro, the ids in order, rules without
@@ -145,6 +146,25 @@ describe('manifest', () => {
           titles: ['Shape', 'Words', 'Last', 'Project'],
           condensed: ['lead', 'words', 'frames', 'missing-id', 'dash']
         });
+      });
+    });
+
+    describe('when the rule files are named by paths relative to the project', () => {
+      let fromElsewhere, extra;
+
+      beforeEach(() => {
+        const dir = tmpdir();
+        fs.mkdirSync(path.join(dir, 'rules'));
+        fs.writeFileSync(path.join(dir, 'rules', 'm.json'), JSON.stringify(SMALL));
+        fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify({ sections: [{ title: 'Project', rules: [{ id: 'extra', full: 'x', vale: [] }] }] }));
+        const config = { rules: { manifest: 'rules/m.json', extra: './x.json' } };
+        fromElsewhere = loadManifest(config, dir);
+        extra = loadExtra(config, dir);
+      });
+
+      it('should resolve both against the project directory, not the launch directory', () => {
+        expect(fromElsewhere.sections.map((s) => s.title)).toEqual(['Shape', 'Words', 'Last', 'Project']);
+        expect(extra.sections[0].rules[0].id).toBe('extra');
       });
     });
 

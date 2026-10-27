@@ -86,8 +86,12 @@ describe('doctor and init CLIs', () => {
       const shared = makeSandbox();
       const a = fs.realpathSync(fs.mkdtempSync(path.join(shared.work, 'a-')));
       const b = fs.realpathSync(fs.mkdtempSync(path.join(shared.work, 'b-')));
+      // Relative paths, as the /draft skill recommends, so the test fails
+      // whenever a loader resolves them against the launch directory.
+      fs.mkdirSync(path.join(b, 'rules'));
+      fs.copyFileSync(path.join(ROOT, 'rules', 'manifest.json'), path.join(b, 'rules', 'manifest.json'));
       fs.writeFileSync(path.join(b, 'rules.json'), JSON.stringify({ sections: [{ title: 'B', rules: [{ id: 'domain-term', full: 'x', vale: ['Project.DomainTerm'] }] }] }));
-      fs.writeFileSync(path.join(b, '.just-say-so.json'), JSON.stringify({ rules: { extra: path.join(b, 'rules.json') } }));
+      fs.writeFileSync(path.join(b, '.just-say-so.json'), JSON.stringify({ rules: { manifest: 'rules/manifest.json', extra: 'rules.json' } }));
       fs.mkdirSync(shared.stateDir, { recursive: true });
       fs.writeFileSync(
         path.join(shared.stateDir, 'rejections.jsonl'),

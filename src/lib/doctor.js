@@ -215,7 +215,7 @@ export function doctorReport(cwd, env = process.env) {
   raw.push(rawSection('*', resolved));
   for (const g of order) raw.push(rawSection(g, resolved));
 
-  const extra = loadExtra(config);
+  const extra = loadExtra(config, cwd);
   if (config.rules?.extra && !extra) warnings.push(`rules.extra names ${config.rules.extra}, which cannot be read as JSON, so its bullets are not in the reminder.`);
   const unknown = (extra?.sections ?? [])
     .flatMap((sec) => sec.rules ?? [])

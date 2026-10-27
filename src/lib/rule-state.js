@@ -211,7 +211,7 @@ export function undescribedIds(state, manifest, minLevel = 'error') {
  * no vale binary (`vale: false`).
  */
 export function contextRules(config, anchorDir, env = process.env, { vale = null } = {}) {
-  const manifest = loadManifest(config);
+  const manifest = loadManifest(config, anchorDir);
   if (vale === false) return renderRules(manifest, 'condensed');
   const configPath = resolveValeConfig(anchorDir, config);
   const resolved = lsConfig(configPath, env);

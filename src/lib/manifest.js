@@ -26,21 +26,30 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+// A rule-file path from a config file. Relative paths are relative to
+// the project the config describes, not to wherever the command ran,
+// because the summary reports on other projects and hooks run from a
+// cwd Claude chooses. Absolute and home paths stay as written.
+export function ruleFilePath(p, cwd) {
+  return path.resolve(cwd, expandHome(p));
+}
+
 /**
  * The manifest in force: the shipped one, or the file rules.manifest
  * names, with the sections of rules.extra appended. An extra file holds
  * the same shape (sections of rules); its rules with a `short` text join
  * the condensed reminder after the shipped ones. A missing or malformed
  * extra file is ignored, so a typo in a project file never breaks a hook.
+ * `cwd` is the project directory relative paths resolve against.
  */
-export function loadManifest(config) {
+export function loadManifest(config, cwd = process.cwd()) {
   const override = config?.rules?.manifest;
-  const manifest = readJson(override ? expandHome(override) : shippedManifestPath());
+  const manifest = readJson(override ? ruleFilePath(override, cwd) : shippedManifestPath());
   const extraPath = config?.rules?.extra;
   if (!extraPath) return manifest;
   let extra;
   try {
-    extra = readJson(expandHome(extraPath));
+    extra = readJson(ruleFilePath(extraPath, cwd));
   } catch {
     return manifest;
   }
@@ -50,11 +59,11 @@ export function loadManifest(config) {
 }
 
 /** The rules.extra manifest fragment alone, or null when none is set or readable. */
-export function loadExtra(config) {
+export function loadExtra(config, cwd = process.cwd()) {
   const extraPath = config?.rules?.extra;
   if (!extraPath) return null;
   try {
-    return readJson(expandHome(extraPath));
+    return readJson(ruleFilePath(extraPath, cwd));
   } catch {
     return null;
   }

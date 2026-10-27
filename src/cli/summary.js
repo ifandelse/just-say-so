@@ -38,7 +38,7 @@ try {
 const manifests = new Map();
 const manifestFor = (project) => {
   const dir = project ?? process.cwd();
-  if (!manifests.has(dir)) manifests.set(dir, loadManifest(loadConfig(dir)));
+  if (!manifests.has(dir)) manifests.set(dir, loadManifest(loadConfig(dir), dir));
   return manifests.get(dir);
 };
 const report = summarize(readEvents(eventsFile()), readRecords(rejectionsFile()), {

@@ -120,6 +120,62 @@ describe('doctor and init CLIs', () => {
     });
   });
 
+  describe('when the advise and packages CLIs run with a styles directory, a cache, and the shipped registry', () => {
+    let advise, adviseJson, packagesJson, pruned;
+
+    beforeEach(() => {
+      const sandbox = withFakeVale(makeSandbox());
+      const project = fs.realpathSync(fs.mkdtempSync(path.join(sandbox.work, 'proj-')));
+      const styles = path.join(project, 'styles');
+      fs.mkdirSync(path.join(styles, 'ai-tells'), { recursive: true });
+      fs.writeFileSync(path.join(styles, 'ai-tells', 'HedgingPhrases.yml'), "extends: existence\nmessage: \"AI hedge: '%s'. State your point directly.\"\nlevel: error\n");
+      fs.writeFileSync(path.join(project, '.vale.ini'), 'StylesPath = styles\nPackages = ai-tells\n[*]\nBasedOnStyles = ai-tells\n');
+      const lsConfig = path.join(sandbox.work, 'ls-config.json');
+      fs.writeFileSync(lsConfig, JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: ['ai-tells'], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [styles], ConfigFiles: [] }));
+      fs.mkdirSync(path.join(sandbox.stateDir, 'packages'), { recursive: true });
+      fs.writeFileSync(
+        path.join(sandbox.stateDir, 'packages', 'Voices.json'),
+        JSON.stringify({ name: 'Voices', url: 'u', fetched: '2026-10-01T00:00:00.000Z', rules: [{ id: 'Direct.Hedging', level: 'warning', extends: 'existence', message: "Hedge: '%s'. State it.", description: null, link: null, sample: [] }] })
+      );
+      fs.writeFileSync(path.join(sandbox.stateDir, 'packages', 'Gone.json'), JSON.stringify({ name: 'Gone', url: 'u', fetched: '2026-10-01T00:00:00.000Z', rules: [] }));
+      const rec = (i) => ({
+        id: `2026-10-0${i}T12:00:00.000Z-000${i}`, session: 's', project, promptIndex: i + 1, sinceReminder: 0,
+        reason: '#hedging stacked hedges again', tags: ['hedging'], rejected: { text: 'r', alerts: [] }, rewrite: null, version: '0.16.0'
+      });
+      fs.writeFileSync(path.join(sandbox.stateDir, 'rejections.jsonl'), [1, 2, 3].map((i) => JSON.stringify(rec(i))).join('\n') + '\n');
+      const env = { ...sandbox.env, JSS_FAKE_LS_CONFIG: lsConfig, JUST_SAY_SO_REGISTRY: 'shipped' };
+      const runEnv = (cli, args) => spawnSync(process.execPath, [path.join(ROOT, 'src', 'cli', cli), ...args], { cwd: sandbox.work, encoding: 'utf8', env: { ...process.env, ...env } });
+      advise = runEnv('advise.js', []);
+      adviseJson = JSON.parse(runEnv('advise.js', ['--json']).stdout);
+      packagesJson = JSON.parse(runEnv('packages.js', ['--json']).stdout);
+      pruned = runEnv('packages.js', ['--prune']);
+    });
+
+    it('should shortlist the installed rule and the cached one, and read the config through vale', () => {
+      expect(advise.status).toBe(0);
+      expect(advise.stdout).toContain('package cache: 2 packages, 1 rules, fetched 2026-10-01T00:00:00.000Z.');
+      expect(advise.stdout).toContain('· #hedging: 3 · uncovered: no bullet has this id.');
+      expect(advise.stdout).toContain('  #hedging · reasons typed: #hedging stacked hedges again | #hedging stacked hedges again | #hedging stacked hedges again\n');
+      expect(advise.stdout).toContain("ai-tells.HedgingPhrases [installed, on, error] 3 (hedge, hedging) · AI hedge: '%s'. State your point directly.");
+      expect(advise.stdout).toContain("Direct.Hedging [cached from Voices, not installed] 3 (hedge, hedging) · Hedge: '%s'. State it.");
+      expect(advise.stdout).toContain('registry: shipped copy (live fetch failed: JUST_SAY_SO_REGISTRY=shipped)');
+      const p = adviseJson.projects[0];
+      expect({ vale: p.vale, packages: p.packages, replyStyles: p.replyStyles, notInstalled: p.notInstalled.map((e) => e.name).includes('ai-tells') }).toEqual({
+        vale: true, packages: ['ai-tells'], replyStyles: ['ai-tells'], notInstalled: false
+      });
+      expect(adviseJson.registry).toEqual({ source: 'shipped', error: 'JUST_SAY_SO_REGISTRY=shipped' });
+    });
+
+    it('should report the cache against the registry and prune what the registry dropped', () => {
+      expect(packagesJson.packages.map((p) => [p.name, p.listed])).toEqual([['Gone', false], ['Voices', true]]);
+      expect(packagesJson.missing.length).toBeGreaterThanOrEqual(20);
+      expect(packagesJson.registry).toBe('shipped copy (live fetch failed: JUST_SAY_SO_REGISTRY=shipped)');
+      expect(pruned.stdout).toMatch(/^removed Gone\n/);
+      expect(pruned.stdout).toContain('  Voices: 1 rules · 2026-10-01T00:00:00.000Z\n');
+      expect(pruned.stdout).not.toContain('Gone:');
+    });
+  });
+
   describe('when init runs with a bad argument', () => {
     let result;
 

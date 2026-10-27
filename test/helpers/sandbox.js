@@ -35,6 +35,8 @@ if (args[0] === 'ls-dirs' || args[0] === 'sync') process.exit(0);
 if (args[0] === '--version') { process.stdout.write('vale version 0.0.0-fake\\n'); process.exit(0); }
 if (args[0] === 'ls-config') {
   // The minimum shape the resolver reads: the shipped mapping, no styles.
+  // JSS_FAKE_LS_CONFIG names a JSON file to answer with instead.
+  if (process.env.JSS_FAKE_LS_CONFIG) { process.stdout.write(fs.readFileSync(process.env.JSS_FAKE_LS_CONFIG, 'utf8')); process.exit(0); }
   process.stdout.write(JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }));
   process.exit(0);
 }

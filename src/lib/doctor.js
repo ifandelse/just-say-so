@@ -45,12 +45,13 @@ function countFileLines(file) {
   return text === null ? null : text.split('\n').filter((l) => l.trim()).length;
 }
 
-// Per target: enabled rules per style, error-level count, and the rules of
-// a selected style that are off.
+// Per target: how many of each style's rules are on, how many of the
+// rules that are on sit at each level, and the rules of a selected style
+// that are off.
 function targetSummary(name, resolved, inventory, order) {
   const state = ruleStateFor(name, resolved, inventory, order);
   const perStyle = new Map();
-  let errors = 0;
+  const levels = { error: 0, warning: 0, suggestion: 0 };
   const off = [];
   for (const [id, s] of state) {
     const style = id.split('.')[0];
@@ -58,7 +59,7 @@ function targetSummary(name, resolved, inventory, order) {
     row.total++;
     if (s.enabled) {
       row.on++;
-      if (s.level === 'error') errors++;
+      if (s.level in levels) levels[s.level]++;
     }
     perStyle.set(style, row);
   }
@@ -66,9 +67,25 @@ function targetSummary(name, resolved, inventory, order) {
     const row = perStyle.get(id.split('.')[0]);
     if (!s.enabled && row.on > 0) off.push(id);
   }
-  const styles = [...perStyle.entries()].filter(([, r]) => r.on > 0).map(([style, r]) => `${style} ${r.on}/${r.total}`);
+  const styles = [...perStyle.entries()].filter(([, r]) => r.on > 0).map(([style, r]) => `${style} ${r.on} of ${r.total} rules on`);
+  const levelText = Object.entries(levels)
+    .filter(([, n]) => n > 0)
+    .map(([level, n]) => `${n} ${level}`)
+    .join(', ');
   const sections = ['[*]', ...order.filter((g) => valeGlobToRegExp(g).test(name)).map((g) => `[${g}]`)];
-  return { styles, errors, off, sections };
+  const justSaySoOn = (perStyle.get('JustSaySo')?.on ?? 0) > 0;
+  return { styles, errors: levels.error, levelText, off, sections, justSaySoOn };
+}
+
+// A brace-list section names literal paths; the ones that no longer exist
+// are clutter the author should drop.
+function missingSectionPaths(glob, configDir) {
+  const m = /^\{(.*)\}$/.exec(glob);
+  if (!m) return [];
+  return m[1]
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p && !/[*?[\]]/.test(p) && !fs.existsSync(path.resolve(configDir, p)));
 }
 
 function rawSection(glob, resolved) {
@@ -170,6 +187,8 @@ export function doctorReport(cwd, env = process.env) {
   const order = sectionOrder(resolved);
   for (const g of order) {
     if (g.includes('chat.md')) warnings.push(`Section [${g}] matches nothing since 0.9.0. Rename it to [*.reply] or [*.publish].`);
+    const gone = missingSectionPaths(g, path.dirname(configPath));
+    if (gone.length > 0) warnings.push(`Section [${g.length > 60 ? g.slice(0, 57) + '...' : g}] names paths that do not exist: ${gone.join(', ')}. Drop them from the list.`);
   }
   const global = resolved.GBaseStyles ?? [];
   for (const [g, list] of Object.entries(resolved.SBaseStyles ?? {})) {
@@ -186,15 +205,16 @@ export function doctorReport(cwd, env = process.env) {
     targets.push({
       label,
       name,
-      line: `${label.padEnd(12)} ${name.padEnd(20)} ${t.styles.length ? t.styles.join(' · ') : 'no styles'} · errors ${t.errors}${t.off.length ? ` · off: ${t.off.slice(0, 6).join(', ')}${t.off.length > 6 ? ` (and ${t.off.length - 6} more)` : ''}` : ''}`,
+      line: `${label.padEnd(12)} ${name.padEnd(20)} ${t.styles.length ? `${t.styles.join(' · ')} · levels: ${t.levelText}` : 'no rules on'}${t.off.length ? ` · off: ${t.off.slice(0, 6).join(', ')}${t.off.length > 6 ? ` (and ${t.off.length - 6} more)` : ''}` : ''}`,
       sections: t.sections.join(' '),
-      errors: t.errors
+      errors: t.errors,
+      justSaySoOn: t.justSaySoOn
     });
   }
   raw.push(rawSection('*', resolved));
   for (const g of order) raw.push(rawSection(g, resolved));
 
-  if (anyJustSaySo && targets.every((t) => !/JustSaySo \d+\/\d+/.test(t.line))) {
+  if (anyJustSaySo && targets.every((t) => !t.justSaySoOn)) {
     warnings.push('The JustSaySo style is installed but no section lists it in BasedOnStyles, so no target lints under it. Add it to BasedOnStyles in [*].');
   }
 
@@ -216,7 +236,7 @@ export function formatDoctor(report) {
   lines.push('Setup');
   for (const f of report.facts) lines.push(`  ${f}`);
   if (report.targets.length > 0) {
-    lines.push('', "Targets (the plugin's reading of the Vale config)");
+    lines.push('', "Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)");
     for (const t of report.targets) lines.push(`  ${t.line}`, `  ${''.padEnd(12)} sections: ${t.sections}`);
     lines.push('', 'Raw section settings, in the order Vale applies them');
     for (const r of report.raw) lines.push(`  ${r}`);

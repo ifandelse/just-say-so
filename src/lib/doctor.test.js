@@ -18,7 +18,8 @@ import { makeSandbox } from '../../test/helpers/sandbox.js';
  *     listed but style missing · formats unmapped · chat.md section ·
  *     restated BasedOnStyles · JustSaySo not installed · installed but
  *     unselected · block mode with no error rule · dangling Vocab
- *   targets: styles on/total, errors, off list capped · sections column
+ *   targets: rules on per style, level counts, off list capped · sections column
+ *   warnings: a brace-list section naming paths that do not exist
  *   raw: global and per-section lines, levels folded in
  *   formatDoctor: no warnings line · numbered warnings
  */
@@ -117,12 +118,12 @@ describe('doctor', () => {
         'formats: reply = md, publish = md'
       ]);
       expect(report.targets.map((t) => [t.label, t.line.replace(/\s+/g, ' ').trim(), t.sections])).toEqual([
-        ['reply', 'reply reply.reply JustSaySo 1/2 · errors 1 · off: JustSaySo.Intensifiers', '[*] [*.reply]'],
-        ['publish', 'publish gh.pr.body.publish JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
-        ['artifact', 'artifact artifact.page.html JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
-        ['files .md', 'files .md doc.md JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
-        ['files .html', 'files .html page.html JustSaySo 2/2 · acme 1/1 · errors 2', '[*]'],
-        ['files .js', 'files .js code.js JustSaySo 2/2 · acme 1/1 · errors 2', '[*]']
+        ['reply', 'reply reply.reply JustSaySo 1 of 2 rules on · levels: 1 error · off: JustSaySo.Intensifiers', '[*] [*.reply]'],
+        ['publish', 'publish gh.pr.body.publish JustSaySo 2 of 2 rules on · acme 1 of 1 rules on · levels: 2 error, 1 suggestion', '[*]'],
+        ['artifact', 'artifact artifact.page.html JustSaySo 2 of 2 rules on · acme 1 of 1 rules on · levels: 2 error, 1 suggestion', '[*]'],
+        ['files .md', 'files .md doc.md JustSaySo 2 of 2 rules on · acme 1 of 1 rules on · levels: 2 error, 1 suggestion', '[*]'],
+        ['files .html', 'files .html page.html JustSaySo 2 of 2 rules on · acme 1 of 1 rules on · levels: 2 error, 1 suggestion', '[*]'],
+        ['files .js', 'files .js code.js JustSaySo 2 of 2 rules on · acme 1 of 1 rules on · levels: 2 error, 1 suggestion', '[*]']
       ]);
       expect(report.raw).toEqual(['[*] BasedOnStyles = JustSaySo, acme', '[*.reply] BasedOnStyles = JustSaySo; JustSaySo.Intensifiers = NO']);
       expect(report.warnings).toEqual([
@@ -143,7 +144,7 @@ describe('doctor', () => {
       const ini = path.join(work, '.vale.ini');
       fs.writeFileSync(
         ini,
-        'StylesPath = styles\nVocab = Ghost\nPackages = https://github.com/ifandelse/just-say-so/releases/download/v0.1.0/JustSaySo.zip\n[*]\nBasedOnStyles = Local\n[*.chat.md]\nBasedOnStyles = Local\n'
+        'StylesPath = styles\nVocab = Ghost\nPackages = https://github.com/ifandelse/just-say-so/releases/download/v0.1.0/JustSaySo.zip\n[*]\nBasedOnStyles = Local\n[*.chat.md]\nBasedOnStyles = Local\n[{README.md,gone.md,docs/**}]\nBasedOnStyles =\n'
       );
       fs.writeFileSync(path.join(work, '.just-say-so.json'), JSON.stringify({ outputCheck: { mode: 'block' }, files: { mode: 'block' }, reply: { mode: 'block' }, publish: { mode: 'block', gh: true } }));
       vale({
@@ -151,7 +152,7 @@ describe('doctor', () => {
           Formats: {},
           GBaseStyles: ['Local'],
           GChecks: {},
-          SBaseStyles: { '*.chat.md': ['Local'] },
+          SBaseStyles: { '*.chat.md': ['Local'], '{README.md,gone.md,docs/**}': [] },
           SChecks: { '*.chat.md': {} },
           RuleToLevel: {},
           SLevels: {},
@@ -170,6 +171,7 @@ describe('doctor', () => {
         expect.stringMatching(/^Vocab = Ghost names a vocabulary with no directory/),
         expect.stringMatching(/^reply and publish are not mapped to Markdown/),
         'Section [*.chat.md] matches nothing since 0.9.0. Rename it to [*.reply] or [*.publish].',
+        'Section [{README.md,gone.md,docs/**}] names paths that do not exist: README.md, gone.md. Drop them from the list.',
         expect.stringMatching(/^The JustSaySo style is installed but no section lists it/),
         'files .md is in block mode but no error-level rule is enabled for doc.md, so it can never block.',
         'publish is in block mode but no error-level rule is enabled for gh.pr.body.publish, so it can never block.',

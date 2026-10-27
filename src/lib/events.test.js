@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { eventsFile, eventsOn, logEvent, readEvents, summarizeAlerts } from './events.js';
+import { eventsFile, eventsOn, logEvent, readEvents, summarizeAlerts, fixedTerm } from './events.js';
 
 /*
  * Branch map — src/lib/events.js
@@ -10,11 +10,14 @@ import { eventsFile, eventsOn, logEvent, readEvents, summarizeAlerts } from './e
  *   eventsOn: missing section → on · "on" → on · "off" → off
  *   logEvent: off → false, nothing written · on → directory created, one line
  *     with t/e/session/project/v first and the fields after · session and
- *     project missing → null
+ *     project missing → null · append fails (path is a directory) → false, no throw
  *   readEvents: missing file → [] · blank and damaged lines skipped
+ *   fixedTerm: shipped word, phrase, contextual term → canonical spelling,
+ *     through case, curly apostrophe, nbsp and hyphen variants · anything
+ *     else → null (a frame capture, a short foreign-style match, empty)
  *   summarizeAlerts: null/undefined → null · [] → [] · counts per rule and
- *     severity · short match kept lowercased · long match omitted · overlap
- *     deduped · sorted by check, severity, match
+ *     severity · fixed-term match kept canonical · other match omitted ·
+ *     overlap deduped · sorted by check, severity, match
  */
 
 function tmpEnv() {
@@ -101,6 +104,25 @@ describe('events', () => {
       });
     });
 
+    describe('when the events path cannot be appended to', () => {
+      let written, threw;
+
+      beforeEach(() => {
+        const env = tmpEnv();
+        fs.mkdirSync(eventsFile(env), { recursive: true });
+        try {
+          written = logEvent('reply', { session: 'S1' }, { config: {}, env });
+          threw = false;
+        } catch {
+          threw = true;
+        }
+      });
+
+      it('should return false without throwing', () => {
+        expect({ written, threw }).toEqual({ written: false, threw: false });
+      });
+    });
+
     describe('when the log is off', () => {
       let written, exists;
 
@@ -139,6 +161,38 @@ describe('events', () => {
     });
   });
 
+  describe('fixedTerm', () => {
+    let result;
+
+    beforeEach(() => {
+      result = {
+        word: fixedTerm('Synergy'),
+        hyphenated: fixedTerm('Cutting Edge'),
+        phrase: fixedTerm('In\u00A0Order-to'),
+        curly: fixedTerm('it\u2019s important to note'),
+        contextual: fixedTerm('VERY'),
+        frame: fixedTerm("it's not acme\u2014it's"),
+        foreign: fixedTerm('ninja'),
+        empty: fixedTerm(''),
+        missing: fixedTerm(undefined)
+      };
+    });
+
+    it('should return the canonical shipped term and nothing else', () => {
+      expect(result).toEqual({
+        word: 'synergy',
+        hyphenated: 'cutting-edge',
+        phrase: 'in order to',
+        curly: "it's important to note",
+        contextual: 'very',
+        frame: null,
+        foreign: null,
+        empty: null,
+        missing: null
+      });
+    });
+  });
+
   describe('summarizeAlerts', () => {
     describe('when the reply was not linted', () => {
       let nul, undef;
@@ -164,15 +218,21 @@ describe('events', () => {
           alert({ Check: 'AITells.Buzzwords', Message: 'also synergy' }),
           alert({ Check: 'AITells.MicDrop', Severity: 'warning', Line: 5, Span: [1, 40], Match: 'This changes everything, full stop.' }),
           alert({ Check: 'AITells.MicDrop', Severity: 'warning', Line: 6, Span: [1, 20], Match: 'And that is the point.' }),
-          alert({ Check: 'JustSaySo.Buzzwords', Line: 9, Span: [1, 8], Match: 'leverage' })
+          alert({ Check: 'JustSaySo.Buzzwords', Line: 9, Span: [1, 8], Match: 'leverage' }),
+          // the shipped frame rule captures reply text inside a short span
+          alert({ Check: 'JustSaySo.NegativeParallelism', Line: 11, Span: [1, 18], Match: "It's not Acme\u2014it's" }),
+          // a project style can capture any short text
+          alert({ Check: 'Acme.Codenames', Severity: 'warning', Line: 12, Span: [1, 5], Match: 'Zeus' })
         ]);
       });
 
-      it('should count per rule, severity, and short match, sorted', () => {
+      it('should count per rule and severity, naming only shipped terms, sorted', () => {
         expect(result).toEqual([
+          { check: 'Acme.Codenames', severity: 'warning', n: 1 },
           { check: 'AITells.MicDrop', severity: 'warning', n: 2 },
           { check: 'JustSaySo.Buzzwords', severity: 'error', n: 1, match: 'leverage' },
-          { check: 'JustSaySo.Buzzwords', severity: 'error', n: 2, match: 'synergy' }
+          { check: 'JustSaySo.Buzzwords', severity: 'error', n: 2, match: 'synergy' },
+          { check: 'JustSaySo.NegativeParallelism', severity: 'error', n: 1 }
         ]);
       });
     });

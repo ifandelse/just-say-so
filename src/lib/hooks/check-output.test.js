@@ -38,7 +38,8 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *   events: a reply event per Stop with outcome pass | block | standdown, alerts
  *     at every level, sinceReminder, rewriteOf when a record closed · checks
  *     off still lint for the log · vale broken → alerts null · model read from
- *     the transcript once and cached · events off → no file and no lint
+ *     the transcript once and cached · events off → no file and no lint ·
+ *     events path unwritable → the block decision still returns
  */
 
 function replyEvents(env) {
@@ -130,6 +131,24 @@ describe('check-output.run', () => {
         ],
         model: 'claude-fable-5-1'
       });
+    });
+  });
+
+  describe('when the events path cannot be appended to in block mode', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ outputCheck: { mode: 'block' } });
+      fs.mkdirSync(eventsFile(sandbox.env), { recursive: true });
+      respond({ 'reply.chat.md': [errorAlert()] });
+      output = run(
+        { session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'synergy wins' },
+        sandbox.env
+      );
+    });
+
+    it('should still block the reply', () => {
+      expect(output.decision).toBe('block');
     });
   });
 

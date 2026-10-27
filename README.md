@@ -245,7 +245,7 @@ Two files in the state directory hold everything the plugin keeps beyond the cur
 | `restate` | `/just-say-so:restate` | `promptIndex`, `sinceReminder`, the record id, `reasonGiven` |
 | `allow` | `/just-say-so:allow` | the term, where it went, and whether it was new |
 
-A `reply` line folds Vale alerts at every level, not only errors, so a warning that fired on a reply you then rejected is visible. A short fixed match such as a banned word appears on its entry; a longer match is a span of the reply and is left out. Two styles that flag one span count once. A block cycle writes one `reply` line per attempt, so the last line for a prompt index is the turn's outcome. With the log on, the Stop hook lints the reply even when `outputCheck.mode` is `off`. That is one local Vale run per turn and no tokens. `alerts` is `null` when Vale is missing, so unlinted turns are countable too.
+A `reply` line folds Vale alerts at every level, not only errors, so a warning that fired on a reply you then rejected is visible. A match that equals one of the shipped banned terms appears on its entry; any other match is reply text and is left out, whichever style produced it. Two styles that flag one span count once. A block cycle writes one `reply` line per attempt, so the last line for a prompt index is the turn's outcome. With the log on, the Stop hook lints the reply even when `outputCheck.mode` is `off`. That is one local Vale run per turn and no tokens. `alerts` is `null` when Vale is missing, so unlinted turns are countable too.
 
 The file is never pruned. A line is under 300 bytes, so a year of heavy use is a few megabytes. Set `events.mode` to `off` to write nothing; the log-only reply lint stops with it.
 

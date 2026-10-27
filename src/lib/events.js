@@ -7,8 +7,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir } from './state.js';
-import { pluginVersion } from './version.js';
-import { isShortMatch, dedupeOverlaps } from './reply-alerts.js';
+import { pluginVersion, PKG_ROOT } from './version.js';
+import { dedupeOverlaps } from './reply-alerts.js';
 
 export function eventsFile(env = process.env) {
   return path.join(stateDir(env), 'events.jsonl');
@@ -18,9 +18,12 @@ export function eventsOn(config) {
   return (config?.events?.mode ?? 'on') !== 'off';
 }
 
-// Append one event. Returns false when the log is off. The write is one
-// appendFileSync of a line well under a kilobyte, which stays whole under
-// concurrent sessions on a local filesystem.
+// Append one event. Returns false when the log is off or the write fails.
+// The log is best effort: the hook runner exits silently on any throw, so
+// an append error here would cancel a block decision or a reminder the
+// caller has yet to return. The write is one appendFileSync of a line well
+// under a kilobyte, which stays whole under concurrent sessions on a local
+// filesystem.
 export function logEvent(type, fields, { config, env = process.env, now = new Date() }) {
   if (!eventsOn(config)) return false;
   const line = {
@@ -31,10 +34,14 @@ export function logEvent(type, fields, { config, env = process.env, now = new Da
     v: pluginVersion(),
     ...fields
   };
-  const file = eventsFile(env);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, JSON.stringify(line) + '\n');
-  return true;
+  try {
+    const file = eventsFile(env);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, JSON.stringify(line) + '\n');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function readEvents(file) {
@@ -56,16 +63,54 @@ export function readEvents(file) {
   return out;
 }
 
-// Vale alerts folded to counts per rule and severity. A short fixed match
-// (a banned word, a filler phrase) keeps its own entry so an allow can be
-// joined to the rule it silences; a longer match is a span of the reply and
-// is left out. Two styles that flag one span count once. null passes
-// through: it means the reply was not linted.
+// Spelling differences Vale's tokens accept: case, curly apostrophes, and
+// any run of spaces, non-breaking spaces, or hyphens between words.
+function normalizeTerm(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/[\u2019']/g, "'")
+    .replace(/[\s\u00A0-]+/g, ' ')
+    .trim();
+}
+
+// The shipped banned terms (rules/banned.json words, phrases, and contextual
+// entries), keyed by normalized spelling, read once per process.
+let fixedTermsCache = null;
+function fixedTerms() {
+  if (fixedTermsCache) return fixedTermsCache;
+  const map = new Map();
+  try {
+    const banned = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'rules', 'banned.json'), 'utf8'));
+    for (const list of ['words', 'phrases', 'contextual']) {
+      for (const entry of banned[list] ?? []) {
+        if (entry?.term) map.set(normalizeTerm(entry.term), entry.term);
+      }
+    }
+  } catch {
+    // an unreadable term list keeps every match out of the log
+  }
+  fixedTermsCache = map;
+  return map;
+}
+
+// The canonical banned term a match spells, or null. Length and punctuation
+// cannot prove a match is a fixed term: a frame rule captures whatever
+// filled the frame, and a project style can capture any short text. Only
+// a match that equals a shipped term is known to carry no reply prose.
+export function fixedTerm(match) {
+  return fixedTerms().get(normalizeTerm(match)) ?? null;
+}
+
+// Vale alerts folded to counts per rule and severity. A match that equals
+// a shipped banned term keeps its own entry, so an allow can be joined to
+// the rule it silences; any other match is reply text and is left out.
+// Two styles that flag one span count once. null passes through: it means
+// the reply was not linted.
 export function summarizeAlerts(alerts) {
   if (alerts === null || alerts === undefined) return null;
   const groups = new Map();
   for (const a of dedupeOverlaps(alerts)) {
-    const match = isShortMatch(a.Match) ? String(a.Match).trim().toLowerCase() : null;
+    const match = fixedTerm(a.Match);
     const key = `${a.Check}|${a.Severity}|${match ?? ''}`;
     const held = groups.get(key);
     if (held) held.n += 1;

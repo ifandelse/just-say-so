@@ -129,7 +129,7 @@ describe('doctor', () => {
       expect(report.warnings).toEqual([
         'Section [*.reply] restates BasedOnStyles as "JustSaySo", so the [*] styles (JustSaySo, acme) do not reach it. Restate the whole list there, or use Style = NO lines instead.'
       ]);
-      expect(text).toContain("Targets (the plugin's reading of the Vale config)");
+      expect(text).toContain("Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)");
       expect(text).toContain('Raw section settings, in the order Vale applies them');
     });
   });

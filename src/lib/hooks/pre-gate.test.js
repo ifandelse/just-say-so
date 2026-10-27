@@ -234,6 +234,53 @@ describe('pre-gate.run', () => {
     });
   });
 
+  describe('when a compound command publishes through two gh invocations', () => {
+    let names;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      lintResponder([]);
+      run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: 'gh pr create --body clean && gh api repos/o/r/issues/1 -f title=synergy' }
+        },
+        sandbox.env
+      );
+      names = mockSpawnSync.mock.calls.filter((c) => c[1][0] !== 'ls-dirs').map((c) => c[1][2]);
+    });
+
+    it('should name each fragment after its own invocation', () => {
+      expect(names).toEqual(['gh.pr.body.publish', 'gh.api.title.publish']);
+    });
+  });
+
+  describe('when -F carries the body file', () => {
+    let name;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'block', addons: ['gh'] } });
+      fs.writeFileSync(path.join(sandbox.work, 'body.md'), 'pure synergy\n');
+      lintResponder([errorAlert()]);
+      run(
+        {
+          session_id: SESSION,
+          cwd: sandbox.work,
+          tool_name: 'Bash',
+          tool_input: { command: `gh pr create -F ${path.join(sandbox.work, 'body.md')}` }
+        },
+        sandbox.env
+      );
+      name = mockSpawnSync.mock.calls.find((c) => c[1][0] !== 'ls-dirs')[1][2];
+    });
+
+    it('should lint under the same name as --body-file', () => {
+      expect(name).toBe('gh.pr.body.publish');
+    });
+  });
+
   describe('when a gh command publishes errors in block mode', () => {
     let output;
 

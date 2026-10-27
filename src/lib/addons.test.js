@@ -120,15 +120,15 @@ describe('extractGhTexts', () => {
       const out = extractGhTexts('gh pr create --title "a title" --body "a body" --draft');
       expect(out.target).toBe('gh pr create');
       expect(out.payloads).toEqual([
-        { label: '--title', text: 'a title' },
-        { label: '--body', text: 'a body' }
+        { label: '--title', text: 'a title', target: expect.any(String) },
+        { label: '--body', text: 'a body', target: expect.any(String) }
       ]);
       expect(out.unresolved).toEqual([]);
     });
 
     it('should read the =-joined form', () => {
       const out = extractGhTexts('gh issue comment 7 --body="joined words"');
-      expect(out.payloads).toEqual([{ label: '--body', text: 'joined words' }]);
+      expect(out.payloads).toEqual([{ label: '--body', text: 'joined words', target: expect.any(String) }]);
     });
   });
 
@@ -139,7 +139,7 @@ describe('extractGhTexts', () => {
         return 'file words';
       };
       const out = extractGhTexts('gh pr edit 9 --body-file /notes/body.md', { readFile });
-      expect(out.payloads).toEqual([{ label: '--body-file', text: 'file words' }]);
+      expect(out.payloads).toEqual([{ label: '--body-file', text: 'file words', target: expect.any(String) }]);
     });
 
     it('should mark stdin and unreadable files unresolved', () => {
@@ -168,20 +168,20 @@ describe('extractGhTexts', () => {
     it('should check prose field keys and skip protocol keys', () => {
       const out = extractGhTexts('gh api -X PATCH repos/o/r/pulls/7 -f body="api words" -f state=closed');
       expect(out.target).toBe('gh api');
-      expect(out.payloads).toEqual([{ label: '-f body', text: 'api words' }]);
+      expect(out.payloads).toEqual([{ label: '-f body', text: 'api words', target: expect.any(String) }]);
     });
 
     it('should read @file field values', () => {
       const readFile = () => 'from the file';
       const out = extractGhTexts('gh api -X PATCH repos/o/r/pulls/7 -F body=@/tmp/b.md', { readFile });
-      expect(out.payloads).toEqual([{ label: '-F body', text: 'from the file' }]);
+      expect(out.payloads).toEqual([{ label: '-F body', text: 'from the file', target: expect.any(String) }]);
     });
 
     it('should match a nested field key by its last bracketed segment', () => {
       const out = extractGhTexts(
         "gh api repos/o/r/pulls/7/reviews -f 'comments[][body]=nested words' -f 'comments[][path]=a.md' -f event=COMMENT"
       );
-      expect(out.payloads).toEqual([{ label: '-f comments[][body]', text: 'nested words' }]);
+      expect(out.payloads).toEqual([{ label: '-f comments[][body]', text: 'nested words', target: expect.any(String) }]);
     });
   });
 
@@ -201,10 +201,10 @@ describe('extractGhTexts', () => {
       expect(out).toEqual({
         target: 'gh api',
         payloads: [
-          { label: '--input body', text: 'summary words' },
-          { label: '--input comments[0].body', text: 'first comment' },
-          { label: '--input comments[1].body', text: 'second comment' },
-          { label: '--input comments[1].meta.title', text: 'deep title' }
+          { label: '--input body', text: 'summary words', target: expect.any(String) },
+          { label: '--input comments[0].body', text: 'first comment', target: expect.any(String) },
+          { label: '--input comments[1].body', text: 'second comment', target: expect.any(String) },
+          { label: '--input comments[1].meta.title', text: 'deep title', target: expect.any(String) }
         ],
         unresolved: []
       });
@@ -238,13 +238,39 @@ describe('extractGhTexts', () => {
     });
   });
 
+  describe('when -F stands in for a file flag', () => {
+    it('should label it as the field the subcommand reads it into', () => {
+      const readFile = () => 'file words';
+      const pr = extractGhTexts('gh pr create -F body.md', { readFile });
+      const release = extractGhTexts('gh release create v1 -F notes.md', { readFile });
+      const missing = extractGhTexts('gh issue comment 3 -F', { readFile });
+      expect({ pr: pr.payloads, release: release.payloads, missing: missing.unresolved }).toEqual({
+        pr: [{ label: '--body-file', text: 'file words', target: 'gh pr create' }],
+        release: [{ label: '--notes-file', text: 'file words', target: 'gh release create' }],
+        missing: [{ label: '--body-file', reason: 'missing value' }]
+      });
+    });
+  });
+
   describe('when the command is compound', () => {
+    it('should stamp each payload with the gh invocation it came from', () => {
+      const out = extractGhTexts('gh pr create --body clean && gh api repos/o/r/issues/1 -f title=synergy');
+      expect(out).toEqual({
+        target: 'gh pr create',
+        payloads: [
+          { label: '--body', text: 'clean', target: 'gh pr create' },
+          { label: '-f title', text: 'synergy', target: 'gh api' }
+        ],
+        unresolved: []
+      });
+    });
+
     it('should read flags only inside the gh segment', () => {
       const readFile = () => 'clean words';
       const out = extractGhTexts('cd /x && gh pr edit 1 --body-file notes.md && grep --body-file q', {
         readFile
       });
-      expect(out.payloads).toEqual([{ label: '--body-file', text: 'clean words' }]);
+      expect(out.payloads).toEqual([{ label: '--body-file', text: 'clean words', target: expect.any(String) }]);
       expect(out.unresolved).toEqual([]);
     });
   });

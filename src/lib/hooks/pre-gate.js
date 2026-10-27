@@ -85,8 +85,13 @@ function runPublishCheck(toolName, toolInput, input, env) {
     const extracted = extractGhTexts(toolInput.command);
     if (!extracted) return null;
     ({ payloads, unresolved, target } = extracted);
-    const tool = target.split(' ')[1];
-    payloads = payloads.map((p) => ({ ...p, name: publishName({ source: 'gh', tool, field: fieldFromLabel(p.label) }) }));
+    // Each payload names the gh invocation it came from, so a compound
+    // command lints its api title as gh.api.title.publish even when a pr
+    // command came first.
+    payloads = payloads.map((p) => ({
+      ...p,
+      name: publishName({ source: 'gh', tool: p.target.split(' ')[1], field: fieldFromLabel(p.label) })
+    }));
   } else {
     if (!matchesMcpTool(toolName, bc.mcpTools)) return null;
     const text = collectStrings(toolInput).join('\n');

@@ -76,3 +76,52 @@ export function lastAssistantText(transcriptPath) {
     .filter(Boolean)
     .join('\n');
 }
+
+// Whether a user entry is a typed prompt rather than tool results flowing
+// back to the model. Tool results arrive as user entries whose content is
+// an array of tool_result blocks.
+function isPromptEntry(entry) {
+  if (entry?.type !== 'user') return false;
+  const content = entry.message?.content;
+  if (typeof content === 'string') return content.length > 0;
+  if (!Array.isArray(content)) return false;
+  if (content.some((block) => block?.type === 'tool_result')) return false;
+  return textOf(entry.message).length > 0;
+}
+
+/**
+ * The last exchange: the final assistant message, its model, and the user
+ * prompt that preceded it. One parse serves all three, since the restate
+ * hook needs every one of them at once. text is '' and the others null when
+ * the transcript has no assistant message.
+ */
+export function lastExchange(transcriptPath) {
+  const entries = parseLines(transcriptPath);
+  let last = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i]?.type === 'assistant') {
+      last = i;
+      break;
+    }
+  }
+  if (last === -1) return { prompt: null, text: '', model: null };
+  const single = entries[last];
+  const lastId = single.message?.id;
+  const model = typeof single.message?.model === 'string' ? single.message.model : null;
+  let first = last;
+  let text;
+  if (!lastId) text = textOf(single.message);
+  else {
+    const parts = entries.filter((e) => e?.type === 'assistant' && e.message?.id === lastId);
+    text = parts.map((e) => textOf(e.message)).filter(Boolean).join('\n');
+    first = entries.indexOf(parts[0]);
+  }
+  let prompt = null;
+  for (let i = first - 1; i >= 0; i--) {
+    if (isPromptEntry(entries[i])) {
+      prompt = textOf(entries[i].message);
+      break;
+    }
+  }
+  return { prompt, text, model };
+}

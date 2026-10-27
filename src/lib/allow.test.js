@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { addAllowTerm, listFor } from './allow.js';
+import { eventsFile, readEvents } from './events.js';
 
 /*
  * Branch map — src/lib/allow.js
@@ -16,6 +17,8 @@ import { addAllowTerm, listFor } from './allow.js';
  *                create in cwd · existing config found by walk-up → edit in
  *                place, keys preserved · duplicate → added: false ·
  *                malformed existing file → throw (never clobber)
+ *   events: an allow event per call, session from CLAUDE_SESSION_ID or null,
+ *           list null on the vocabulary route · events off → no file
  */
 
 function tmpdir() {
@@ -26,7 +29,20 @@ function readConfig(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+// Isolated state and an empty personal config, so the allow event never
+// lands in the developer's own log.
+function sandboxEnv(extra = {}) {
+  const state = tmpdir();
+  return { JUST_SAY_SO_STATE_DIR: state, JUST_SAY_SO_CONFIG: path.join(state, 'none.json'), ...extra };
+}
+
 describe('allow', () => {
+  let env;
+
+  beforeEach(() => {
+    env = sandboxEnv();
+  });
+
   describe('listFor', () => {
     describe('when terms of both shapes are classified', () => {
       let word, phrase;
@@ -48,7 +64,7 @@ describe('allow', () => {
 
       beforeEach(() => {
         cwd = tmpdir();
-        result = addAllowTerm('robust', cwd);
+        result = addAllowTerm('robust', cwd, env);
       });
 
       it('should create .just-say-so.json in cwd with the term', () => {
@@ -61,6 +77,40 @@ describe('allow', () => {
         });
         expect(readConfig(result.file)).toEqual({ bannedCheck: { disableWords: ['robust'] } });
       });
+
+      it('should log an allow event with no session', () => {
+        expect(readEvents(eventsFile(env))).toEqual([
+          { t: expect.any(String), e: 'allow', session: null, project: cwd, v: expect.any(String), term: 'robust', method: 'config', list: 'disableWords', added: true }
+        ]);
+      });
+    });
+
+    describe('when the harness exports a session id', () => {
+      let events;
+
+      beforeEach(() => {
+        env = sandboxEnv({ CLAUDE_SESSION_ID: 'S-8675309' });
+        addAllowTerm('robust', tmpdir(), env);
+        events = readEvents(eventsFile(env));
+      });
+
+      it('should carry it on the event', () => {
+        expect(events.map((e) => e.session)).toEqual(['S-8675309']);
+      });
+    });
+
+    describe('when the events log is off', () => {
+      let exists;
+
+      beforeEach(() => {
+        fs.writeFileSync(env.JUST_SAY_SO_CONFIG, JSON.stringify({ events: { mode: 'off' } }));
+        addAllowTerm('robust', tmpdir(), env);
+        exists = fs.existsSync(eventsFile(env));
+      });
+
+      it('should write no event', () => {
+        expect(exists).toBe(false);
+      });
     });
 
     describe('when a config exists above the cwd with other settings', () => {
@@ -72,7 +122,7 @@ describe('allow', () => {
         fs.writeFileSync(file, JSON.stringify({ reminder: { mode: 'tokens' }, bannedCheck: { mode: 'warn' } }));
         const nested = path.join(root, 'a', 'b');
         fs.mkdirSync(nested, { recursive: true });
-        result = addAllowTerm('robust regression', nested);
+        result = addAllowTerm('robust regression', nested, env);
       });
 
       it('should edit that file in place and preserve the other settings', () => {
@@ -89,8 +139,8 @@ describe('allow', () => {
 
       beforeEach(() => {
         cwd = tmpdir();
-        addAllowTerm('Robust', cwd);
-        result = addAllowTerm('robust', cwd);
+        addAllowTerm('Robust', cwd, env);
+        result = addAllowTerm('robust', cwd, env);
       });
 
       it('should report added: false and keep the list deduplicated', () => {
@@ -106,7 +156,7 @@ describe('allow', () => {
         cwd = tmpdir();
         fs.writeFileSync(path.join(cwd, '.just-say-so.json'), '{oops');
         try {
-          addAllowTerm('robust', cwd);
+          addAllowTerm('robust', cwd, env);
         } catch (e) {
           error = e;
         }
@@ -123,7 +173,7 @@ describe('allow', () => {
 
       beforeEach(() => {
         try {
-          addAllowTerm('   ', tmpdir());
+          addAllowTerm('   ', tmpdir(), env);
         } catch (e) {
           error = e;
         }
@@ -141,12 +191,18 @@ describe('allow', () => {
         root = tmpdir();
         fs.writeFileSync(path.join(root, '.vale.ini'), 'StylesPath = styles\nMinAlertLevel = suggestion\nVocab = Team\n');
         acceptFile = path.join(root, 'styles', 'config', 'vocabularies', 'Team', 'accept.txt');
-        result = addAllowTerm('robust regression', root);
+        result = addAllowTerm('robust regression', root, env);
       });
 
       it('should create accept.txt with the term', () => {
         expect(result).toEqual({ method: 'vocabulary', file: acceptFile, term: 'robust regression', added: true });
         expect(fs.readFileSync(acceptFile, 'utf8')).toBe('robust regression\n');
+      });
+
+      it('should log the vocabulary route with no list', () => {
+        expect(readEvents(eventsFile(env)).map(({ e, method, list, term }) => ({ e, method, list, term }))).toEqual([
+          { e: 'allow', method: 'vocabulary', list: null, term: 'robust regression' }
+        ]);
       });
     });
 
@@ -159,7 +215,7 @@ describe('allow', () => {
         acceptFile = path.join(root, 'styles', 'config', 'vocabularies', 'Team', 'accept.txt');
         fs.mkdirSync(path.dirname(acceptFile), { recursive: true });
         fs.writeFileSync(acceptFile, 'Robust Regression\nTLS\n');
-        result = addAllowTerm('robust regression', root);
+        result = addAllowTerm('robust regression', root, env);
       });
 
       it('should report added: false and keep the file unchanged', () => {
@@ -177,7 +233,7 @@ describe('allow', () => {
         acceptFile = path.join(root, 'styles', 'config', 'vocabularies', 'Team', 'accept.txt');
         fs.mkdirSync(path.dirname(acceptFile), { recursive: true });
         fs.writeFileSync(acceptFile, 'TLS\n');
-        result = addAllowTerm('idempotent', root);
+        result = addAllowTerm('idempotent', root, env);
       });
 
       it('should append below the existing lines', () => {
@@ -192,7 +248,7 @@ describe('allow', () => {
       beforeEach(() => {
         root = tmpdir();
         fs.writeFileSync(path.join(root, '.vale.ini'), 'StylesPath = styles\n');
-        result = addAllowTerm('robust', root);
+        result = addAllowTerm('robust', root, env);
       });
 
       it('should fall back to the config route', () => {
@@ -212,7 +268,7 @@ describe('allow', () => {
           if (String(file).endsWith('.vale.ini')) throw new Error('E_COLD_CALZONE');
           return realRead(file, ...rest);
         });
-        result = addAllowTerm('robust', root);
+        result = addAllowTerm('robust', root, env);
       });
 
       afterEach(() => {

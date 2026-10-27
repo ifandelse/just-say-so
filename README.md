@@ -202,6 +202,9 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "deliver": "next-prompt" // warn only: "next-prompt" injects rules + report on the prompt after a flagged
     // reply; "next-reminder" holds the report for the interval reminder (needs reminder.mode on)
   },
+  "events": {
+    "mode": "on" // "on" | "off" — the events log (see What the plugin records); off writes nothing
+  },
   "vale": {
     "config": null, // explicit .vale.ini path; default: nearest above the checked file, else the shipped fallback
     "levels": "suggestion" // lowest alert level shown to the agent at edit time: "error" | "warning" | "suggestion"
@@ -225,6 +228,28 @@ Vale checks what its styles can detect, and a reader notices more than that. Whe
 The plugin records each rejection. The prompt hook reads the rejected reply from the transcript, so the text is what the model wrote and not what it remembers writing. It lints that text at every Vale level and appends one JSON line to `rejections.jsonl` in the state directory: `$CLAUDE_PLUGIN_DATA/state` under a plugin install, otherwise `~/.local/state/just-say-so`. The Stop hook adds the rewrite and its alerts to the same line when the turn ends. In `block` mode a rewrite that the gate rejects is not the one saved; the record closes with the reply the gate lets stand. The rejected reply's own `warn` counts go with the record instead of riding the next prompt, so a later report describes the rewrite and not the reply you already rejected. A record holds the session id, the project directory, the prompt index, the reason, both texts with their alerts, the plugin version, and the reminder and reply-check settings in force. Replies can quote code, logs, paths, and customer data, so the file stays on your machine. Nothing writes it into a project or sends it anywhere.
 
 What the file is for: a rejected reply that Vale passed points at a missing rule or a level set too low. A reason that recurs suggests a rule in `rules/condensed.md` needs different wording. Rejected and rewritten pairs form a test set for any judge that scores replies against the rules. Rejections divided by prompts is a drift rate for one user's sessions, which compares reminder settings for that user. These records tune your configuration. They do not fine-tune a model.
+
+### What the plugin records
+
+Two files in the state directory hold everything the plugin keeps beyond the current session. Nothing leaves your machine, and nothing is written into a project.
+
+`rejections.jsonl` holds one record per `/just-say-so:restate`, described above. Since 0.8.0 a record also carries the prompt that produced the rejected reply, the model id, and the number of prompts between the last rules injection and that reply. The prompt and both replies are prose, so this file can hold anything a session did. Scrub it before you share it.
+
+`events.jsonl` holds one line per countable thing a hook saw. It carries rule names, counts, and settings, never prose, so a rejection can be read as a rate. Every line has a timestamp, an event type, the session id, the project directory, and the plugin version. The types:
+
+| Event | When | Fields |
+| --- | --- | --- |
+| `session` | SessionStart | `source`, whether Vale was found, and the reminder, reply-check, edit-check, and Vale level settings in force |
+| `reminder` | the rules go out | `promptIndex`, `trigger` (`interval`, `tokens`, `report`, `session`, `restate`), `withReport` |
+| `reply` | every Stop | `promptIndex`, `sinceReminder`, `outcome` (`pass`, `block`, `standdown`), the model id, `alerts` folded to counts per rule and level, and `rewriteOf` when the reply closed a rejection record |
+| `restate` | `/just-say-so:restate` | `promptIndex`, `sinceReminder`, the record id, `reasonGiven` |
+| `allow` | `/just-say-so:allow` | the term, where it went, and whether it was new |
+
+A `reply` line folds Vale alerts at every level, not only errors, so a warning that fired on a reply you then rejected is visible. A match that equals one of the shipped banned terms appears on its entry; any other match is reply text and is left out, whichever style produced it. Two styles that flag one span count once. A block cycle writes one `reply` line per attempt, so the last line for a prompt index is the turn's outcome. With the log on, the Stop hook lints the reply even when `outputCheck.mode` is `off`. That is one local Vale run per turn and no tokens. `alerts` is `null` when Vale is missing, so unlinted turns are countable too.
+
+The file is never pruned. A line is under 300 bytes, so a year of heavy use is a few megabytes. Set `events.mode` to `off` to write nothing; the log-only reply lint stops with it.
+
+What the log answers that a rejection alone cannot: rejections per hundred prompts across weeks, whether the rate climbs with distance from the last reminder, which rules fire that you never restate on, and which replies you restate on that fired nothing. The summary that reads both files is not shipped yet.
 
 ### Checking published text (gh and MCP tools)
 

@@ -21,6 +21,7 @@ const FRESH = {
   replyAlerts: {},
   pendingRewrite: null,
   projectDir: null,
+  model: null,
   valeFiles: {},
   waived: {},
   lastStopBlock: null

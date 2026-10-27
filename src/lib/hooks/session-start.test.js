@@ -8,6 +8,7 @@ vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 import { run } from './session-start.js';
 import { run as runRemind } from './remind.js';
 import { readSession, writeSession, stateDir } from '../state.js';
+import { eventsFile, readEvents } from '../events.js';
 import { makeSandbox } from '../../../test/helpers/sandbox.js';
 
 /*
@@ -26,6 +27,9 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *     promptCount and clears the token baseline, so the next prompt does not
  *     inject again · no injection → baselines untouched
  *   reply check idle (warn + next-reminder + reminder off) → notice, joined with valeMissing
+ *   events: session event with the config snapshot and the probe result ·
+ *     reminder event (trigger session) only on injection, promptIndex 0 after a
+ *     reset · checks off still probe for the log · events off → no probe, no file
  */
 
 const COUNTS = { 'JustSaySo.Buzzwords|synergy': { check: 'JustSaySo.Buzzwords', match: 'synergy', message: "Banned buzzword: 'synergy'.", count: 2 } };
@@ -46,14 +50,45 @@ describe('session-start.run', () => {
   });
 
   describe('when the session compacts', () => {
-    let output, state;
+    let output, state, events, sandbox;
 
     beforeEach(() => {
-      const sandbox = makeSandbox();
+      sandbox = makeSandbox();
       valePresent();
       writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'compact' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
+      events = readEvents(eventsFile(sandbox.env));
+    });
+
+    it('should log the session with its config and a reminder event at prompt 0', () => {
+      expect(events).toEqual([
+        {
+          t: expect.any(String),
+          e: 'session',
+          session: SESSION,
+          project: sandbox.work,
+          v: expect.any(String),
+          source: 'compact',
+          vale: true,
+          config: {
+            reminder: { mode: 'prompts', everyPrompts: 20 },
+            outputCheck: { mode: 'warn', deliver: 'next-prompt' },
+            bannedCheck: { mode: 'warn' },
+            vale: { levels: 'suggestion' }
+          }
+        },
+        {
+          t: expect.any(String),
+          e: 'reminder',
+          session: SESSION,
+          project: sandbox.work,
+          v: expect.any(String),
+          promptIndex: 0,
+          trigger: 'session',
+          withReport: true
+        }
+      ]);
     });
 
     it('should inject the condensed rules with the reply report after them', () => {
@@ -73,6 +108,7 @@ describe('session-start.run', () => {
         replyAlerts: {},
         pendingRewrite: null,
         projectDir: null,
+        model: null,
         valeFiles: {},
         waived: {},
         lastStopBlock: null
@@ -160,7 +196,7 @@ describe('session-start.run', () => {
   });
 
   describe('when the configured list excludes the source', () => {
-    let output, state;
+    let output, state, events;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ reminder: { onSessionStart: ['compact'] } });
@@ -168,6 +204,13 @@ describe('session-start.run', () => {
       writeSession(SESSION, { promptCount: 4, contextAtLastReminder: 900, replyAlerts: COUNTS }, sandbox.env);
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
       state = readSession(SESSION, sandbox.env);
+      events = readEvents(eventsFile(sandbox.env));
+    });
+
+    it('should log the session alone, at the kept prompt count', () => {
+      expect(events.map(({ e, source, promptIndex }) => ({ e, source, promptIndex }))).toEqual([
+        { e: 'session', source: 'startup', promptIndex: undefined }
+      ]);
     });
 
     it('should neither inject nor reset, and keep the reply counts for the next reminder', () => {
@@ -260,9 +303,9 @@ describe('session-start.run', () => {
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
     });
 
-    it('should say the reply check is idle without probing vale', () => {
+    it('should say the reply check is idle, and probe for the log without complaining', () => {
       expect(output.systemMessage).toContain('The reply check is idle.');
-      expect(mockSpawnSync).not.toHaveBeenCalled();
+      expect(mockSpawnSync).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -283,18 +326,35 @@ describe('session-start.run', () => {
     });
   });
 
-  describe('when every check mode is off and vale is missing', () => {
-    let output;
+  describe('when every check mode and the events log are off and vale is missing', () => {
+    let output, logged;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ bannedCheck: { mode: 'off' }, outputCheck: { mode: 'off' }, events: { mode: 'off' } });
+      valeMissing();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+      logged = fs.existsSync(eventsFile(sandbox.env));
+    });
+
+    it('should inject the rules without probing, complaining, or logging', () => {
+      expect({ systemMessage: output.systemMessage, logged }).toEqual({ systemMessage: undefined, logged: false });
+      expect(mockSpawnSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the checks are off but the log is on and vale is missing', () => {
+    let output, vale;
 
     beforeEach(() => {
       const sandbox = makeSandbox({ bannedCheck: { mode: 'off' }, outputCheck: { mode: 'off' } });
       valeMissing();
       output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+      vale = readEvents(eventsFile(sandbox.env))[0].vale;
     });
 
-    it('should inject the rules without probing or complaining', () => {
-      expect(output.systemMessage).toBeUndefined();
-      expect(mockSpawnSync).not.toHaveBeenCalled();
+    it('should probe for the log, record the miss, and stay quiet about it', () => {
+      expect({ systemMessage: output.systemMessage, vale }).toEqual({ systemMessage: undefined, vale: false });
+      expect(mockSpawnSync).toHaveBeenCalledTimes(1);
     });
   });
 });

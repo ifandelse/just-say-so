@@ -30,6 +30,9 @@ const FRESH = {
   // the Stop hook fills in the rewrite and clears this.
   pendingRewrite: null,
   projectDir: null,
+  // Model id from the transcript, read once on the first Stop so the events
+  // log can carry it without a transcript parse per turn.
+  model: null,
   // Per-file record of error-level Vale alerts in lines this session added,
   // keyed by absolute path — the Stop gate checks these, and only these.
   valeFiles: {},

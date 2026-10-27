@@ -33,6 +33,7 @@ You also get six commands. They work in environments without hooks (like desktop
 
 - `/just-say-so:init [flags]` — set a project up: a `.vale.ini` that loads the JustSaySo package, `vale sync`, the plugin config for the targets you name, and the commit gate for the repo's hook tooling. See [Setting a project up](#setting-a-project-up).
 - `/just-say-so:doctor` — how the plugin reads this project: the Vale binary and config in force, which rules each target lints under, the raw section settings, and every warning. See [The doctor](#the-doctor).
+- `/just-say-so:summary [--since 30d] [--project <path>]` — what the plugin has recorded, as facts with their counts: turns, rejections per 100 turns, distance from the last rules injection, the rules that fire and the rules on rejected replies, rewrites, reasons, allows. See [The summary](#the-summary).
 - `/just-say-so:draft [--all]` — bullets for the Vale rules this project enforces that the reminder only names, grouped by theme, as a `rules.extra` fragment to paste and edit. See [Bullets for your own Vale rules](#bullets-for-your-own-vale-rules).
 - `/just-say-so:rules` — load the full rules into context for the rest of the session.
 - `/just-say-so:remind` — inject the condensed reminder now.
@@ -267,7 +268,13 @@ A `reply` line folds Vale alerts at every level, not only errors, so a warning t
 
 The file is never pruned. A line is under 300 bytes, so a year of heavy use is a few megabytes. Set `events.mode` to `off` to write nothing; the log-only reply lint stops with it.
 
-What the log answers that a rejection alone cannot: rejections per hundred prompts across weeks, whether the rate climbs with distance from the last reminder, which rules fire that you never restate on, and which replies you restate on that fired nothing. The summary that reads both files is not shipped yet.
+### The summary
+
+`/just-say-so:summary` reads both files and prints facts with their counts. A **turn** is a reply event whose outcome is `pass` or `standdown`; a `block` line is an attempt and is counted apart, and no count comes from a prompt index, which resets on compaction and `/clear`. A **rejection** is a record in `rejections.jsonl`, which exists even with the events log off. **Unlinted** means `alerts` was `null`, and never counts as clean or as fixed. A rate prints only when its denominator is in the window; otherwise the line says it is unavailable.
+
+The sections: the window and its sessions; volume; rejections per 100 turns, overall, per project, and per week once the window spans a month; rejections per 100 turns in each distance bucket from the last rules injection, which is association only, because a violation itself resets the distance; the rules with an error on final replies, with their top terms and the reply mode of those sessions; the rules on rejected replies by level, the rejected replies Vale passed clean with their reasons, and the ones that carried only warnings; rewrites that came back clean, kept an error, or were unlinted, and the rules that survive a rewrite; the reasons you typed, grouped; allows by term and project; sessions per setting. The report ends with observations stated with their counts and what the data does not establish. It recommends nothing yet; that step follows reason tags.
+
+`--since` takes an ISO date or a span such as `30d` or `6w`, `--project` narrows to one project path, and `--json` prints the object the text is rendered from. The report prints rule names, shipped terms, counts, project paths, and your typed reasons. It never prints a prompt or a reply.
 
 ### Checking published text (gh and MCP tools)
 

@@ -175,6 +175,10 @@ EOF
 
 **23. Draft.** In a scratch repo with ai-tells synced and two of its rules set to `error` in `[*]`, run `/just-say-so:draft`. Expect: the command output lists the two rules with their messages, the model prints one JSON fragment with bullets whose `vale` lists hold those exact ids, and nothing is written. Save the fragment, set `rules.extra`, start a session: the reminder carries the new bullets and the closing line no longer names those rules. Run `/just-say-so:doctor` with a misspelled id in the fragment: the warning names it.
 
+## Phase L — the summary (0.14.0)
+
+**24. Summary.** After a session with a flagged reply, a `/just-say-so:restate`, and a `/just-say-so:allow`, run `/just-say-so:summary`. Expect: turns and attempts counted from the Stop events, one rejection that joins to a turn, the rule and term from the flagged reply under "Rules with an error", the allow under "Allows", and no recommendation. Run it again with `--since 1d` and with `--project` set to another path: the second shows no records.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

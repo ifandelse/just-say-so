@@ -1,0 +1,290 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { summarize, formatSummary, recordTime } from './summary.js';
+
+/*
+ * Branch map — src/lib/summary.js
+ *   recordTime: id prefix · bad id → null
+ *   window: since/until on both kinds (a rejection's time is its id) ·
+ *     project filter · from/to · sessions, projects, versions ·
+ *     flags for an empty events log and no rejections
+ *   volume: turns are pass+standdown, block lines are attempts · linted vs
+ *     unlinted (alerts null) · withError · joined/unjoined (promptIndex-1
+ *     in the same session) · restate cross-check · allows
+ *   rejection rate: overall · per project · per week only past four weeks ·
+ *     null when no turns
+ *   distance: five buckets, rate per bucket from the record's own
+ *     sinceReminder
+ *   rules firing: error-level, once per turn, share of linted, top terms by
+ *     n, mode from the session event
+ *   rejected: per rule per level once per record · clean with reasons ·
+ *     warnings-only with rules · unlinted apart
+ *   rewrites: clean, keptError, unlinted, surviving rules
+ *   reasons grouped lowercase · allows per term with projects · settings
+ *   observations: frequentNeverRejected at 20+ turns
+ *   compaction: a counter reset mid-session changes no count
+ *   formatSummary: empty · full · unavailable rates
+ */
+
+const T0 = Date.UTC(2026, 9, 1, 12, 0, 0); // 2026-10-01T12:00:00Z
+const at = (minutes) => new Date(T0 + minutes * 60_000).toISOString();
+
+function session(id, project, minutes, reply = 'warn', over = {}) {
+  return { t: at(minutes), e: 'session', session: id, project, v: '0.14.0', source: 'startup', vale: true, config: { files: { mode: 'warn' }, publish: { mode: 'block', gh: false, mcp: 0, artifact: true }, reply: { mode: reply }, rules: { onViolation: true } }, ...over };
+}
+function reply(id, project, minutes, promptIndex, sinceReminder, outcome, alerts) {
+  return { t: at(minutes), e: 'reply', session: id, project, v: '0.14.0', promptIndex, sinceReminder, outcome, model: 'm', alerts };
+}
+function restate(id, project, minutes, promptIndex) {
+  return { t: at(minutes), e: 'restate', session: id, project, v: '0.14.0', promptIndex, sinceReminder: 1, record: 'x', reasonGiven: true };
+}
+function allow(project, minutes, term, added = true) {
+  return { t: at(minutes), e: 'allow', session: null, project, v: '0.14.0', term, file: '/x/accept.txt', added };
+}
+function rejection(id, project, minutes, promptIndex, sinceReminder, reason, rejectedAlerts, rewriteAlerts = undefined) {
+  return {
+    id: `${at(minutes)}-abcd`,
+    session: id,
+    project,
+    promptIndex,
+    sinceReminder,
+    model: 'm',
+    reason,
+    prompt: 'p',
+    rejected: { text: 'r', alerts: rejectedAlerts },
+    rewrite: rewriteAlerts === undefined ? null : { text: 'w', alerts: rewriteAlerts },
+    version: '0.14.0'
+  };
+}
+const BUZZ = { check: 'JustSaySo.Buzzwords', severity: 'error', n: 1, match: 'synergy' };
+const LEV = { check: 'JustSaySo.Leverage', severity: 'error', n: 2, match: 'leverage' };
+const INT = { check: 'JustSaySo.Intensifiers', severity: 'suggestion', n: 1, match: 'very' };
+const rb = (check, severity, match) => ({ check, severity, line: 1, match, message: 'm' });
+
+describe('summary', () => {
+  describe('recordTime', () => {
+    it('should read the time from the id prefix and return null for anything else', () => {
+      expect([recordTime({ id: '2026-10-01T12:00:00.000Z-abcd' }), recordTime({ id: 'nope' }), recordTime({})]).toEqual(['2026-10-01T12:00:00.000Z', null, null]);
+    });
+  });
+
+  describe('when two projects, three sessions, and every record kind are summarized', () => {
+    let s, text;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const B = '/p/b';
+      const events = [
+        session('s1', A, 0, 'warn'),
+        reply('s1', A, 1, 1, 0, 'pass', [BUZZ]),
+        reply('s1', A, 2, 2, 1, 'pass', []),
+        reply('s1', A, 3, 3, 2, 'pass', [LEV, INT]),
+        restate('s1', A, 4, 4),
+        reply('s1', A, 5, 4, 0, 'pass', []), // the rewrite
+        reply('s1', A, 6, 5, 1, 'pass', null), // unlinted
+        session('s2', A, 10, 'block'),
+        reply('s2', A, 11, 1, 0, 'block', [BUZZ]),
+        reply('s2', A, 12, 1, 0, 'block', [BUZZ]),
+        reply('s2', A, 13, 1, 0, 'standdown', [BUZZ]),
+        reply('s2', A, 14, 2, 1, 'pass', [LEV]),
+        session('s3', B, 20, 'warn'),
+        reply('s3', B, 21, 1, 0, 'pass', [LEV]),
+        reply('s3', B, 22, 2, 7, 'pass', []),
+        allow(A, 30, 'robust regression'),
+        allow(B, 31, 'robust regression'),
+        allow(A, 32, 'TLS', false)
+      ];
+      const rejections = [
+        rejection('s1', A, 4, 4, 2, 'Too Much Jargon', [rb('JustSaySo.Leverage', 'error', 'leverage'), rb('JustSaySo.Intensifiers', 'suggestion', 'very')], []),
+        rejection('s3', B, 23, 3, 7, 'too much jargon', [], [rb('JustSaySo.Buzzwords', 'error', 'synergy')]),
+        rejection('s3', B, 24, 9, 12, null, [rb('JustSaySo.Intensifiers', 'suggestion', 'very')], null),
+        rejection('s9', B, 25, 2, 0, 'flat', null)
+      ];
+      s = summarize(events, rejections);
+      text = formatSummary(s);
+    });
+
+    it('should count turns, attempts, linted, unlinted, errors, rejections, joins, and allows', () => {
+      expect(s.volume).toEqual({ turns: 9, attempts: 2, linted: 8, unlinted: 1, withError: 5, rejections: 4, restateEvents: 1, joined: 2, unjoined: 2, allows: 3 });
+      expect(s.window).toEqual({
+        from: at(0), to: at(32), since: null, until: null, project: null,
+        sessions: 4, projects: ['/p/a', '/p/b'], versions: ['0.14.0'], eventsPresent: true, rejectionsPresent: true
+      });
+    });
+
+    it('should rate rejections per 100 turns overall and per project, without weeks under a month', () => {
+      expect(s.rejectionRate).toEqual({
+        per100: 44.4,
+        perProject: [
+          { project: '/p/a', turns: 7, rejections: 1, per100: 14.3 },
+          { project: '/p/b', turns: 2, rejections: 3, per100: 150 }
+        ],
+        perWeek: null
+      });
+    });
+
+    it('should rate each distance bucket from the records own distance', () => {
+      expect(s.distance).toEqual([
+        { bucket: '0', turns: 4, rejections: 1, per100: 25 },
+        { bucket: '1-2', turns: 4, rejections: 1, per100: 25 },
+        { bucket: '3-5', turns: 0, rejections: 0, per100: null },
+        { bucket: '6-10', turns: 1, rejections: 1, per100: 100 },
+        { bucket: '11+', turns: 0, rejections: 1, per100: null }
+      ]);
+    });
+
+    it('should list error rules once per turn with terms and the reply mode in force', () => {
+      expect(s.rulesFiring).toEqual([
+        { check: 'JustSaySo.Leverage', turns: 3, share: 37.5, terms: [{ term: 'leverage', count: 6 }], modes: { warn: 2, block: 1 } },
+        { check: 'JustSaySo.Buzzwords', turns: 2, share: 25, terms: [{ term: 'synergy', count: 2 }], modes: { block: 1, warn: 1 } }
+      ]);
+    });
+
+    it('should describe the rejected replies by rule and level, the clean ones, and the warnings-only ones', () => {
+      expect(s.rejected).toEqual({
+        linted: 3,
+        unlinted: 1,
+        rules: [
+          { check: 'JustSaySo.Intensifiers', error: 0, warning: 0, suggestion: 2, records: 2 },
+          { check: 'JustSaySo.Leverage', error: 1, warning: 0, suggestion: 0, records: 1 }
+        ],
+        clean: { count: 1, reasons: ['too much jargon'] },
+        warningsOnly: { count: 1, rules: [{ check: 'JustSaySo.Intensifiers', count: 1 }] }
+      });
+    });
+
+    it('should count rewrites, reasons, allows, and settings', () => {
+      expect(s.rewrites).toEqual({ total: 3, clean: 1, keptError: 1, unlinted: 1, surviving: [] });
+      expect(s.reasons).toEqual({ given: [{ reason: 'too much jargon', count: 2 }, { reason: 'flat', count: 1 }], none: 1 });
+      expect(s.allows).toEqual([
+        { term: 'robust regression', count: 2, added: 2, projects: ['/p/a', '/p/b'] },
+        { term: 'TLS', count: 1, added: 0, projects: ['/p/a'] }
+      ]);
+      expect(s.settings.map((x) => [x.sessions, x.config.reply.mode])).toEqual([[2, 'warn'], [1, 'block']]);
+      expect(s.observations).toEqual({ frequentNeverRejected: [] });
+    });
+
+    it('should render every section as text', () => {
+      expect(text).toContain('turns 9 (block attempts 2) · linted 8 · unlinted 1 · with an error 5');
+      expect(text).toContain('overall: 44.4 per 100 turns');
+      expect(text).toContain('3-5   prompts: 0 rejected of 0 turns, rate unavailable');
+      expect(text).toContain('JustSaySo.Leverage: 3 turns (37.5%) · terms: leverage 6 · mode: warn 2, block 1');
+      expect(text).toContain('rejected and clean: 1 · reasons: too much jargon');
+      expect(text).toContain('robust regression: 2 (new 2) · in 2 projects');
+      expect(text).toContain('1 rejected replies passed Vale clean');
+    });
+  });
+
+  describe('when the counter resets after compaction and the window starts mid-session', () => {
+    let full, windowed;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [session('s1', A, 0)];
+      for (let i = 1; i <= 40; i++) events.push(reply('s1', A, i, i, i - 1, 'pass', []));
+      events.push({ ...session('s1', A, 41), source: 'compact' });
+      for (let i = 1; i <= 10; i++) events.push(reply('s1', A, 41 + i, i, i - 1, 'pass', []));
+      full = summarize(events, []);
+      windowed = summarize(events, [], { since: at(45) });
+    });
+
+    it('should count fifty turns, not ten, and only the turns inside the window', () => {
+      expect(full.volume.turns).toBe(50);
+      expect(windowed.volume.turns).toBe(7);
+      expect(windowed.window.from).toBe(at(45));
+    });
+  });
+
+  describe('when the events log is off and only rejections exist', () => {
+    let s, text;
+
+    beforeEach(() => {
+      s = summarize([], [rejection('s1', '/p/a', 1, 2, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')])]);
+      text = formatSummary(s);
+    });
+
+    it('should count the rejections, mark every rate unavailable, and say the log is empty', () => {
+      expect(s.volume.rejections).toBe(1);
+      expect(s.rejectionRate.per100).toBeNull();
+      expect(s.window.eventsPresent).toBe(false);
+      expect(text).toContain('the events log holds nothing for this window, so every rate is unavailable');
+      expect(text).toContain('overall: rate unavailable turns');
+    });
+  });
+
+  describe('when null alerts appear on a turn, a rejected reply, and a rewrite', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      s = summarize(
+        [session('s1', A, 0), reply('s1', A, 1, 1, 0, 'pass', null)],
+        [rejection('s1', A, 2, 2, 0, 'x', null, null), rejection('s1', A, 3, 3, 0, 'y', [rb('JustSaySo.Buzzwords', 'error', 'synergy')], null)]
+      );
+    });
+
+    it('should keep them out of clean, fixed, and error counts', () => {
+      expect(s.volume).toMatchObject({ turns: 1, linted: 0, unlinted: 1, withError: 0 });
+      expect(s.rejected).toMatchObject({ linted: 1, unlinted: 1, clean: { count: 0, reasons: [] } });
+      expect(s.rewrites).toEqual({ total: 2, clean: 0, keptError: 0, unlinted: 2, surviving: [] });
+    });
+  });
+
+  describe('when a rewrite is unlinted and another keeps the same rule', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      s = summarize(
+        [],
+        [
+          rejection('s1', A, 1, 2, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')], null),
+          rejection('s1', A, 2, 3, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')], [rb('JustSaySo.Buzzwords', 'error', 'synergy')])
+        ]
+      );
+    });
+
+    it('should count the unlinted rewrite apart and name the surviving rule', () => {
+      expect(s.rewrites).toEqual({ total: 2, clean: 0, keptError: 1, unlinted: 1, surviving: [{ check: 'JustSaySo.Buzzwords', count: 1 }] });
+    });
+  });
+
+  describe('when the window spans more than four weeks and a rule fires often with no rejection', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [session('s1', A, 0, 'block')];
+      for (let i = 1; i <= 25; i++) events.push(reply('s1', A, i * 60 * 24 * 2, i, 0, 'pass', [LEV]));
+      s = summarize(events, [rejection('s1', A, 3000, 2, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')])]);
+    });
+
+    it('should report weeks and the frequent rule with its mode', () => {
+      expect(s.rejectionRate.perWeek.length).toBeGreaterThan(4);
+      expect(s.rejectionRate.perWeek.reduce((n, w) => n + w.turns, 0)).toBe(25);
+      expect(s.observations.frequentNeverRejected).toEqual([{ check: 'JustSaySo.Leverage', turns: 25, modes: { block: 25 } }]);
+      expect(formatSummary(s)).toContain('JustSaySo.Leverage (25). In block mode you never see the flagged reply');
+    });
+  });
+
+  describe('when a project filter is given', () => {
+    let s;
+
+    beforeEach(() => {
+      s = summarize(
+        [session('s1', '/p/a', 0), reply('s1', '/p/a', 1, 1, 0, 'pass', []), session('s2', '/p/b', 2), reply('s2', '/p/b', 3, 1, 0, 'pass', [])],
+        [rejection('s2', '/p/b', 4, 2, 0, 'x', [])],
+        { project: '/p/b' }
+      );
+    });
+
+    it('should keep one project only', () => {
+      expect([s.volume.turns, s.volume.rejections, s.window.projects]).toEqual([1, 1, ['/p/b']]);
+    });
+  });
+
+  describe('when nothing is in the window', () => {
+    it('should say so', () => {
+      expect(formatSummary(summarize([], []))).toBe('just-say-so summary\n\nNo records in the window. The events log and the rejections file are empty, missing, or outside the window.\n');
+    });
+  });
+});

@@ -38,6 +38,24 @@ describe('doctor and init CLIs', () => {
     });
   });
 
+  describe('when the undescribed CLI runs with the fake vale', () => {
+    let result, json;
+
+    beforeEach(() => {
+      const sandbox = withFakeVale(makeSandbox());
+      result = run('undescribed.js', [], sandbox);
+      json = run('undescribed.js', ['--json'], sandbox);
+    });
+
+    it('should report nothing to draft and print an empty list as JSON', () => {
+      expect({ status: result.status, stdout: result.stdout }).toEqual({
+        status: 0,
+        stdout: 'just-say-so: every enabled rule at error level or above already has a bullet. Nothing to draft.\n'
+      });
+      expect(JSON.parse(json.stdout)).toEqual([]);
+    });
+  });
+
   describe('when init runs with a bad argument', () => {
     let result;
 

@@ -13,6 +13,7 @@ import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
 import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
+import { loadExtra } from './manifest.js';
 import { pluginVersion } from './version.js';
 
 // The names the hooks lint under, one per target, plus the three file kinds
@@ -214,6 +215,15 @@ export function doctorReport(cwd, env = process.env) {
   raw.push(rawSection('*', resolved));
   for (const g of order) raw.push(rawSection(g, resolved));
 
+  const extra = loadExtra(config);
+  if (config.rules?.extra && !extra) warnings.push(`rules.extra names ${config.rules.extra}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  const unknown = (extra?.sections ?? [])
+    .flatMap((sec) => sec.rules ?? [])
+    .flatMap((r) => (r.vale ?? []).map((id) => [r.id, id]))
+    .filter(([, id]) => !inventory.has(id));
+  if (unknown.length > 0) {
+    warnings.push(`rules.extra names Vale rules no installed style has: ${unknown.map(([b, id]) => `${id} (bullet ${b})`).join(', ')}. Fix the id or sync the style.`);
+  }
   if (anyJustSaySo && targets.every((t) => !t.justSaySoOn)) {
     warnings.push('The JustSaySo style is installed but no section lists it in BasedOnStyles, so no target lints under it. Add it to BasedOnStyles in [*].');
   }

@@ -171,6 +171,10 @@ EOF
 
 **22a. MCP fields.** With `publish.mcp` naming a Jira or Confluence tool, ask the model to create a page whose title is one word and whose body holds "pure synergy". Expect: the deny names the body's JSON path and not the title, and the lint names are `mcp.<server>.<tool>.<field>.publish`.
 
+## Phase K — drafting bullets (0.13.0)
+
+**23. Draft.** In a scratch repo with ai-tells synced and two of its rules set to `error` in `[*]`, run `/just-say-so:draft`. Expect: the command output lists the two rules with their messages, the model prints one JSON fragment with bullets whose `vale` lists hold those exact ids, and nothing is written. Save the fragment, set `rules.extra`, start a session: the reminder carries the new bullets and the closing line no longer names those rules. Run `/just-say-so:doctor` with a misspelled id in the fragment: the warning names it.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

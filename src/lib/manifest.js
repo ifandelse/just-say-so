@@ -49,6 +49,17 @@ export function loadManifest(config) {
   return { ...manifest, sections, condensed: [...(manifest.condensed ?? []), ...extraIds] };
 }
 
+/** The rules.extra manifest fragment alone, or null when none is set or readable. */
+export function loadExtra(config) {
+  const extraPath = config?.rules?.extra;
+  if (!extraPath) return null;
+  try {
+    return readJson(expandHome(extraPath));
+  } catch {
+    return null;
+  }
+}
+
 export function allRules(manifest) {
   return (manifest.sections ?? []).flatMap((s) => s.rules ?? []);
 }

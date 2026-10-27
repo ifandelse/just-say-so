@@ -73,7 +73,7 @@ export function undescribedRules(cwd, env = process.env, { minLevel = 'error' } 
   const inventory = listStyleRules(resolved.Paths ?? []);
   const files = listStyleFiles(resolved.Paths ?? []);
   const state = ruleStateFor(REPLY_NAME, resolved, inventory, sectionOrder(resolved));
-  return undescribedIds(state, loadManifest(config), minLevel).map((id) =>
+  return undescribedIds(state, loadManifest(config, cwd), minLevel).map((id) =>
     describeRule(id, files.get(id), state.get(id).level)
   );
 }

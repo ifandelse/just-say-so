@@ -9,6 +9,7 @@ vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 import { shippedConfigPath } from './vale.js';
 import {
   parseRestate,
+  tagsIn,
   rejectionsFile,
   lintReply,
   newRecord,
@@ -19,7 +20,8 @@ import {
 
 /*
  * Branch map — src/lib/rejections.js
- *   parseRestate: bare command → reason null · with reason → trimmed reason ·
+ *   tagsIn: #words lowercased and hyphenated, deduplicated, inline # ignored
+ *   parseRestate: bare command → reason null, tags [] · with reason → trimmed reason ·
  *     surrounding whitespace ignored · other prompt → null · prefix of a longer
  *     command → null · missing prompt → null
  *   rejectionsFile: under stateDir
@@ -85,15 +87,33 @@ describe('rejections', () => {
 
       it('should recognize only the restate command and keep the reason verbatim', () => {
         expect(results).toEqual({
-          bare: { reason: null },
-          reason: { reason: 'verbal shorthand' },
-          padded: { reason: 'too terse' },
-          multiline: { reason: 'first line\nsecond line' },
+          bare: { reason: null, tags: [] },
+          reason: { reason: 'verbal shorthand', tags: [] },
+          padded: { reason: 'too terse', tags: [] },
+          multiline: { reason: 'first line\nsecond line', tags: [] },
           other: null,
           longer: null,
           otherSkill: null,
           missing: null
         });
+      });
+    });
+  });
+
+  describe('tagsIn', () => {
+    it('should list each #word once, lowercased and hyphenated, and leave the reason alone', () => {
+      expect({
+        two: tagsIn('#Undefined-Term what is a "pin"? #flourish'),
+        odd: tagsIn('#Long Sentences #long_sentences #a/b #flourish!'),
+        none: tagsIn('too much jargon'),
+        inline: tagsIn('bad#tag and #real'),
+        empty: tagsIn(null)
+      }).toEqual({
+        two: ['undefined-term', 'flourish'],
+        odd: ['long', 'long-sentences', 'a-b', 'flourish'],
+        none: [],
+        inline: ['real'],
+        empty: []
       });
     });
   });
@@ -187,6 +207,7 @@ describe('rejections', () => {
         sinceReminder: null,
         model: null,
         reason: 'verbal shorthand',
+        tags: [],
         prompt: null,
         rejected: { text: 'old reply', alerts: [] },
         rewrite: null,

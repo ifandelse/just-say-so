@@ -50,7 +50,7 @@ export function run(input, env = process.env) {
     appendRecord(rejectionsFile(env), record);
     logEvent(
       'restate',
-      { ...common, sinceReminder, record: record.id, reasonGiven: restate.reason !== null },
+      { ...common, sinceReminder, record: record.id, reasonGiven: restate.reason !== null, tags: record.tags },
       { config, env }
     );
     logEvent('reminder', { ...common, trigger: 'restate', withReport: false }, { config, env });

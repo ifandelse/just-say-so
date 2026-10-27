@@ -105,7 +105,8 @@ describe('remind.run', () => {
           promptIndex: 41,
           sinceReminder: 19,
           record: records[0].id,
-          reasonGiven: true
+          reasonGiven: true,
+          tags: []
         },
         {
           t: expect.any(String),
@@ -130,6 +131,7 @@ describe('remind.run', () => {
           sinceReminder: 19,
           model: null,
           reason: 'verbal shorthand',
+          tags: [],
           prompt: 'how do we ship?',
           rejected: {
             text: 'We ship synergy.',
@@ -159,6 +161,23 @@ describe('remind.run', () => {
         promptAtLastReminder: 41,
         replyAlerts: {}
       });
+    });
+  });
+
+  describe('when the restate reason carries tags', () => {
+    let records, events;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox();
+      const transcript = rejectedReplyTranscript(sandbox);
+      run(promptEvent(sandbox, { prompt: '/just-say-so:restate #undefined-term what is a "pin"? #Flourish', transcript_path: transcript }), sandbox.env);
+      records = readRecords(rejectionsFile(sandbox.env));
+      events = readEvents(eventsFile(sandbox.env));
+    });
+
+    it('should keep the reason whole and index the tags on the record and the event', () => {
+      expect(records.map((r) => [r.reason, r.tags])).toEqual([['#undefined-term what is a "pin"? #Flourish', ['undefined-term', 'flourish']]]);
+      expect(events.find((e) => e.e === 'restate').tags).toEqual(['undefined-term', 'flourish']);
     });
   });
 

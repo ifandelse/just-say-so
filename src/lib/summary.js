@@ -16,6 +16,8 @@
 // when its denominator exists in the window. A reply's mode is the
 // session snapshot in force when the reply happened, pre-window
 // snapshots included.
+import { tagsIn } from './rejections.js';
+
 const FINAL = new Set(['pass', 'standdown']);
 const BUCKETS = [
   ['0', (n) => n === 0],
@@ -68,7 +70,7 @@ function weekStart(t) {
  * Summarize events and rejection records. `since` and `until` are ISO
  * strings; `project` filters both kinds by exact project path.
  */
-export function summarize(events, rejections, { since = null, until = null, project = null } = {}) {
+export function summarize(events, rejections, { since = null, until = null, project = null, manifest = null, manifestFor = null } = {}) {
   const scoped = (events ?? []).filter((e) => e.t && (!project || e.project === project));
   const ev = scoped.filter((e) => inWindow(e.t, since, until));
   const rec = (rejections ?? [])
@@ -280,6 +282,45 @@ export function summarize(events, rejections, { since = null, until = null, proj
   }
   const settingsRows = sortedEntries(settings).map(([config, n]) => ({ config: JSON.parse(config), sessions: n }));
 
+  // Tags, with what covers each: a judgment bullet (no Vale rules), a
+  // Vale-backed bullet (with how often its rules fired on those replies),
+  // or nothing yet, which is the to-do list for new bullets and rules.
+  // Coverage comes from the manifest of the record's own project, since a
+  // project's rules.extra adds bullets no other project has; a tag that
+  // two projects cover differently prints once per coverage.
+  const resolve = manifestFor ?? (() => manifest);
+  const bulletCache = new Map();
+  const bulletsFor = (proj) => {
+    const key = proj ?? '';
+    if (!bulletCache.has(key)) {
+      const map = new Map();
+      for (const sec of resolve(proj)?.sections ?? []) for (const r of sec.rules ?? []) map.set(r.id, r.vale ?? []);
+      bulletCache.set(key, map);
+    }
+    return bulletCache.get(key);
+  };
+  const tagRows = new Map();
+  for (const r of rec) {
+    const tags = Array.isArray(r.tags) ? r.tags : tagsIn(r.reason);
+    const bullets = bulletsFor(r.project ?? null);
+    for (const tag of tags) {
+      const ids = bullets.get(tag);
+      const covers = ids === undefined ? 'none' : ids.length === 0 ? 'judgment' : 'vale';
+      const key = `${tag}|${covers}|${(ids ?? []).join(',')}`;
+      const row = tagRows.get(key) ?? { tag, count: 0, fired: 0, linted: 0, covers, rules: ids ?? [], projects: new Set() };
+      row.count++;
+      if (r.project) row.projects.add(r.project);
+      if (covers === 'vale' && Array.isArray(r.rejected?.alerts)) {
+        row.linted++;
+        if (r.rejected.alerts.some((a) => ids.includes(a.check))) row.fired++;
+      }
+      tagRows.set(key, row);
+    }
+  }
+  const tagList = [...tagRows.values()]
+    .map((row) => ({ ...row, projects: [...row.projects].sort() }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag) || a.covers.localeCompare(b.covers));
+
   // Observations.
   const rejectedChecks = new Set(rejLinted.flatMap((r) => r.rejected.alerts.map((a) => a.check)));
   const frequentNeverRejected = rulesFiring.filter((r) => r.turns >= FREQUENT && !rejectedChecks.has(r.check));
@@ -321,6 +362,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
     },
     rewrites,
     reasons: { given: sortedEntries(reasonCounts).map(([reason, count]) => ({ reason, count })), none: noReason },
+    tags: tagList,
     allows,
     settings: settingsRows,
     observations: { frequentNeverRejected: frequentNeverRejected.map((r) => ({ check: r.check, turns: r.turns, modes: r.modes })) }
@@ -380,6 +422,18 @@ export function formatSummary(s) {
   L.push('', `Reasons given (${s.reasons.none} without one)`);
   if (s.reasons.given.length === 0) L.push('  none');
   for (const x of s.reasons.given) L.push(`  ${x.count} × ${x.reason}`);
+
+  L.push('', 'Tags (what covers each: a judgment bullet, a Vale-backed bullet, or nothing yet)');
+  if (s.tags.length === 0) L.push('  none');
+  const repeated = new Set(s.tags.map((t) => t.tag).filter((tag, i, all) => all.indexOf(tag) !== i));
+  for (const t of s.tags) {
+    const where = repeated.has(t.tag) && t.projects.length ? ` (in ${t.projects.join(', ')})` : '';
+    if (t.covers === 'judgment') L.push(`  ${t.tag}: ${t.count}${where} · covered by a judgment bullet; no Vale rule can check it`);
+    else if (t.covers === 'vale') L.push(`  ${t.tag}: ${t.count}${where} · covered by a bullet backed by ${t.rules.join(', ')}; those rules fired on ${t.fired} of ${t.linted} linted rejected replies`);
+    else L.push(`  ${t.tag}: ${t.count}${where} · no bullet covers it yet`);
+  }
+  const uncovered = s.tags.filter((t) => t.covers === 'none');
+  if (uncovered.length) L.push(`  what the rules do not cover yet: ${uncovered.map((t) => `${t.tag} (${t.count})`).join(', ')}. Each is a candidate for a judgment bullet, or a Vale rule when one can be written.`);
 
   L.push('', 'Allows');
   if (s.allows.length === 0) L.push('  none');

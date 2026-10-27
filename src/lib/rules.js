@@ -16,8 +16,8 @@ function expandHome(p) {
  * force. Hooks that inject into a context use contextRules (rule-state.js)
  * instead, which adjusts the condensed text to the project's Vale config.
  */
-export function readRules(kind, config) {
-  return renderRules(loadManifest(config), kind === 'condensed' ? 'condensed' : 'full');
+export function readRules(kind, config, cwd = process.cwd()) {
+  return renderRules(loadManifest(config, cwd), kind === 'condensed' ? 'condensed' : 'full');
 }
 
 // {key} placeholders; unknown keys stay literal so a typo is visible.

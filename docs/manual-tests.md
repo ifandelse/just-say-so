@@ -179,6 +179,10 @@ EOF
 
 **24. Summary.** After a session with a flagged reply, a `/just-say-so:restate`, and a `/just-say-so:allow`, run `/just-say-so:summary`. Expect: turns and attempts counted from the Stop events, one rejection that joins to a turn, the rule and term from the flagged reply under "Rules with an error", the allow under "Allows", and no recommendation. Run it again with `--since 1d` and with `--project` set to another path: the second shows no records.
 
+## Phase M — reason tags (0.15.0)
+
+**25. Tags.** Run `/just-say-so:restate #undefined-term what is a "pin"?` after a reply that used a term without defining it. Expect: the rewrite defines or replaces the term; the record in `rejections.jsonl` holds `reason` as typed and `tags: ["undefined-term"]`; the `restate` event carries the tag. Run `/just-say-so:summary`: the Tags section lists `undefined-term` under "what the rules do not cover yet". Restate once more with `#end-with-fact`: the summary says that tag is covered by a bullet backed by ai-tells rules and whether they fired.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

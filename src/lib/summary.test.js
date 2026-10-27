@@ -21,7 +21,11 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *   rewrites: clean, keptError, unlinted, surviving rules
  *   reasons grouped lowercase · allows per term with projects · settings
  *   observations: frequentNeverRejected at 20+ turns
- *   compaction: a counter reset mid-session changes no count
+ *   compaction: a counter reset mid-session changes no count · a mode
+ *     change mid-session attributes each reply to the snapshot in force
+ *   rates: joined rejections only, overall, per project, per week, per
+ *     bucket · unlogged sessions and a window boundary between the
+ *     rejected turn and the restate leave the rejection out of every rate
  *   formatSummary: empty · full · unavailable rates
  */
 
@@ -113,10 +117,11 @@ describe('summary', () => {
 
     it('should rate rejections per 100 turns overall and per project, without weeks under a month', () => {
       expect(s.rejectionRate).toEqual({
-        per100: 44.4,
+        per100: 22.2,
+        joined: 2,
         perProject: [
-          { project: '/p/a', turns: 7, rejections: 1, per100: 14.3 },
-          { project: '/p/b', turns: 2, rejections: 3, per100: 150 }
+          { project: '/p/a', turns: 7, rejections: 1, joined: 1, per100: 14.3 },
+          { project: '/p/b', turns: 2, rejections: 3, joined: 1, per100: 50 }
         ],
         perWeek: null
       });
@@ -124,11 +129,11 @@ describe('summary', () => {
 
     it('should rate each distance bucket from the records own distance', () => {
       expect(s.distance).toEqual([
-        { bucket: '0', turns: 4, rejections: 1, per100: 25 },
+        { bucket: '0', turns: 4, rejections: 0, per100: 0 },
         { bucket: '1-2', turns: 4, rejections: 1, per100: 25 },
         { bucket: '3-5', turns: 0, rejections: 0, per100: null },
         { bucket: '6-10', turns: 1, rejections: 1, per100: 100 },
-        { bucket: '11+', turns: 0, rejections: 1, per100: null }
+        { bucket: '11+', turns: 0, rejections: 0, per100: null }
       ]);
     });
 
@@ -165,7 +170,8 @@ describe('summary', () => {
 
     it('should render every section as text', () => {
       expect(text).toContain('turns 9 (block attempts 2) · linted 8 · unlinted 1 · with an error 5');
-      expect(text).toContain('overall: 44.4 per 100 turns');
+      expect(text).toContain('overall: 2 joined rejections over 9 turns, 22.2 per 100 turns');
+      expect(text).toContain('/p/b: 1 of 2 turns, 50 per 100 (2 unjoined)');
       expect(text).toContain('3-5   prompts: 0 rejected of 0 turns, rate unavailable');
       expect(text).toContain('JustSaySo.Leverage: 3 turns (37.5%) · terms: leverage 6 · mode: warn 2, block 1');
       expect(text).toContain('rejected and clean: 1 · reasons: too much jargon');
@@ -207,7 +213,7 @@ describe('summary', () => {
       expect(s.rejectionRate.per100).toBeNull();
       expect(s.window.eventsPresent).toBe(false);
       expect(text).toContain('the events log holds nothing for this window, so every rate is unavailable');
-      expect(text).toContain('overall: rate unavailable turns');
+      expect(text).toContain('overall: 0 joined rejections over 0 turns, rate unavailable turns');
     });
   });
 
@@ -264,6 +270,77 @@ describe('summary', () => {
       expect(s.observations.frequentNeverRejected).toEqual([{ check: 'JustSaySo.Leverage', turns: 25, modes: { block: 25 } }]);
       expect(formatSummary(s)).toContain('JustSaySo.Leverage (25). In block mode you never see the flagged reply');
     });
+  });
+
+  describe('when one session is logged and five rejections come from a session the log never saw', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [session('sA', A, 0), reply('sA', A, 1, 1, 0, 'pass', [])];
+      const rejections = [1, 2, 3, 4, 5].map((i) => rejection('sB', A, 10 + i, i + 1, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')]));
+      s = summarize(events, rejections);
+    });
+
+    it('should keep the raw count, join nothing, and leave every rate at zero over the logged turn', () => {
+      expect(s.volume).toMatchObject({ turns: 1, rejections: 5, joined: 0, unjoined: 5 });
+      expect(s.rejectionRate).toMatchObject({ per100: 0, joined: 0, perProject: [{ project: '/p/a', turns: 1, rejections: 5, joined: 0, per100: 0 }] });
+      expect(s.distance[0]).toEqual({ bucket: '0', turns: 1, rejections: 0, per100: 0 });
+      expect(formatSummary(s)).toContain('5 do not and count in no rate');
+    });
+  });
+
+  describe('when the window starts between a rejected reply and its restate', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [session('s1', A, 0), reply('s1', A, 1, 1, 3, 'pass', [LEV]), reply('s1', A, 5, 2, 0, 'pass', []), reply('s1', A, 6, 3, 1, 'pass', [])];
+      // The restate at minute 3 rejects the turn at minute 1; the window opens at minute 2.
+      s = summarize(events, [rejection('s1', A, 3, 2, 3, 'x', [rb('JustSaySo.Leverage', 'error', 'leverage')])], { since: at(2) });
+    });
+
+    it('should count the rejection raw, join it to nothing in the window, and charge no later turn', () => {
+      expect(s.volume).toMatchObject({ turns: 2, rejections: 1, joined: 0, unjoined: 1 });
+      expect(s.rejectionRate.per100).toBe(0);
+      expect(s.distance.map((d) => d.rejections)).toEqual([0, 0, 0, 0, 0]);
+    });
+  });
+
+  describe('when a compaction changes the reply mode mid-session', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [
+        session('s1', A, 0, 'warn'),
+        reply('s1', A, 1, 1, 0, 'pass', [LEV]),
+        { ...session('s1', A, 2, 'block'), source: 'compact' },
+        reply('s1', A, 3, 1, 0, 'pass', [LEV]),
+        reply('s1', A, 4, 2, 1, 'pass', [BUZZ])
+      ];
+      s = summarize(events, [], { since: at(3) });
+    });
+
+    it('should attribute each reply to the snapshot in force when it happened, pre-window snapshots included', () => {
+      expect(s.rulesFiring.map((r) => [r.check, r.modes])).toEqual([
+        ['JustSaySo.Buzzwords', { block: 1 }],
+        ['JustSaySo.Leverage', { block: 1 }]
+      ]);
+      const whole = summarize(events(), [], {});
+      expect(whole.rulesFiring.find((r) => r.check === 'JustSaySo.Leverage').modes).toEqual({ block: 1, warn: 1 });
+    });
+
+    function events() {
+      const A = '/p/a';
+      return [
+        session('s1', A, 0, 'warn'),
+        reply('s1', A, 1, 1, 0, 'pass', [LEV]),
+        { ...session('s1', A, 2, 'block'), source: 'compact' },
+        reply('s1', A, 3, 1, 0, 'pass', [LEV]),
+        reply('s1', A, 4, 2, 1, 'pass', [BUZZ])
+      ];
+    }
   });
 
   describe('when a project filter is given', () => {

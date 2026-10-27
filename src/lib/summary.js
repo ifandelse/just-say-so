@@ -8,9 +8,14 @@
 // which exists even when the events log is off; restate events are a
 // cross-check. The rejected reply is the turn at the record's prompt index
 // minus one in the same session, and a record that joins to no turn is
-// counted as unjoined. Unlinted (alerts null) is its own category and
-// never counts as clean or as fixed. A rate prints only when its
-// denominator exists in the window.
+// counted as unjoined. Every rate counts only the rejections that join
+// to a turn inside the window, so a rejection from a session the events
+// log never saw, or one whose rejected turn precedes the window, shows in
+// the raw counts and in no rate. Unlinted (alerts null) is its own
+// category and never counts as clean or as fixed. A rate prints only
+// when its denominator exists in the window. A reply's mode is the
+// session snapshot in force when the reply happened, pre-window
+// snapshots included.
 const FINAL = new Set(['pass', 'standdown']);
 const BUCKETS = [
   ['0', (n) => n === 0],
@@ -64,7 +69,8 @@ function weekStart(t) {
  * strings; `project` filters both kinds by exact project path.
  */
 export function summarize(events, rejections, { since = null, until = null, project = null } = {}) {
-  const ev = (events ?? []).filter((e) => inWindow(e.t, since, until) && (!project || e.project === project));
+  const scoped = (events ?? []).filter((e) => e.t && (!project || e.project === project));
+  const ev = scoped.filter((e) => inWindow(e.t, since, until));
   const rec = (rejections ?? [])
     .map((r) => ({ ...r, t: recordTime(r) }))
     .filter((r) => inWindow(r.t, since, until) && (!project || r.project === project));
@@ -83,19 +89,47 @@ export function summarize(events, rejections, { since = null, until = null, proj
   for (const r of rec) if (r.project) bump(projects, r.project, 0);
   const versions = new Set([...ev.map((e) => e.v), ...rec.map((r) => r.version)].filter(Boolean));
 
-  // Reply mode per session, from the last session event.
-  const modeOf = new Map();
-  for (const e of ev) if (e.e === 'session') modeOf.set(e.session, e.config?.reply?.mode ?? 'unknown');
+  // Reply mode per reply: the latest session snapshot of that session at
+  // or before the reply, window or not, so a compaction that changed the
+  // mode mid-session is attributed from that point on.
+  const snapshots = new Map();
+  for (const e of scoped) {
+    if (e.e !== 'session') continue;
+    const list = snapshots.get(e.session) ?? [];
+    list.push(e);
+    snapshots.set(e.session, list);
+  }
+  for (const list of snapshots.values()) list.sort((a, b) => a.t.localeCompare(b.t));
+  const modeOf = (reply) => {
+    let mode = 'unknown';
+    for (const snap of snapshots.get(reply.session) ?? []) {
+      if (snap.t <= reply.t) mode = snap.config?.reply?.mode ?? 'unknown';
+      else break;
+    }
+    return mode;
+  };
+
+  // Join each rejection to the turn it rejected: the turn at the record's
+  // prompt index minus one in the same session, inside the window. The
+  // joined turn supplies the time, project, and distance a rate uses.
+  const turnByKey = new Map(turns.map((t) => [`${t.session}|${t.promptIndex}`, t]));
+  const joinedRec = rec
+    .map((r) => ({ record: r, turn: turnByKey.get(`${r.session}|${(r.promptIndex ?? 0) - 1}`) ?? null }))
+    .filter((x) => x.turn !== null);
+  const joined = joinedRec.length;
 
   // Rejection rate, overall, per project, per week.
   const turnsByProject = new Map();
   for (const t of turns) bump(turnsByProject, t.project ?? '(none)');
   const recByProject = new Map();
-  for (const r of rec) bump(recByProject, r.project ?? '(none)');
-  const perProject = [...new Set([...turnsByProject.keys(), ...recByProject.keys()])].sort().map((p) => ({
+  for (const { turn } of joinedRec) bump(recByProject, turn.project ?? '(none)');
+  const rawByProject = new Map();
+  for (const r of rec) bump(rawByProject, r.project ?? '(none)');
+  const perProject = [...new Set([...turnsByProject.keys(), ...rawByProject.keys()])].sort().map((p) => ({
     project: p,
     turns: turnsByProject.get(p) ?? 0,
-    rejections: recByProject.get(p) ?? 0,
+    rejections: rawByProject.get(p) ?? 0,
+    joined: recByProject.get(p) ?? 0,
     per100: rate(recByProject.get(p) ?? 0, turnsByProject.get(p) ?? 0)
   }));
   let perWeek = null;
@@ -103,7 +137,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
     const tw = new Map();
     const rw = new Map();
     for (const t of turns) bump(tw, weekStart(t.t));
-    for (const r of rec) bump(rw, weekStart(r.t));
+    for (const { turn } of joinedRec) bump(rw, weekStart(turn.t));
     perWeek = [...new Set([...tw.keys(), ...rw.keys()])].sort().map((w) => ({
       week: w,
       turns: tw.get(w) ?? 0,
@@ -112,14 +146,10 @@ export function summarize(events, rejections, { since = null, until = null, proj
     }));
   }
 
-  // Join rejections to the turn they rejected.
-  const turnKey = new Set(turns.map((t) => `${t.session}|${t.promptIndex}`));
-  const joined = rec.filter((r) => turnKey.has(`${r.session}|${(r.promptIndex ?? 0) - 1}`)).length;
-
-  // Distance from the last injection.
+  // Distance from the last injection, by the joined turn's own distance.
   const distance = BUCKETS.map(([label, test]) => {
     const t = turns.filter((x) => test(Number(x.sinceReminder ?? 0))).length;
-    const rj = rec.filter((x) => test(Number(x.sinceReminder ?? 0))).length;
+    const rj = joinedRec.filter(({ turn }) => test(Number(turn.sinceReminder ?? 0))).length;
     return { bucket: label, turns: t, rejections: rj, per100: rate(rj, t) };
   });
 
@@ -134,7 +164,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
       seen.add(a.check);
       bump(ruleTurns, a.check);
       const modes = ruleModes.get(a.check) ?? new Map();
-      bump(modes, modeOf.get(t.session) ?? 'unknown');
+      bump(modes, modeOf(t));
       ruleModes.set(a.check, modes);
     }
     for (const a of t.alerts) {
@@ -261,7 +291,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
       unjoined: rec.length - joined,
       allows: ev.filter((e) => e.e === 'allow').length
     },
-    rejectionRate: { per100: rate(rec.length, turns.length), perProject, perWeek },
+    rejectionRate: { per100: rate(joined, turns.length), joined, perProject, perWeek },
     distance,
     rulesFiring,
     rejected: {
@@ -299,12 +329,12 @@ export function formatSummary(s) {
   const v = s.volume;
   L.push('', 'Volume');
   L.push(`  turns ${v.turns} (block attempts ${v.attempts}) · linted ${v.linted} · unlinted ${v.unlinted} · with an error ${v.withError}`);
-  L.push(`  rejections ${v.rejections} (restate events ${v.restateEvents}; ${v.joined} join to a turn, ${v.unjoined} do not) · allows ${v.allows}`);
+  L.push(`  rejections ${v.rejections} (restate events ${v.restateEvents}; ${v.joined} join to a turn in the window, ${v.unjoined} do not and count in no rate) · allows ${v.allows}`);
 
   const r = s.rejectionRate;
   L.push('', 'Rejection rate');
-  L.push(`  overall: ${pct(r.per100)} turns`);
-  for (const p of r.perProject) L.push(`  ${p.project}: ${p.rejections} of ${p.turns} turns, ${pct(p.per100)}`);
+  L.push(`  overall: ${r.joined} joined rejections over ${v.turns} turns, ${pct(r.per100)} turns`);
+  for (const p of r.perProject) L.push(`  ${p.project}: ${p.joined} of ${p.turns} turns, ${pct(p.per100)}${p.rejections > p.joined ? ` (${p.rejections - p.joined} unjoined)` : ''}`);
   if (r.perWeek) for (const k of r.perWeek) L.push(`  week of ${k.week}: ${k.rejections} of ${k.turns}, ${pct(k.per100)}`);
 
   L.push('', 'Distance from the last rules injection (association only: a violation itself resets the distance)');

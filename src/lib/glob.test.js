@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { globToRegExp, matchesGlob, matchesAny } from './glob.js';
+import { globToRegExp, matchesGlob, matchesAny, valeGlobToRegExp } from './glob.js';
 
 /*
  * Branch map — src/lib/glob.js
@@ -60,6 +60,53 @@ describe('glob', () => {
 
       it('should treat them as literals', () => {
         expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('valeGlobToRegExp', () => {
+    describe('when Vale section globs are matched against lint target names', () => {
+      let results;
+
+      beforeEach(() => {
+        const t = (glob, name) => valeGlobToRegExp(glob).test(name);
+        results = {
+          star: t('*', 'reply.reply'),
+          ext: t('*.reply', 'reply.reply'),
+          prefix: t('reply.*', 'reply.reply'),
+          braces: t('{*.reply,*.publish}', 'gh.pr.body.publish'),
+          bracesMiss: t('{*.reply,*.publish}', 'doc.md'),
+          nested: t('{a,{b,c}}.reply', 'c.reply'),
+          md: t('*.md', 'reply.reply'),
+          doubleStar: t('**/*.reply', 'reply.reply'),
+          optionalDir: t('{**/,}fragment.chat.md', 'fragment.chat.md'),
+          field: t('gh.*.title.publish', 'gh.pr.title.publish'),
+          klass: t('[rs]eply.reply', 'reply.reply'),
+          negated: t('[!r]eply.reply', 'reply.reply'),
+          dir: t('docs/*', 'reply.reply'),
+          unclosed: t('a[b', 'a[b'),
+          dot: t('reply.reply', 'replyXreply')
+        };
+      });
+
+      it('should accept braces, stars, classes, and literal dots the way Vale does', () => {
+        expect(results).toEqual({
+          star: true,
+          ext: true,
+          prefix: true,
+          braces: true,
+          bracesMiss: false,
+          nested: true,
+          md: false,
+          doubleStar: true,
+          optionalDir: true,
+          field: true,
+          klass: true,
+          negated: false,
+          dir: false,
+          unclosed: true,
+          dot: false
+        });
       });
     });
   });

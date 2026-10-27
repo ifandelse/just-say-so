@@ -6,30 +6,47 @@ import path from 'node:path';
 const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
-import { ruleStateFor, contextRules } from './rule-state.js';
+import { ruleStateFor, sectionOrder, contextRules } from './rule-state.js';
 import { DEFAULTS } from './config.js';
 
 /*
  * Branch map — src/lib/rule-state.js
+ *   sectionOrder: package .vale-config/*.ini in name order, then the
+ *     config files · [formats] and [*] skipped · globs only the maps hold
+ *     come last · unreadable file skipped
  *   ruleStateFor: global styles · a matching section's BasedOnStyles
- *     replaces them · Style = NO · Style.Rule = NO · Style.Rule = level
- *     enables and re-levels · sections that do not match the name are
- *     ignored · a rule outside the inventory is absent
+ *     replaces them, an empty list included · later section wins over an
+ *     earlier one in file order · Style = NO · Style.Rule = NO · YES
+ *     re-enables · style-wide level · per-rule level beats style-wide in
+ *     the same section · a narrower section beats the global one either
+ *     way · brace-alternative sections match · sections that do not
+ *     match the name are ignored
  *   contextRules: vale fails or prints junk → the plain condensed text ·
- *     a bullet whose installed Vale rules are all off is dropped, an
- *     uninstalled rule not counting · a bullet with only uninstalled
- *     rules stays · error rules no bullet names are appended, capped,
- *     sorted · nothing to append → no trailer
+ *     vale: false → the plain text, no spawn · a bullet whose installed
+ *     Vale rules are all off is dropped, an uninstalled rule not counting ·
+ *     a bullet with only uninstalled rules stays · error rules no bullet
+ *     names are appended, capped, sorted · a style-wide level below error
+ *     keeps a rule out of the trailer · nothing to append → no trailer
  */
 
-function stylesDir(rules) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-rs-'));
+function tmpdir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'jss-rs-'));
+}
+
+function stylesDir(rules, dir = tmpdir()) {
   for (const [id, level] of Object.entries(rules)) {
     const [style, name] = id.split('.');
     fs.mkdirSync(path.join(dir, style), { recursive: true });
     fs.writeFileSync(path.join(dir, style, `${name}.yml`), `extends: existence\nlevel: ${level}\n`);
   }
   return dir;
+}
+
+function iniFile(text, dir = tmpdir(), name = '.vale.ini') {
+  const file = path.join(dir, name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return file;
 }
 
 function resolvedWith(over = {}) {
@@ -41,6 +58,7 @@ function resolvedWith(over = {}) {
     RuleToLevel: {},
     SLevels: {},
     Paths: [],
+    ConfigFiles: [],
     ...over
   };
 }
@@ -59,37 +77,93 @@ describe('rule-state', () => {
     vi.clearAllMocks();
   });
 
+  describe('sectionOrder', () => {
+    describe('when a package config, a project config, and an orphan map key exist', () => {
+      let order;
+
+      beforeEach(() => {
+        const styles = tmpdir();
+        iniFile('[formats]\nreply = md\n[*.reply]\nP.Rule = NO\n', path.join(styles, '.vale-config'), '1-Q.ini');
+        iniFile('[*.publish]\nP.Rule = NO\n', path.join(styles, '.vale-config'), '0-P.ini');
+        const project = iniFile('StylesPath = styles\n[*]\nBasedOnStyles = X\n  [reply.*]  \nX.A = YES\n[{*.reply,*.publish}]\nX.A = NO\n');
+        order = sectionOrder(
+          resolvedWith({
+            Paths: [styles, path.join(styles, 'MISSING')],
+            ConfigFiles: [project, '/nowhere/.vale.ini'],
+            SChecks: { '*.md': {}, 'reply.*': {} }
+          })
+        );
+      });
+
+      it('should list package sections first, then the project sections, then map-only globs', () => {
+        expect(order).toEqual(['*.publish', '*.reply', 'reply.*', '{*.reply,*.publish}', '*.md']);
+      });
+    });
+  });
+
   describe('ruleStateFor', () => {
-    describe('when the config has global styles, a reply section, and an unrelated section', () => {
+    const inventory = new Map([
+      ['JustSaySo.Buzzwords', 'error'],
+      ['JustSaySo.Intensifiers', 'suggestion'],
+      ['STE.Articles', 'error'],
+      ['Local.Extra', 'error'],
+      ['Local.Other', 'warning']
+    ]);
+
+    describe('when sections toggle rules in file order with brace globs and an unrelated section', () => {
       let state;
 
       beforeEach(() => {
-        const inventory = new Map([
-          ['JustSaySo.Buzzwords', 'error'],
-          ['JustSaySo.Intensifiers', 'suggestion'],
-          ['STE.Articles', 'error'],
-          ['STE.SentenceLength', 'warning'],
-          ['Plain.Passive', 'suggestion'],
-          ['Tells.Dash', 'error']
-        ]);
         const resolved = resolvedWith({
-          GChecks: { 'JustSaySo.Intensifiers': false, 'Tells.Dash': true },
-          RuleToLevel: { 'Tells.Dash': 'warning' },
-          SChecks: { '*.reply': { STE: false, 'Plain.Passive': true }, '*.md': { 'JustSaySo.Buzzwords': false } },
-          SLevels: { '*.reply': { 'Plain.Passive': 'error' }, '*.md': { 'STE.Articles': 'suggestion' } }
+          GBaseStyles: ['JustSaySo', 'STE', 'Local'],
+          GChecks: { 'JustSaySo.Intensifiers': false },
+          SChecks: {
+            '*.reply': { 'JustSaySo.Intensifiers': true, STE: false },
+            'reply.*': { 'JustSaySo.Intensifiers': false },
+            '{*.reply,*.publish}': { 'Local.Other': false },
+            '*.md': { 'JustSaySo.Buzzwords': false }
+          }
         });
-        state = ruleStateFor('reply.reply', resolved, inventory);
+        // File order: reply.* (NO) comes after *.reply (YES), so NO wins.
+        state = ruleStateFor('reply.reply', resolved, inventory, ['*.md', '*.reply', 'reply.*', '{*.reply,*.publish}']);
       });
 
-      it('should combine the global and matching-section settings and ignore the rest', () => {
+      it('should apply the matching sections in that order and ignore the rest', () => {
         expect(Object.fromEntries(state)).toEqual({
           'JustSaySo.Buzzwords': { enabled: true, level: 'error' },
           'JustSaySo.Intensifiers': { enabled: false, level: 'suggestion' },
           'STE.Articles': { enabled: false, level: 'error' },
-          'STE.SentenceLength': { enabled: false, level: 'warning' },
-          'Plain.Passive': { enabled: true, level: 'error' },
-          'Tells.Dash': { enabled: true, level: 'warning' }
+          'Local.Extra': { enabled: true, level: 'error' },
+          'Local.Other': { enabled: false, level: 'warning' }
         });
+      });
+    });
+
+    describe('when the same sections come in the other file order', () => {
+      let state;
+
+      beforeEach(() => {
+        const resolved = resolvedWith({
+          GBaseStyles: ['JustSaySo'],
+          SChecks: { '*.reply': { 'JustSaySo.Intensifiers': true }, 'reply.*': { 'JustSaySo.Intensifiers': false } }
+        });
+        state = ruleStateFor('reply.reply', resolved, inventory, ['reply.*', '*.reply']);
+      });
+
+      it('should let the later section win', () => {
+        expect(state.get('JustSaySo.Intensifiers')).toEqual({ enabled: true, level: 'suggestion' });
+      });
+    });
+
+    describe('when a matching section sets an empty BasedOnStyles', () => {
+      let state;
+
+      beforeEach(() => {
+        state = ruleStateFor('reply.reply', resolvedWith({ SBaseStyles: { '*.reply': [] } }), inventory, ['*.reply']);
+      });
+
+      it('should disable every style', () => {
+        expect([...state.values()].map((s) => s.enabled)).toEqual([false, false, false, false, false]);
       });
     });
 
@@ -97,35 +171,73 @@ describe('rule-state', () => {
       let state;
 
       beforeEach(() => {
-        const inventory = new Map([
-          ['JustSaySo.Buzzwords', 'error'],
-          ['Local.Dash', 'error']
-        ]);
-        state = ruleStateFor('reply.reply', resolvedWith({ SBaseStyles: { '*.reply': ['Local'] } }), inventory);
+        state = ruleStateFor('reply.reply', resolvedWith({ SBaseStyles: { '*.reply': ['Local'] } }), inventory, ['*.reply']);
       });
 
       it('should replace the global list with the section list', () => {
-        expect(Object.fromEntries(state)).toEqual({
-          'JustSaySo.Buzzwords': { enabled: false, level: 'error' },
-          'Local.Dash': { enabled: true, level: 'error' }
+        expect([...state.entries()].map(([id, s]) => [id, s.enabled])).toEqual([
+          ['JustSaySo.Buzzwords', false],
+          ['JustSaySo.Intensifiers', false],
+          ['STE.Articles', false],
+          ['Local.Extra', true],
+          ['Local.Other', true]
+        ]);
+      });
+    });
+
+    describe('when levels are set style-wide and per rule across sections', () => {
+      let global, narrowerStyle, narrowerRule;
+
+      beforeEach(() => {
+        const base = { GBaseStyles: ['Local'] };
+        // [*] Local = suggestion plus Local.Extra = error: per-rule wins in the same section.
+        global = ruleStateFor('reply.reply', resolvedWith({ ...base, RuleToLevel: { Local: 'suggestion', 'Local.Extra': 'error' } }), inventory, []);
+        // [*] Local.Extra = warning; [*.reply] Local = suggestion: the narrower section wins.
+        narrowerStyle = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ ...base, RuleToLevel: { 'Local.Extra': 'warning' }, SLevels: { '*.reply': { Local: 'suggestion' } } }),
+          inventory,
+          ['*.reply']
+        );
+        // [*] Local = suggestion; [*.reply] Local.Extra = warning: the narrower section wins.
+        narrowerRule = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ ...base, RuleToLevel: { Local: 'suggestion' }, SLevels: { '*.reply': { 'Local.Extra': 'warning' } } }),
+          inventory,
+          ['*.reply']
+        );
+      });
+
+      it('should resolve levels the way Vale does', () => {
+        expect({
+          global: [global.get('Local.Extra').level, global.get('Local.Other').level],
+          narrowerStyle: [narrowerStyle.get('Local.Extra').level, narrowerStyle.get('Local.Other').level],
+          narrowerRule: [narrowerRule.get('Local.Extra').level, narrowerRule.get('Local.Other').level]
+        }).toEqual({
+          global: ['error', 'suggestion'],
+          narrowerStyle: ['suggestion', 'suggestion'],
+          narrowerRule: ['warning', 'suggestion']
         });
       });
     });
   });
 
   describe('contextRules', () => {
-    describe('when vale cannot report the config', () => {
-      let failed, junk;
+    describe('when vale cannot report the config, or the probe already failed', () => {
+      let failed, junk, skipped, spawns;
 
       beforeEach(() => {
         valeSays(null);
         failed = contextRules(DEFAULTS, os.tmpdir(), {});
         valeSays('nope');
         junk = contextRules(DEFAULTS, os.tmpdir(), {});
+        const before = mockSpawnSync.mock.calls.length;
+        skipped = contextRules(DEFAULTS, os.tmpdir(), {}, { vale: false });
+        spawns = mockSpawnSync.mock.calls.length - before;
       });
 
-      it('should return the plain condensed text both times', () => {
-        expect(failed).toBe(junk);
+      it('should return the plain condensed text every time, without spawning for a known-missing vale', () => {
+        expect({ same: failed === junk && junk === skipped, spawns }).toEqual({ same: true, spawns: 0 });
         expect(failed).toMatch(/^## Communication rules — reminder\n/);
         expect(failed).toContain('- Empty intensifiers: very, truly, crucial, vital.');
       });
@@ -138,23 +250,33 @@ describe('rule-state', () => {
         const dir = stylesDir({
           'JustSaySo.Intensifiers': 'suggestion',
           'JustSaySo.Buzzwords': 'error',
+          'JustSaySo.NegativeParallelism': 'error',
           'acme.Alpha': 'error',
           'acme.Beta': 'error',
           'acme.Gamma': 'warning',
-          'acme.Delta': 'error'
+          'acme.Delta': 'error',
+          'soft.Loud': 'error'
         });
+        const project = iniFile(
+          'StylesPath = styles\n[*]\nBasedOnStyles = JustSaySo, acme, soft\n[{*.reply,*.publish}]\nJustSaySo.NegativeParallelism = NO\n',
+          dir
+        );
         valeSays(
           resolvedWith({
-            GBaseStyles: ['JustSaySo', 'acme'],
+            GBaseStyles: ['JustSaySo', 'acme', 'soft'],
             GChecks: { 'JustSaySo.Intensifiers': false, 'acme.Delta': false },
-            Paths: [dir]
+            RuleToLevel: { soft: 'warning' },
+            SChecks: { '{*.reply,*.publish}': { 'JustSaySo.NegativeParallelism': false } },
+            Paths: [dir],
+            ConfigFiles: [project]
           })
         );
         text = contextRules(DEFAULTS, os.tmpdir(), {});
       });
 
-      it('should drop the intensifiers bullet (its ai-tells twin is not installed), keep bullets with only uninstalled rules, and name the undescribed error rules', () => {
+      it('should drop the two bullets, keep bullets with only uninstalled rules, and name the undescribed error rules', () => {
         expect(text).not.toContain('Empty intensifiers');
+        expect(text).not.toContain("it's not {x}");
         expect(text).toContain('- One idea per sentence.');
         expect(text).toMatch(/\n\nThis project also enforces these Vale rules at error level: acme\.Alpha, acme\.Beta\.\n$/);
       });

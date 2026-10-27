@@ -9,6 +9,7 @@ import path from 'node:path';
 import { stateDir } from './state.js';
 import { pluginVersion, PKG_ROOT } from './version.js';
 import { dedupeOverlaps } from './reply-alerts.js';
+import { loadManifest, fixedTerms as manifestTerms } from './manifest.js';
 
 export function eventsFile(env = process.env) {
   return path.join(stateDir(env), 'events.jsonl');
@@ -73,19 +74,14 @@ function normalizeTerm(s) {
     .trim();
 }
 
-// The shipped banned terms (rules/banned.json words, phrases, and contextual
-// entries), keyed by normalized spelling, read once per process.
+// The shipped banned terms (the manifest's style terms), keyed by
+// normalized spelling, read once per process.
 let fixedTermsCache = null;
 function fixedTerms() {
   if (fixedTermsCache) return fixedTermsCache;
   const map = new Map();
   try {
-    const banned = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'rules', 'banned.json'), 'utf8'));
-    for (const list of ['words', 'phrases', 'contextual']) {
-      for (const entry of banned[list] ?? []) {
-        if (entry?.term) map.set(normalizeTerm(entry.term), entry.term);
-      }
-    }
+    for (const term of manifestTerms(loadManifest())) map.set(normalizeTerm(term), term);
   } catch {
     // an unreadable term list keeps every match out of the log
   }

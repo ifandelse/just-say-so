@@ -36,44 +36,74 @@ describe('style-gen', () => {
   });
 
   describe('buildStyleFiles', () => {
-    describe('when the banned set has every entry kind', () => {
+    describe('when the manifest has every term kind', () => {
       let files;
 
       beforeEach(() => {
         files = buildStyleFiles({
-          words: [
-            { term: 'flumoxide' },
-            { term: 'utilize', hint: 'use "use"' },
-            { term: 'leverage', hint: 'use a concrete verb: use, apply, rely on' }
-          ],
-          phrases: [{ term: 'calzone cannon' }, { term: 'in order to', hint: 'use "to"' }],
-          patterns: [{ regex: "it's not \\w+", label: 'negation frame' }],
-          contextual: [{ term: 'very' }]
+          sections: [
+            {
+              title: 'x',
+              rules: [
+                {
+                  id: 'a',
+                  vale: [],
+                  style: {
+                    name: 'Buzzwords',
+                    message: "Banned buzzword: '%s'. Delete it.",
+                    level: 'error',
+                    terms: [
+                      { term: 'flumoxide' },
+                      { term: 'calzone cannon' },
+                      { term: 'utilize', hint: 'use "use"' },
+                      { term: 'leverage', hint: 'use a concrete verb: use, apply, rely on' }
+                    ]
+                  }
+                },
+                {
+                  id: 'b',
+                  vale: [],
+                  style: {
+                    name: 'Frames',
+                    message: "Banned frame: '%s'. State it.",
+                    level: 'error',
+                    terms: [{ term: 'In order to', quote: true, hint: 'use "to"' }],
+                    patterns: [{ regex: "it's not \\w+", label: 'negation frame' }]
+                  }
+                },
+                {
+                  id: 'c',
+                  vale: [],
+                  style: { name: 'Intensifiers', message: "Empty: '%s'.", level: 'suggestion', terms: [{ term: 'very' }] }
+                }
+              ]
+            }
+          ]
         });
       });
 
-      it('should put hintless words in Buzzwords and hintless phrases in FillerFrames', () => {
+      it('should put hintless words and phrases in the block\'s own rule', () => {
         expect(files['Buzzwords.yml']).toContain('(?<![\\\\w-])flumoxide(?![\\\\w-])');
-        expect(files['FillerFrames.yml']).toContain('calzone[\\\\s\\\\u00A0-]+cannon');
+        expect(files['Buzzwords.yml']).toContain('calzone[\\\\s\\\\u00A0-]+cannon');
       });
 
-      it('should turn drop-in hints into substitution swaps', () => {
+      it('should turn drop-in hints from any block into substitution swaps', () => {
         expect(files['Substitutions.yml']).toContain('extends: substitution');
         expect(files['Substitutions.yml']).toContain('"use"');
-        expect(files['Substitutions.yml']).toContain('in[\\\\s\\\\u00A0-]+order[\\\\s\\\\u00A0-]+to');
+        expect(files['Substitutions.yml']).toContain('order[\\\\s\\\\u00A0-]+to(?![\\\\w-])": "to"');
       });
 
-      it('should give a prose-hinted term its own rule carrying the hint', () => {
+      it('should give a prose-hinted term its own rule carrying the hint under the block\'s label', () => {
         expect(files['Leverage.yml']).toContain(
           'message: "Banned buzzword: \'%s\'. Use a concrete verb: use, apply, rely on."'
         );
       });
 
-      it('should emit the pattern rule with curly-quote tolerance', () => {
-        expect(files['NegativeParallelism.yml']).toContain("it['’]s not");
+      it('should emit patterns with curly-quote tolerance next to the block\'s terms', () => {
+        expect(files['Frames.yml']).toContain("it['’]s not");
       });
 
-      it('should emit contextual terms at suggestion level', () => {
+      it('should carry each block\'s level', () => {
         expect(files['Intensifiers.yml']).toContain('level: suggestion');
         expect(files['Intensifiers.yml']).toContain('(?<![\\\\w-])very(?![\\\\w-])');
       });
@@ -83,20 +113,22 @@ describe('style-gen', () => {
       });
 
       it('should mark every file as generated', () => {
-        const headers = Object.values(files).map((c) => c.startsWith('# Generated from rules/banned.json'));
+        const headers = Object.values(files).map((c) => c.startsWith('# Generated from rules/manifest.json'));
         expect(headers).toEqual(Object.values(files).map(() => true));
       });
     });
 
-    describe('when no entry carries a drop-in hint', () => {
+    describe('when no term carries a drop-in hint', () => {
       let files;
 
       beforeEach(() => {
-        files = buildStyleFiles({ words: [{ term: 'flumoxide' }], phrases: [], patterns: [], contextual: [] });
+        files = buildStyleFiles({
+          sections: [{ rules: [{ style: { name: 'Words', message: 'x: %s', level: 'error', terms: [{ term: 'robust' }] } }] }]
+        });
       });
 
       it('should emit no Substitutions file', () => {
-        expect(files['Substitutions.yml']).toBeUndefined();
+        expect(Object.keys(files)).toEqual(['Words.yml']);
       });
     });
 
@@ -105,33 +137,43 @@ describe('style-gen', () => {
 
       beforeEach(() => {
         files = buildStyleFiles({
-          words: [{ term: 'blast radius', hint: 'name the concrete scope' }],
-          phrases: [],
-          patterns: [],
-          contextual: []
+          sections: [
+            {
+              rules: [
+                {
+                  style: {
+                    name: 'Words',
+                    message: 'Banned: %s',
+                    level: 'error',
+                    terms: [{ term: 'calzone cannon', hint: 'aim it elsewhere' }]
+                  }
+                }
+              ]
+            }
+          ]
         });
       });
 
       it('should camel-case the rule filename from the term', () => {
-        expect(Object.keys(files)).toContain('BlastRadius.yml');
+        expect(Object.keys(files).sort()).toEqual(['CalzoneCannon.yml', 'Words.yml']);
       });
     });
   });
 
   describe('when the committed style is compared to the generator output', () => {
-    let committed, generated;
+    let expected, committed;
 
     beforeEach(() => {
-      const banned = JSON.parse(fs.readFileSync(path.join(ROOT, 'rules', 'banned.json'), 'utf8'));
-      generated = buildStyleFiles(banned);
+      const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'rules', 'manifest.json'), 'utf8'));
+      expected = buildStyleFiles(manifest);
       const dir = path.join(ROOT, 'styles', 'JustSaySo');
       committed = Object.fromEntries(
         fs.readdirSync(dir).map((name) => [name, fs.readFileSync(path.join(dir, name), 'utf8')])
       );
     });
 
-    it('should match file for file — run scripts/build-style.js after editing banned.json', () => {
-      expect(committed).toEqual(generated);
+    it('should match file for file — run npm run build after editing rules/manifest.json', () => {
+      expect(committed).toEqual(expected);
     });
   });
 });

@@ -182,8 +182,8 @@ describe('events', () => {
       expect(result).toEqual({
         word: 'synergy',
         hyphenated: 'cutting-edge',
-        phrase: 'in order to',
-        curly: "it's important to note",
+        phrase: 'In order to',
+        curly: "It's important to note",
         contextual: 'very',
         frame: null,
         foreign: null,

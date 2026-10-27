@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadManifest, renderRules } from './manifest.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -11,15 +12,12 @@ function expandHome(p) {
 }
 
 /**
- * Read the rules text ("full" | "condensed"). Config paths override the
- * shipped defaults, so the plugin carries anyone's rules, not just ours.
+ * The rules text ("full" | "condensed"), rendered from the manifest in
+ * force. Hooks that inject into a context use contextRules (rule-state.js)
+ * instead, which adjusts the condensed text to the project's Vale config.
  */
 export function readRules(kind, config) {
-  const override = kind === 'condensed' ? config?.rules?.condensedPath : config?.rules?.fullPath;
-  const file = override
-    ? expandHome(override)
-    : path.join(PKG_ROOT, 'rules', kind === 'condensed' ? 'condensed.md' : 'full.md');
-  return fs.readFileSync(file, 'utf8');
+  return renderRules(loadManifest(config), kind === 'condensed' ? 'condensed' : 'full');
 }
 
 // {key} placeholders; unknown keys stay literal so a typo is visible.

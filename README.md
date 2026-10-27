@@ -12,7 +12,7 @@ I adapted the `just-say-so` communication rules from the [ASD-STE100 standard](h
 
 There are three behaviors:
 
-1. **It re-injects the rules when they slip.** Rules stated once at session start lose force as the context grows. `just-say-so` lints each finished reply and re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) on the prompt after a reply breaks one, with a report of which rules broke. There is no interval reminder. A reminder that carries no new information measured as no help, so the rules go out at three moments only: context start, subagent start, and the prompt after a violation.
+1. **It re-injects the rules when they slip.** Rules stated once at session start lose force as the context grows. `just-say-so` lints each finished reply and re-injects a condensed version of the rules ([rules/condensed.md](rules/condensed.md)) on the prompt after a reply breaks one, with a report of which rules broke. The text it injects is adjusted to the project's Vale config: a bullet whose installed Vale rules the project turned off is left out, and error-level rules in the project that no bullet describes are named at the end (see [The rules manifest](#the-rules-manifest)). There is no interval reminder. A reminder that carries no new information measured as no help, so the rules go out at three moments only: context start, subagent start, and the prompt after a violation.
 2. **It checks the text the agent writes.** The checker is [Vale](https://vale.sh), the prose linter. After the agent writes a file, a hook runs Vale on that file. The agent receives the alerts for the lines it added. These alerts never block the write, because the write already happened. In `block` mode, a Stop hook blocks the end of the turn while error-level alerts remain in the files the agent wrote this session. Opt-in settings extend the check to text the agent publishes through `gh` commands and MCP tools. That check runs before the tool call, because nothing can un-publish a comment (see [Checking published text](#checking-published-text-gh-and-mcp-tools)).
 3. **It verifies chat replies after the fact.** The rules themselves always apply to chat. This check controls whether Vale also lints each finished reply. In `warn` mode, the default, the result never interrupts anyone. The hook counts the broken rules, and the next rules injection includes a short report of rule names and counts. That injection is the next prompt, or the next context start when `rules.onViolation` is off.
 
@@ -73,7 +73,7 @@ ai-tells.SentenceLength = NO
 Packages = https://github.com/ifandelse/just-say-so/releases/download/<tag>/JustSaySo.zip
 ```
 
-`scripts/build-style.js` generates the style from [rules/banned.json](rules/banned.json), and a test fails when the two drift. The patterns treat a hyphen as a word character: `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. The rules are plain `existence` and `substitution` rules without `nonword`, so a Vale vocabulary exempts a term or a collocation from them. The package's `.vale.ini` is [vale/fallback.ini](vale/fallback.ini) without its `StylesPath` line, so the fallback and the package lint the same way.
+`scripts/build.js` generates the style from [rules/manifest.json](rules/manifest.json), and a test fails when the two drift. The patterns treat a hyphen as a word character: `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. The rules are plain `existence` and `substitution` rules without `nonword`, so a Vale vocabulary exempts a term or a collocation from them. The package's `.vale.ini` is [vale/fallback.ini](vale/fallback.ini) without its `StylesPath` line, so the fallback and the package lint the same way.
 
 The `vale` binary is a prerequisite for the checks — see [Prerequisites](#prerequisites) for the install and the fallback behavior.
 
@@ -203,8 +203,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "onSubagentStart": true, // brief each subagent with the condensed rules at spawn
     "onViolation": true, // inject the rules plus the reply report on the prompt after a flagged reply;
     // false holds the report for the next context start
-    "fullPath": null, // your own rules file, replaces rules/full.md
-    "condensedPath": null, // replaces rules/condensed.md
+    "manifest": null, // your own rules manifest, replaces rules/manifest.json (see The rules manifest)
+    "extra": null, // a manifest fragment whose sections are appended to the one in force
     "messagesPath": null // overrides hook message strings, per key (rules/messages.json)
   },
   "vale": {
@@ -270,7 +270,7 @@ Known gaps, on purpose:
 - The checker reads a `--body-file` at check time, and the file can change before the command runs. Every pre-commit-style checker shares that gap.
 - On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands. The `if` filter in the hook wiring arrived in that release. The results are identical. Older versions pay a small startup cost per command.
 
-Upgrading from 0.8.x: the config is keyed by target now, and there is no compatibility shim. A file that still sets `reminder`, `bannedCheck`, or `outputCheck` configures nothing, and session start names the file and the keys once per session. The table maps the old keys to the new ones:
+Upgrading from 0.9.x: `rules.fullPath` and `rules.condensedPath` are gone. The rules text renders from [rules/manifest.json](rules/manifest.json); point `rules.manifest` at a manifest of your own, or add bullets with `rules.extra`. See [The rules manifest](#the-rules-manifest). Upgrading from 0.8.x: the config is keyed by target now, and there is no compatibility shim. A file that still sets `reminder`, `bannedCheck`, or `outputCheck` configures nothing, and session start names the file and the keys once per session. The table maps the old keys to the new ones:
 
 | 0.8.x | 0.9.0 |
 | --- | --- |
@@ -313,15 +313,30 @@ env:
 
 Fields the forced file sets win over the project file, so a mode committed to `.just-say-so.json` can never weaken the CI policy. Fields it leaves out fall through normally.
 
+### The rules manifest
+
+[rules/manifest.json](rules/manifest.json) is the one source for the rules. `npm run build` renders [rules/full.md](rules/full.md) and [rules/condensed.md](rules/condensed.md) from it and generates the `JustSaySo` style, and a test fails when any of the three drift. Each rule carries:
+
+- `full`, the text in the full rules, and `short`, the text in the condensed reminder. A rule without `short` appears in the full text only. `condensed` at the top of the file lists the ids in reminder order.
+- `vale`, the Vale rules that check it. An empty list marks a judgment rule such as "lead with the answer" that no linter sees. The full text names them after each bullet, as "Checked by".
+- `style`, on the four banned-term rules: the name, message, level, and terms of the generated Vale rule. The `{terms}` placeholder in the text renders that list, so the rules text and the style never disagree about what is banned.
+
+**What the `vale` field buys.** At every context start, the plugin runs `vale ls-config` for the reply target and adjusts the condensed text before injecting it. A bullet is left out when every installed Vale rule behind it is turned off; a rule from a style the project never installed does not count. Error-level rules in the project's styles that no bullet names are added as one closing line, twelve at most, so the model at least sees their names. A project that sets `JustSaySo.Intensifiers = NO` and runs `ai-tells.EmDashUsage` at error gets a reminder without the intensifiers bullet and with the em-dash rule named at the end. When `vale` is missing the text goes out unadjusted.
+
 ### Bring your own rules
 
-You might hate my rules, fair enough. To plug your own ruleset in, point `rules.fullPath` and `rules.condensedPath` at your own markdown, and put your own Vale styles in `.vale.ini` with `JustSaySo = NO` where you disagree. All the hooks, commands, and config machinery stay the same.
+You might hate my rules, fair enough. Two routes:
+
+- `rules.extra` names a manifest fragment, a JSON file with `sections` of rules in the shape above, which the plugin appends to the shipped manifest. Its rules with a `short` text join the reminder after the shipped ones. This is the place for a bullet about a rule your own Vale style enforces.
+- `rules.manifest` replaces the shipped manifest with your own. The generated style still ships the shipped terms; put your own terms in a Vale style of your own and set `JustSaySo = NO` in `.vale.ini` where you disagree.
+
+All the hooks, commands, and config machinery stay the same.
 
 ### Bring your own voice
 
 When the checker warns or blocks, it speaks in shipped English sentences (the violation report, the rewrite instruction, the confirmation prompt). Those sentences live in [rules/messages.json](rules/messages.json). To reword them, or to run the enforcement side in another language, copy that file, edit the sentences you want, and point `rules.messagesPath` at your copy. Sentences you leave out keep the shipped wording. The `{target}` placeholder is filled at runtime with the name of the file being checked.
 
-The per-term hints ("use a concrete verb...") live in the banned list, [rules/banned.json](rules/banned.json). A full translation edits both files.
+The per-term hints ("use a concrete verb...") and the rules text live in [rules/manifest.json](rules/manifest.json). A full translation edits both files.
 
 ### Exemptions
 

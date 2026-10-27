@@ -9,7 +9,8 @@
 // and a report about it on the next prompt would describe the wrong reply.
 // Returns the hook output object, or null for silence.
 import { loadConfig } from '../config.js';
-import { readRules, loadMessages } from '../rules.js';
+import { loadMessages } from '../rules.js';
+import { contextRules } from '../rule-state.js';
 import { readSession, writeSession } from '../state.js';
 import { lastExchange } from '../transcript.js';
 import { logEvent } from '../events.js';
@@ -66,7 +67,7 @@ export function run(input, env = process.env) {
 
   let output = null;
   if (fire) {
-    const parts = [readRules('condensed', config)];
+    const parts = [contextRules(config, input.cwd, env)];
     // The report rides the rules, never a schedule of its own.
     const report = formatReplyReport(state.replyAlerts, loadMessages(config));
     if (report) parts.push(report);

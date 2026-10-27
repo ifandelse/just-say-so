@@ -32,41 +32,31 @@ describe('rules', () => {
       });
     });
 
-    describe('when a condensed override path is configured', () => {
+    describe('when rules.manifest names another manifest', () => {
       let condensed, full;
 
       beforeEach(() => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-rules-'));
-        const custom = path.join(dir, 'CAL_ZONE_RULES.md');
-        fs.writeFileSync(custom, 'MY OWN RULES');
-        const config = merge(DEFAULTS, { rules: { condensedPath: custom } });
+        const custom = path.join(dir, 'CAL_ZONE.json');
+        fs.writeFileSync(
+          custom,
+          JSON.stringify({
+            title: 'Calzone rules',
+            intro: 'Fold it.',
+            condensed: ['one'],
+            sections: [{ title: 'Only', rules: [{ id: 'one', full: 'One idea.', short: 'One.', vale: [] }] }]
+          })
+        );
+        const config = merge(DEFAULTS, { rules: { manifest: custom } });
         condensed = readRules('condensed', config);
         full = readRules('full', config);
       });
 
-      it('should read the override for condensed', () => {
-        expect(condensed).toBe('MY OWN RULES');
-      });
-
-      it('should keep the shipped text for full', () => {
-        expect(full).toMatch(/^## Communication rules\n/);
-      });
-    });
-
-    describe('when the override path starts with "~"', () => {
-      let error;
-
-      beforeEach(() => {
-        const config = merge(DEFAULTS, { rules: { fullPath: '~/MISSING_JSS_RULES_8675309.md' } });
-        try {
-          readRules('full', config);
-        } catch (e) {
-          error = e;
-        }
-      });
-
-      it('should expand it under the home directory before reading', () => {
-        expect(error.path).toBe(path.join(os.homedir(), 'MISSING_JSS_RULES_8675309.md'));
+      it('should render both kinds from it', () => {
+        expect({ condensed, full }).toEqual({
+          condensed: '## Calzone rules — reminder\n\nFold it.\n\n- One.\n',
+          full: '## Calzone rules\n\nFold it.\n\n### Only\n\n- One idea.\n'
+        });
       });
     });
   });

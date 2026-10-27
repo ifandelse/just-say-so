@@ -26,8 +26,9 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *   rates: joined rejections only, overall, per project, per week, per
  *     bucket · unlogged sessions and a window boundary between the
  *     rejected turn and the restate leave the rejection out of every rate ·
- *     the join is chronological, so a reused index after compaction never
- *     stands in for the rejected turn
+ *     the join is chronological and bounded by the latest compaction or
+ *     clear before the restate, so neither a reused index after compaction
+ *     nor a pre-compaction turn stands in for the rejected turn
  *   formatSummary: empty · full · unavailable rates
  */
 
@@ -374,6 +375,29 @@ describe('summary', () => {
       expect(windowed.volume).toMatchObject({ turns: 5, rejections: 1, joined: 0, unjoined: 1 });
       expect(windowed.rejectionRate.per100).toBe(0);
       expect(windowed.distance.map((d) => d.rejections)).toEqual([0, 0, 0, 0, 0]);
+    });
+  });
+
+  describe('when the log goes quiet after a compaction and a rejection arrives at a reused index', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const events = [
+        session('s1', A, 0),
+        reply('s1', A, 1, 1, 1, 'pass', []),
+        reply('s1', A, 2, 2, 2, 'pass', []),
+        reply('s1', A, 3, 3, 3, 'pass', [LEV]),
+        { ...session('s1', A, 6), source: 'compact' }
+        // the log is off from here: three prompts, then a restate at index 4
+      ];
+      s = summarize(events, [rejection('s1', A, 10, 4, 3, 'x', [rb('JustSaySo.Leverage', 'error', 'leverage')])]);
+    });
+
+    it('should leave the rejection unjoined rather than borrow the pre-compaction turn', () => {
+      expect(s.volume).toMatchObject({ turns: 3, rejections: 1, joined: 0, unjoined: 1 });
+      expect(s.rejectionRate.per100).toBe(0);
+      expect(s.distance.map((d) => d.rejections)).toEqual([0, 0, 0, 0, 0]);
     });
   });
 

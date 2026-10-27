@@ -117,13 +117,20 @@ export function summarize(events, rejections, { since = null, until = null, proj
   // opens after the rejected turn still finds it. A rejection counts in
   // a rate only when its joined turn is inside the window; the joined
   // turn supplies the time, project, and distance the rate uses.
+  // A compaction or clear resets the counter, so a candidate must also
+  // come after the latest reset that precedes the restate: when the log
+  // went quiet after a reset, the old interval's turn at that index is no
+  // stand-in either, and the rejection stays unjoined.
   const allTurns = scoped.filter((e) => e.e === 'reply' && FINAL.has(e.outcome)).sort((a, b) => a.t.localeCompare(b.t));
+  const resets = scoped.filter((e) => e.e === 'session' && (e.source === 'compact' || e.source === 'clear'));
   const joinedRec = [];
   for (const r of rec) {
     const wanted = (r.promptIndex ?? 0) - 1;
+    let floor = '';
+    for (const x of resets) if (x.session === r.session && x.t < r.t && x.t > floor) floor = x.t;
     let turn = null;
     for (const t of allTurns) {
-      if (t.session === r.session && t.promptIndex === wanted && t.t < r.t) turn = t;
+      if (t.session === r.session && t.promptIndex === wanted && t.t < r.t && t.t > floor) turn = t;
     }
     if (turn && inWindow(turn.t, since, until)) joinedRec.push({ record: r, turn });
   }

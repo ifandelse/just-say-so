@@ -18,6 +18,8 @@
   "valeFixInstruction": "Fix the errors before finishing. Treat warnings and suggestions as advice.",
   "valeSystemLine": "just-say-so: Vale: {counts} in {target}.",
   "valeTruncated": "(report truncated — run vale on the file for the full list)",
+  "valeChatSectionDead": "just-say-so: the Vale config has a {sections} section. Chat lints as reply.reply and published text as <source>.<tool>.<field>.publish since 0.9.0, so that section matches nothing. Rename it to [*.reply] or [*.publish].",
+  "valeFormatsMissing": "just-say-so: the Vale config does not map the reply and publish extensions to Markdown, so chat and published text lint as plain text (code spans included). Add the JustSaySo package to Packages and run vale sync, or add [formats] with reply = md and publish = md.",
   "valeMissing": "just-say-so: checks are configured but the vale binary is missing from PATH, or is not errata-ai vale. Install it (brew install vale) or set bannedCheck.mode and outputCheck.mode to \"off\".",
   "publishIntro": "just-say-so: Vale alerts in text published by {target}:",
   "publishUnresolvedAsk": "just-say-so: {target} publishes text the checker cannot read before the call: {constructs}. Allow only if the published text follows the communication rules. Put the text in a flag value or a file to get it checked.",

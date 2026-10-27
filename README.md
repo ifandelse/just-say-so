@@ -46,13 +46,32 @@ A check resolves its Vale config in this order, and the first match applies:
 
 Severity is the policy language. `error` alerts block, at the Stop gate, at the `gh`/MCP deny, and in your CI. `warning` and `suggestion` alerts arrive at edit time as advice and never block. Set a rule's level in `.vale.ini` to move it between those tiers. `vale.levels` sets the lowest level the agent sees at edit time.
 
-Chat replies and published fragments lint under the filename `*.chat.md`. Give your `.vale.ini` a `[*.chat.md]` section with lexical and sentence-level rules only, and document-level rules (heading style, paragraph length) stay out of text that has no document.
+Chat replies lint under the name `reply.reply`. Published text lints under `<source>.<tool>.<field>.publish`: a PR body is `gh.pr.body.publish`, a release title is `gh.release.title.publish`, and a Jira call is `mcp.jira.create_issue.publish`. Those extensions are the contract with your `.vale.ini`: a `[*.reply]` section picks the rules for chat, `[*.publish]` the rules for published text, and `[gh.*.title.publish]` the rules for titles alone. A `[*.md]` section never matches them, so your document rules (heading style, paragraph length) stay out of text that has no document. The `[formats]` lines below parse both as Markdown, so code spans are still skipped.
 
-**The JustSaySo style** ([styles/JustSaySo/](styles/JustSaySo/)) packages the banned list as Vale rules. `scripts/build-style.js` generates the style from [rules/banned.json](rules/banned.json), and a test fails when the two drift. The patterns treat a hyphen as a word character: `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. Any repo can use the style without the plugin:
+Write the shared rules once in a `[*]` section and narrow them per target with `Style = NO` or `Style.Rule = level` lines. Two Vale behaviors decide what works. A `Style.Rule = level` line in `[*]` applies in every narrower section. A `BasedOnStyles` line in a narrower section replaces the `[*]` list instead of adding to it, so repeat the whole list or leave the line out.
+
+```ini
+[formats]
+reply = md
+publish = md
+
+[*]
+BasedOnStyles = JustSaySo, ai-tells
+
+[*.reply]
+ai-tells.ParagraphLength = NO
+
+[gh.*.title.publish]
+ai-tells.SentenceLength = NO
+```
+
+**The JustSaySo package** packages the banned list as Vale rules ([styles/JustSaySo/](styles/JustSaySo/)) together with a `.vale.ini` that carries the `[formats]` lines and the `[*.reply]` and `[*.publish]` sections. Add it to a repo's `Packages` and run `vale sync`, and Vale merges those sections into the repo's config. Your own keys win on conflict, and `BasedOnStyles` lists in the same section combine. A repo that uses the package needs no chat sections of its own:
 
 ```ini
 Packages = https://github.com/ifandelse/just-say-so/releases/download/<tag>/JustSaySo.zip
 ```
+
+`scripts/build-style.js` generates the style from [rules/banned.json](rules/banned.json), and a test fails when the two drift. The patterns treat a hyphen as a word character: `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. The package's `.vale.ini` is [vale/fallback.ini](vale/fallback.ini) without its `StylesPath` line, so the fallback and the package lint the same way.
 
 The `vale` binary is a prerequisite for the checks — see [Prerequisites](#prerequisites) for the install and the fallback behavior.
 
@@ -261,7 +280,7 @@ A value the extractor cannot read is **unresolved**: a `$(...)` substitution, a 
 
 `"mcpTools": ["mcp__confluence__*", "mcp__jira__*"]` names the MCP tools to check, with `*` wildcards. On a matching call, the checker scans every string argument, nested fields included. You name the tool; you never have to know which argument carries the body. The trade-off is an occasional flag on a non-prose field such as an ID or a query — `disableWords` and `allowPhrases` handle those.
 
-The collected text lints as a fragment named `fragment.chat.md`, so the `[*.chat.md]` section of your config applies — lexical rules judge a fragment fine, document-level rules do not.
+Each value lints as its own fragment, named `gh.<subcommand>.<field>.publish` for a gh command (`gh.pr.body.publish`, `gh.api.body.publish`) and `mcp.<server>.<tool>.publish` for an MCP call. The `[*.publish]` section of your config applies, and a narrower glob such as `[gh.*.title.publish]` applies to one field — lexical rules judge a fragment fine, document-level rules do not.
 
 Timing matters more here than at file writes. In `block`, the hook denies the call before the tool runs, so GitHub never receives a flagged comment. This is the one place the plugin still blocks before an action instead of gating at Stop, because no later gate can un-publish. In `warn`, the call proceeds, the text goes out, and the agent gets the report after the fact. If you turned this on because your agent publishes, use `block`.
 
@@ -271,7 +290,7 @@ Known gaps, on purpose:
 - The checker reads a `--body-file` at check time, and the file can change before the command runs. Every pre-commit-style checker shares that gap.
 - On Claude Code releases older than v2.1.85, the Bash hook runs on every Bash command instead of only gh commands. The `if` filter in the hook wiring arrived in that release. The results are identical. Older versions pay a small startup cost per command.
 
-Upgrading from 0.2.x: the checker engine is Vale now. `bannedCheck.mode: "block"` no longer rejects a file write before it happens. Block mode now works at the Stop hook for files, and still denies `gh`/MCP publishing before the call runs. `exclude`, `include`, and `additions` moved to CLI-only — scope the hooks' file coverage with `.vale.ini` sections, and ship custom terms as Vale rules or a vocabulary `reject.txt`. Upgrading from 0.1.x: `bannedCheck.tools` is gone — the hook wiring is fixed at install, so no config field can widen coverage.
+Upgrading from 0.8.x: chat and published text no longer lint as `*.chat.md`. A `[*.chat.md]` section matches nothing now; rename it to `[*.reply]` or `[*.publish]`, and add the `[formats]` lines or the JustSaySo package so both parse as Markdown. Session start prints one notice while a dead section or the missing mapping remains. Upgrading from 0.2.x: the checker engine is Vale now. `bannedCheck.mode: "block"` no longer rejects a file write before it happens. Block mode now works at the Stop hook for files, and still denies `gh`/MCP publishing before the call runs. `exclude`, `include`, and `additions` moved to CLI-only — scope the hooks' file coverage with `.vale.ini` sections, and ship custom terms as Vale rules or a vocabulary `reject.txt`. Upgrading from 0.1.x: `bannedCheck.tools` is gone — the hook wiring is fixed at install, so no config field can widen coverage.
 
 ### Single-prompt runs (CI)
 

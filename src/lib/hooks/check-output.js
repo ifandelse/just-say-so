@@ -37,7 +37,8 @@ import {
   lintPath,
   applyConfigExemptions,
   fileLineReader,
-  formatAlerts
+  formatAlerts,
+  REPLY_NAME
 } from '../vale.js';
 
 // The transcript file lags the turn, so the harness's own copy of the
@@ -55,7 +56,7 @@ function lintReplyAllLevels(input, config, configPath, env) {
   const text = replyText(input);
   if (!text) return [];
 
-  const raw = lintText(text, { name: 'reply.chat.md', configPath, env });
+  const raw = lintText(text, { name: REPLY_NAME, configPath, env });
   if (raw === null) return null;
 
   const lines = text.split('\n');

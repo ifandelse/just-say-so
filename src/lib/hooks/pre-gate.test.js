@@ -228,9 +228,9 @@ describe('pre-gate.run', () => {
       });
     });
 
-    it('should lint the fragment under the chat name', () => {
+    it('should lint the fragment as gh.<subcommand>.<field>.publish', () => {
       const lintCall = mockSpawnSync.mock.calls.find((c) => c[1][0] !== 'ls-dirs');
-      expect(lintCall[1][2]).toBe('fragment.chat.md');
+      expect(lintCall[1][2]).toBe('gh.pr.body.publish');
     });
   });
 
@@ -349,6 +349,11 @@ describe('pre-gate.run', () => {
     it('should deny with the tool name as target', () => {
       expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
       expect(output.hookSpecificOutput.permissionDecisionReason).toContain('mcp__confluence__create_page');
+    });
+
+    it('should lint the call as mcp.<server>.<tool>.publish', () => {
+      const lintCall = mockSpawnSync.mock.calls.find((c) => c[1][0] !== 'ls-dirs');
+      expect(lintCall[1][2]).toBe('mcp.confluence.create_page.publish');
     });
   });
 

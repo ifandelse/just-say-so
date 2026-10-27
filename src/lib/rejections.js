@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir } from './state.js';
-import { lintText, applyConfigExemptions } from './vale.js';
+import { lintText, applyConfigExemptions, REPLY_NAME } from './vale.js';
 import { pluginVersion } from './version.js';
 
 const COMMAND = /^\/just-say-so:restate(?:\s+([\s\S]*))?$/;
@@ -31,7 +31,7 @@ export function rejectionsFile(env = process.env) {
 // error that did not. null when vale is missing or broken.
 export function lintReply(text, config, configPath, env = process.env) {
   if (!text) return [];
-  const raw = lintText(text, { name: 'reply.chat.md', configPath, env });
+  const raw = lintText(text, { name: REPLY_NAME, configPath, env });
   if (raw === null) return null;
   const lines = String(text).split('\n');
   return applyConfigExemptions(raw, config.bannedCheck, (_file, line) => lines[line - 1] ?? null).map((a) => ({

@@ -24,6 +24,14 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *     own project manifest as judgment, vale (with fires on linted rejected
  *     replies), or none · a tag two projects cover differently prints once
  *     per coverage with the projects named
+ *   situations: per project, a tag at 3+ rejections lands in one kind, in
+ *     order: uncovered · judgment (short text or not) · insufficient (under
+ *     3 linted at restate-time, or no joined linted reply) · fired-shipped
+ *     (ship-time alert from its rules, with modes and levels) · silent
+ *     (restate-time catch under half) · detects-now (restate-time catch at
+ *     half or more, none at ship-time) · untagged-clean per project · the
+ *     same tag in two projects below 3 each earns nothing · a stood-down
+ *     block counts as shipped · formatSituation renders each kind
  *   observations: frequentNeverRejected at 20+ turns
  *   compaction: a counter reset mid-session changes no count · a mode
  *     change mid-session attributes each reply to the snapshot in force
@@ -166,7 +174,12 @@ describe('summary', () => {
 
     it('should count rewrites, reasons, allows, and settings', () => {
       expect(s.rewrites).toEqual({ total: 3, clean: 1, keptError: 1, unlinted: 1, surviving: [] });
-      expect(s.reasons).toEqual({ given: [{ reason: 'too much jargon', count: 2 }, { reason: 'flat', count: 1 }], none: 1 });
+      expect(s.reasons).toEqual({ given: [{ reason: 'too much jargon', count: 2, projects: ['/p/a', '/p/b'] }, { reason: 'flat', count: 1, projects: ['/p/b'] }], none: 1 });
+      expect(s.situations).toEqual([
+        { kind: 'untagged-clean', project: '/p/b', tag: null, count: 1, rules: [], short: false, linted: 1, fired: 0, joinedLinted: 0, firedAtShip: 0, modes: {}, levels: [], reasons: ['too much jargon'] }
+      ]);
+      expect(text).toContain('What the tags point at (per project; a tag needs 3 rejections');
+      expect(text).toContain('/p/b · untagged and clean: 1 rejections with no tag that Vale passed clean. Points at tagging them: too much jargon');
       expect(s.allows).toEqual([
         { term: 'robust regression', count: 2, added: 2, projects: ['/p/a', '/p/b'] },
         { term: 'TLS', count: 1, added: 0, projects: ['/p/a'] }
@@ -466,6 +479,92 @@ describe('summary', () => {
       expect(text).toContain('domain-term: 1 (in /p/a) · no bullet covers it yet');
       expect(text).toContain('domain-term: 1 (in /p/b) · covered by a bullet backed by Project.DomainTerm; those rules fired on 1 of 1 linted rejected replies');
       expect(text).toContain('one-idea: 1 · covered by');
+    });
+  });
+
+  describe('when tags recur enough to earn a situation', () => {
+    let s, text;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const B = '/p/b';
+      const manifest = {
+        sections: [
+          { rules: [
+            { id: 'fact', vale: ['ai-tells.MicDrop'] },
+            { id: 'tune', vale: ['JustSaySo.Leverage'] },
+            { id: 'late', vale: ['JustSaySo.Buzzwords'] },
+            { id: 'thin', vale: ['JustSaySo.Intensifiers'] },
+            { id: 'plain', vale: [] },
+            { id: 'terse', vale: [], short: 'Be terse.' }
+          ] }
+        ]
+      };
+      const MIC = { check: 'ai-tells.MicDrop', severity: 'warning', n: 1 };
+      const events = [session('s1', A, 0, 'warn'), session('s2', B, 0, 'block')];
+      const rejections = [];
+      let m = 1;
+      const add = (sid, proj, tag, shipAlerts, restateAlerts, { outcome = 'pass', join = true } = {}) => {
+        const idx = m;
+        if (join) events.push(reply(sid, proj, m, idx, 0, outcome, shipAlerts));
+        rejections.push({ ...rejection(sid, proj, m + 0.5, idx + 1, 0, tag ? `#${tag} why` : 'no tag here', restateAlerts), tags: tag ? [tag] : [] });
+        m += 1;
+      };
+      // fact: fired at ship-time, reply shipped, one of them a stood-down block.
+      add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
+      add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
+      add('s2', B, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')], { outcome: 'standdown' });
+      add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
+      // tune: linted, joined, never fires either way.
+      for (let i = 0; i < 3; i++) add('s1', A, 'tune', [], []);
+      // late: catches at restate-time, silent at ship-time.
+      for (let i = 0; i < 3; i++) add('s1', A, 'late', [], [rb('JustSaySo.Buzzwords', 'error', 'synergy')]);
+      // thin: three rejections, none joined.
+      for (let i = 0; i < 3; i++) add('s1', A, 'thin', [], [], { join: false });
+      // uncovered, judgment with and without short, below threshold across projects.
+      for (let i = 0; i < 3; i++) add('s1', A, 'nope', [], []);
+      for (let i = 0; i < 3; i++) add('s1', A, 'plain', [], []);
+      for (let i = 0; i < 3; i++) add('s2', B, 'terse', [], []);
+      add('s1', A, 'split', [], []);
+      add('s1', A, 'split', [], []);
+      add('s2', B, 'split', [], []);
+      // untagged and clean, in B.
+      add('s2', B, null, [], []);
+      add('s2', B, null, [], []);
+      s = summarize(events, rejections, { manifest });
+      text = formatSummary(s);
+    });
+
+    it('should land each tag in one kind by the evidence rules, per project', () => {
+      const brief = s.situations.map((x) => [x.project, x.tag, x.kind, x.count]);
+      expect(brief).toEqual([
+        ['/p/a', 'fact', 'fired-shipped', 3],
+        ['/p/a', 'late', 'detects-now', 3],
+        ['/p/a', 'nope', 'uncovered', 3],
+        ['/p/a', 'plain', 'judgment', 3],
+        ['/p/a', 'thin', 'insufficient', 3],
+        ['/p/a', 'tune', 'silent', 3],
+        ['/p/b', 'terse', 'judgment', 3],
+        ['/p/b', null, 'untagged-clean', 2]
+      ]);
+      expect(s.situations[0]).toEqual({
+        kind: 'fired-shipped', project: '/p/a', tag: 'fact', count: 3, rules: ['ai-tells.MicDrop'], short: false,
+        linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 3, modes: { warn: 3 }, levels: ['warning'], reasons: ['#fact why', '#fact why', '#fact why']
+      });
+      expect(s.situations.find((x) => x.tag === 'thin')).toMatchObject({ linted: 3, joinedLinted: 0 });
+      expect(s.situations.find((x) => x.project === '/p/b' && x.tag === null)).toMatchObject({ count: 2, reasons: ['no tag here', 'no tag here'] });
+    });
+
+    it('should render each kind with its counts', () => {
+      expect(text).toContain('/p/a · #fact: 3 · backed by ai-tells.MicDrop · fired at ship-time on 3 of 3 joined replies (reply mode warn 3; levels warning) and the reply still went out. Points at enforcement');
+      expect(text).toContain('/p/a · #late: 3 · backed by JustSaySo.Buzzwords · the rules catch 3 of 3 rejected replies at restate-time and fired on none of 3 at ship-time');
+      expect(text).toContain('/p/a · #nope: 3 · uncovered: no bullet has this id.');
+      expect(text).toContain('/p/a · #plain: 3 · judgment bullet without a short text, so it is not in the condensed reminder.');
+      expect(text).toContain('/p/a · #thin: 3 · backed by JustSaySo.Intensifiers · 3 linted at restate-time, 0 joined replies linted at ship-time: not enough linted evidence');
+      expect(text).toContain('/p/a · #tune: 3 · backed by JustSaySo.Leverage · the rules caught 0 of 3 linted rejected replies at restate-time and none at ship-time. Points at a Vale tune');
+      expect(text).toContain('/p/b · untagged and clean: 2 rejections with no tag that Vale passed clean. Points at tagging them: no tag here | no tag here');
+      expect(text).toContain('/p/b · #terse: 3 · judgment bullet with a short text.');
+      expect(text.split('What the tags point at')[1]).not.toContain('#split');
     });
   });
 

@@ -113,6 +113,7 @@ describe('doctor', () => {
       expect(report.facts.slice(2)).toEqual([
         'targets: files warn (show suggestion) · publish block, gh, mcp 1 pattern(s), artifact · reply block',
         'rules: context start [startup, resume, clear, compact] · subagents yes · on violation yes',
+        'package cache: empty (/just-say-so:packages --refresh fills it, for advice on packages you do not have)',
         expect.stringMatching(/^vale config: .*\.vale\.ini \(nearest above cwd\)$/),
         expect.stringMatching(/^packages: https:\/\/github\.com\/ifandelse\/just-say-so\/releases\/download\/v[\d.]+\/JustSaySo\.zip$/),
         'vocabulary: Project (2 accepted)',

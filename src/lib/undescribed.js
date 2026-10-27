@@ -12,9 +12,11 @@ import { REPLY_NAME, resolveValeConfig } from './vale.js';
 
 const SAMPLE = 5;
 
+// One-line scalars only. A block scalar (`message: >` or `message: |`)
+// reads as null, and the package cache counts those so the gap is visible.
 function scalar(yaml, key) {
   const m = new RegExp(`^${key}:[ \\t]*(.+?)[ \\t]*$`, 'm').exec(yaml);
-  if (!m) return null;
+  if (!m || /^[>|][-+]?$/.test(m[1])) return null;
   return m[1].replace(/^(['"])(.*)\1$/, '$2');
 }
 
@@ -42,6 +44,19 @@ function sample(yaml) {
   return out;
 }
 
+/** The facts in a rule's YAML text. `level` defaults to the declared one. */
+export function describeRuleText(id, yaml, level = null) {
+  return {
+    id,
+    level: level ?? scalar(yaml, 'level') ?? 'warning',
+    extends: scalar(yaml, 'extends'),
+    message: scalar(yaml, 'message'),
+    description: scalar(yaml, 'description'),
+    link: scalar(yaml, 'link'),
+    sample: sample(yaml)
+  };
+}
+
 export function describeRule(id, file, level) {
   let yaml = '';
   try {
@@ -49,15 +64,7 @@ export function describeRule(id, file, level) {
   } catch {
     // an unreadable rule file still gets its id and level
   }
-  return {
-    id,
-    level,
-    extends: scalar(yaml, 'extends'),
-    message: scalar(yaml, 'message'),
-    description: scalar(yaml, 'description'),
-    link: scalar(yaml, 'link'),
-    sample: sample(yaml)
-  };
+  return describeRuleText(id, yaml, level);
 }
 
 /**

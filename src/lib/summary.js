@@ -28,6 +28,14 @@ const BUCKETS = [
 ];
 const TOP = 15;
 const FREQUENT = 20;
+// A tag earns a situation at this many rejections within one project, and
+// a Vale-backed tag needs this many linted rejected replies before its
+// rules are judged. Below the floor the report states the counts and no
+// diagnosis.
+export const SITUATION_MIN = 3;
+// A Vale-backed bullet whose rules caught fewer than this share of the
+// linted rejected replies is a silent rule.
+export const SILENT_SHARE = 0.5;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // A rejection record carries its time in its id prefix.
@@ -135,6 +143,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
       if (t.session === r.session && t.promptIndex === wanted && t.t < r.t && t.t > floor) turn = t;
     }
     if (turn && inWindow(turn.t, since, until)) joinedRec.push({ record: r, turn });
+    r.turn = turn;
   }
   const joined = joinedRec.length;
 
@@ -244,14 +253,23 @@ export function summarize(events, rejections, { since = null, until = null, proj
     surviving: sortedEntries(surviving, TOP).map(([check, count]) => ({ check, count }))
   };
 
-  // Reasons.
-  const reasonCounts = new Map();
+  // Reasons, each with the projects it was typed in.
+  const reasonRows = new Map();
   let noReason = 0;
   for (const r of rec) {
     const text = String(r.reason ?? '').trim().toLowerCase();
-    if (text) bump(reasonCounts, text);
-    else noReason++;
+    if (!text) {
+      noReason++;
+      continue;
+    }
+    const row = reasonRows.get(text) ?? { reason: text, count: 0, projects: new Set() };
+    row.count++;
+    if (r.project) row.projects.add(r.project);
+    reasonRows.set(text, row);
   }
+  const reasons = [...reasonRows.values()]
+    .map((r) => ({ reason: r.reason, count: r.count, projects: [...r.projects].sort() }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
 
   // Allows.
   const allowMap = new Map();
@@ -286,40 +304,122 @@ export function summarize(events, rejections, { since = null, until = null, proj
   // Vale-backed bullet (with how often its rules fired on those replies),
   // or nothing yet, which is the to-do list for new bullets and rules.
   // Coverage comes from the manifest of the record's own project, since a
-  // project's rules.extra adds bullets no other project has; a tag that
-  // two projects cover differently prints once per coverage.
+  // project's rules.extra adds bullets no other project has. The rows are
+  // kept per project first, because the situations below are per project;
+  // the display merges rows that share a tag and a coverage, and a tag
+  // that two projects cover differently prints once per coverage.
   const resolve = manifestFor ?? (() => manifest);
   const bulletCache = new Map();
   const bulletsFor = (proj) => {
     const key = proj ?? '';
     if (!bulletCache.has(key)) {
       const map = new Map();
-      for (const sec of resolve(proj)?.sections ?? []) for (const r of sec.rules ?? []) map.set(r.id, r.vale ?? []);
+      for (const sec of resolve(proj)?.sections ?? []) for (const r of sec.rules ?? []) map.set(r.id, { vale: r.vale ?? [], short: Boolean(r.short) });
       bulletCache.set(key, map);
     }
     return bulletCache.get(key);
   };
-  const tagRows = new Map();
+  const projectTags = new Map(); // project|tag → row
+  const untaggedClean = new Map(); // project → reasons
   for (const r of rec) {
     const tags = Array.isArray(r.tags) ? r.tags : tagsIn(r.reason);
     const bullets = bulletsFor(r.project ?? null);
-    for (const tag of tags) {
-      const ids = bullets.get(tag);
-      const covers = ids === undefined ? 'none' : ids.length === 0 ? 'judgment' : 'vale';
-      const key = `${tag}|${covers}|${(ids ?? []).join(',')}`;
-      const row = tagRows.get(key) ?? { tag, count: 0, fired: 0, linted: 0, covers, rules: ids ?? [], projects: new Set() };
-      row.count++;
-      if (r.project) row.projects.add(r.project);
-      if (covers === 'vale' && Array.isArray(r.rejected?.alerts)) {
-        row.linted++;
-        if (r.rejected.alerts.some((a) => ids.includes(a.check))) row.fired++;
-      }
-      tagRows.set(key, row);
+    const proj = r.project ?? '(none)';
+    if (tags.length === 0 && Array.isArray(r.rejected?.alerts) && r.rejected.alerts.length === 0) {
+      const list = untaggedClean.get(proj) ?? [];
+      list.push(r.reason ?? null);
+      untaggedClean.set(proj, list);
     }
+    for (const tag of tags) {
+      const bullet = bullets.get(tag);
+      const covers = bullet === undefined ? 'none' : bullet.vale.length === 0 ? 'judgment' : 'vale';
+      const key = `${proj}|${tag}`;
+      const row = projectTags.get(key) ?? {
+        project: proj,
+        tag,
+        covers,
+        rules: bullet?.vale ?? [],
+        short: bullet?.short ?? false,
+        count: 0,
+        linted: 0,
+        fired: 0,
+        joinedLinted: 0,
+        firedAtShip: 0,
+        modes: new Map(),
+        levels: new Set(),
+        reasons: []
+      };
+      row.count++;
+      if (r.reason) row.reasons.push(r.reason);
+      if (covers === 'vale') {
+        // Restate-time alerts: whether the rules detect the problem when
+        // the old reply is linted again. Ship-time alerts, from the joined
+        // reply event: whether they fired when the reply went out.
+        if (Array.isArray(r.rejected?.alerts)) {
+          row.linted++;
+          if (r.rejected.alerts.some((a) => row.rules.includes(a.check))) row.fired++;
+        }
+        if (r.turn && Array.isArray(r.turn.alerts)) {
+          row.joinedLinted++;
+          const hits = r.turn.alerts.filter((a) => row.rules.includes(a.check));
+          if (hits.length > 0) {
+            row.firedAtShip++;
+            bump(row.modes, modeOf(r.turn));
+            for (const a of hits) row.levels.add(a.severity);
+          }
+        }
+      }
+      projectTags.set(key, row);
+    }
+  }
+  const tagRows = new Map();
+  for (const row of projectTags.values()) {
+    const key = `${row.tag}|${row.covers}|${row.rules.join(',')}`;
+    const merged = tagRows.get(key) ?? { tag: row.tag, count: 0, fired: 0, linted: 0, covers: row.covers, rules: row.rules, projects: new Set() };
+    merged.count += row.count;
+    merged.fired += row.fired;
+    merged.linted += row.linted;
+    if (row.project !== '(none)') merged.projects.add(row.project);
+    tagRows.set(key, merged);
   }
   const tagList = [...tagRows.values()]
     .map((row) => ({ ...row, projects: [...row.projects].sort() }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag) || a.covers.localeCompare(b.covers));
+
+  // Situations: what each recurring tag points at, per project. One
+  // situation per tag, decided in order: uncovered, judgment, then for a
+  // Vale-backed bullet the ship-time evidence first. Below the evidence
+  // floor the row states its counts and no diagnosis.
+  const situations = [];
+  for (const row of projectTags.values()) {
+    if (row.count < SITUATION_MIN) continue;
+    const base = {
+      project: row.project,
+      tag: row.tag,
+      count: row.count,
+      rules: row.rules,
+      short: row.short,
+      linted: row.linted,
+      fired: row.fired,
+      joinedLinted: row.joinedLinted,
+      firedAtShip: row.firedAtShip,
+      modes: Object.fromEntries(sortedEntries(row.modes)),
+      levels: [...row.levels].sort(),
+      reasons: row.reasons
+    };
+    let kind;
+    if (row.covers === 'none') kind = 'uncovered';
+    else if (row.covers === 'judgment') kind = 'judgment';
+    else if (row.linted < SITUATION_MIN || row.joinedLinted === 0) kind = 'insufficient';
+    else if (row.firedAtShip > 0) kind = 'fired-shipped';
+    else if (row.fired / row.linted < SILENT_SHARE) kind = 'silent';
+    else kind = 'detects-now';
+    situations.push({ kind, ...base });
+  }
+  for (const [proj, list] of untaggedClean) {
+    situations.push({ kind: 'untagged-clean', project: proj, tag: null, count: list.length, rules: [], short: false, linted: list.length, fired: 0, joinedLinted: 0, firedAtShip: 0, modes: {}, levels: [], reasons: list });
+  }
+  situations.sort((a, b) => a.project.localeCompare(b.project) || b.count - a.count || String(a.tag).localeCompare(String(b.tag)));
 
   // Observations.
   const rejectedChecks = new Set(rejLinted.flatMap((r) => r.rejected.alerts.map((a) => a.check)));
@@ -361,8 +461,9 @@ export function summarize(events, rejections, { since = null, until = null, proj
       warningsOnly: { count: warningsOnly.length, rules: sortedEntries(warningsOnlyRules).map(([check, count]) => ({ check, count })) }
     },
     rewrites,
-    reasons: { given: sortedEntries(reasonCounts).map(([reason, count]) => ({ reason, count })), none: noReason },
+    reasons: { given: reasons, none: noReason },
     tags: tagList,
+    situations,
     allows,
     settings: settingsRows,
     observations: { frequentNeverRejected: frequentNeverRejected.map((r) => ({ check: r.check, turns: r.turns, modes: r.modes })) }
@@ -371,6 +472,31 @@ export function summarize(events, rejections, { since = null, until = null, proj
 
 function pct(v) {
   return v === null ? 'rate unavailable' : `${v} per 100`;
+}
+
+export function formatSituation(x) {
+  const head = x.tag ? `${x.project} · #${x.tag}: ${x.count}` : `${x.project} · untagged and clean: ${x.count}`;
+  const rules = x.rules.join(', ');
+  switch (x.kind) {
+    case 'uncovered':
+      return `${head} · uncovered: no bullet has this id. Points at a judgment bullet, or a Vale rule.`;
+    case 'judgment':
+      return `${head} · judgment bullet${x.short ? ' with a short text' : ' without a short text, so it is not in the condensed reminder'}. Points at rewording, a short text, or a Vale rule behind it, since only a Vale alert re-injects the rules.`;
+    case 'insufficient':
+      return `${head} · backed by ${rules} · ${x.linted} linted at restate-time, ${x.joinedLinted} joined replies linted at ship-time: not enough linted evidence to judge the rules.`;
+    case 'fired-shipped': {
+      const modes = Object.entries(x.modes).map(([m, n]) => `${m} ${n}`).join(', ');
+      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}) and the reply still went out. Points at enforcement: reply.mode = block, or the rule at error level.`;
+    }
+    case 'silent':
+      return `${head} · backed by ${rules} · the rules caught ${x.fired} of ${x.linted} linted rejected replies at restate-time and none at ship-time. Points at a Vale tune: more tokens, another pattern, or a rule that catches this case.`;
+    case 'detects-now':
+      return `${head} · backed by ${rules} · the rules catch ${x.fired} of ${x.linted} rejected replies at restate-time and fired on none of ${x.joinedLinted} at ship-time, so they were off or lower then. Points at checking the rule is on at error level now.`;
+    case 'untagged-clean':
+      return `${head} rejections with no tag that Vale passed clean. Points at tagging them: ${x.reasons.map((r) => r ?? '(no reason)').join(' | ')}`;
+    default:
+      return head;
+  }
 }
 
 export function formatSummary(s) {
@@ -434,6 +560,10 @@ export function formatSummary(s) {
   }
   const uncovered = s.tags.filter((t) => t.covers === 'none');
   if (uncovered.length) L.push(`  what the rules do not cover yet: ${uncovered.map((t) => `${t.tag} (${t.count})`).join(', ')}. Each is a candidate for a judgment bullet, or a Vale rule when one can be written.`);
+
+  L.push('', `What the tags point at (per project; a tag needs ${SITUATION_MIN} rejections; ship-time means the reply event, restate-time means /restate linting the old reply)`);
+  if (s.situations.length === 0) L.push('  nothing at these counts');
+  for (const x of s.situations) L.push(`  ${formatSituation(x)}`);
 
   L.push('', 'Allows');
   if (s.allows.length === 0) L.push('  none');

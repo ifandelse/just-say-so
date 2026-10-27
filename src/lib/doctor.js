@@ -15,6 +15,7 @@ import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
 import { loadExtra } from './manifest.js';
 import { pluginVersion } from './version.js';
+import { readCache } from './package-cache.js';
 
 // The names the hooks lint under, one per target, plus the three file kinds
 // a project writes most.
@@ -134,6 +135,12 @@ export function doctorReport(cwd, env = process.env) {
   facts.push(
     `rules: context start [${(config.rules.onContextStart ?? []).join(', ')}] · subagents ${config.rules.onSubagentStart ? 'yes' : 'no'} · on violation ${config.rules.onViolation ? 'yes' : 'no'}`
   );
+  const cache = readCache(env);
+  if (cache.length === 0) facts.push('package cache: empty (/just-say-so:packages --refresh fills it, for advice on packages you do not have)');
+  else {
+    const dates = cache.map((c) => c.fetched).filter(Boolean).sort();
+    facts.push(`package cache: ${cache.length} packages, ${cache.reduce((n, c) => n + c.rules.length, 0)} rules, fetched ${dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`}`);
+  }
 
   // Vale config.
   const explicit = config.vale?.config ?? null;

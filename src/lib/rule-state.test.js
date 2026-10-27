@@ -25,8 +25,11 @@ import { DEFAULTS } from './config.js';
  *     a style, a later YES undoes NO on a selected style, a per-rule YES
  *     loads the rule after an empty BasedOnStyles or a style NO · across
  *     sections a later style YES/NO or list beats an earlier per-rule
- *     setting, a new list keeps exclusions, a style NO on an unselected
- *     style does nothing
+ *     setting from [*], a new list keeps every NO and drops every earlier
+ *     YES, a section per-rule setting beats a section style setting in
+ *     either order, [*] settings are fallbacks a section's mention of the
+ *     rule or its style overrides, a section style YES runs a rule a
+ *     per-rule setting mentions anywhere
  *   contextRules: vale fails or prints junk → the plain condensed text ·
  *     vale: false → the plain text, no spawn · a bullet whose installed
  *     Vale rules are all off is dropped, an uninstalled rule not counting ·
@@ -277,8 +280,16 @@ describe('rule-state', () => {
             { SChecks: { '*.reply': { Local: false }, 'reply.*': { 'Local.Extra': true } }, SBaseStyles: { 'reply.*': [] } },
             ['*.reply', 'reply.*']
           ),
-          // Unselected style: [*] Extra = YES; [*.reply] Local = NO: the style NO does not act.
-          unselectedRuleYesThenStyleNo: run({ GBaseStyles: [], GChecks: { 'Local.Extra': true }, SChecks: { '*.reply': { Local: false } } }, ['*.reply']),
+          // No list anywhere: [*] Extra = YES; [*.reply] Local = NO: the section style NO beats the global rule YES.
+          globalRuleYesThenSectionStyleNo: run({ GBaseStyles: [], GChecks: { 'Local.Extra': true }, SChecks: { '*.reply': { Local: false } } }, ['*.reply']),
+          // No list anywhere: [*] Extra = NO; [*.reply] Local = YES: the section style YES runs the mentioned rule.
+          globalRuleNoThenSectionStyleYes: run({ GBaseStyles: [], GChecks: { 'Local.Extra': false }, SChecks: { '*.reply': { Local: true } } }, ['*.reply']),
+          // [*] Local = NO; [*.reply] BasedOnStyles = Local: the global style NO still holds.
+          globalStyleNoThenList: run({ GBaseStyles: [], GChecks: { Local: false }, SBaseStyles: { '*.reply': ['Local'] } }, ['*.reply']),
+          // Unselected style: [*.reply] Extra = YES; [reply.*] Local = NO: a section rule setting beats a section style setting.
+          sectionRuleYesThenSectionStyleNo: run({ GBaseStyles: [], SChecks: { '*.reply': { 'Local.Extra': true }, 'reply.*': { Local: false } } }, ['*.reply', 'reply.*']),
+          // [*.reply] Extra = NO; [reply.*] Local = YES: the section rule NO survives a later section style YES.
+          sectionRuleNoThenSectionStyleYes: run({ SChecks: { '*.reply': { 'Local.Extra': false }, 'reply.*': { Local: true } } }, ['*.reply', 'reply.*']),
           // [*] Extra = NO; [*.reply] BasedOnStyles = Local plus Local = YES: the style YES clears it.
           ruleNoThenListAndStyleYes: run(
             { GChecks: { 'Local.Extra': false }, SBaseStyles: { '*.reply': ['Local'] }, SChecks: { '*.reply': { Local: true } } },
@@ -295,14 +306,18 @@ describe('rule-state', () => {
           ruleNoThenList: ['Local.Other'],
           styleNoThenList: [],
           styleNoThenEmptyListRuleYes: ['Local.Extra'],
-          unselectedRuleYesThenStyleNo: ['Local.Extra'],
+          globalRuleYesThenSectionStyleNo: [],
+          globalRuleNoThenSectionStyleYes: ['Local.Extra'],
+          globalStyleNoThenList: [],
+          sectionRuleYesThenSectionStyleNo: ['Local.Extra'],
+          sectionRuleNoThenSectionStyleYes: ['Local.Other'],
           ruleNoThenListAndStyleYes: ['Local.Extra', 'Local.Other']
         });
       });
     });
 
     describe('when levels are set style-wide and per rule across sections', () => {
-      let global, narrowerStyle, narrowerRule;
+      let global, narrowerStyle, narrowerRule, sectionRuleOverLaterSectionStyle;
 
       beforeEach(() => {
         const base = { GBaseStyles: ['Local'] };
@@ -314,6 +329,13 @@ describe('rule-state', () => {
           resolvedWith({ ...base, RuleToLevel: { 'Local.Extra': 'warning' }, SLevels: { '*.reply': { Local: 'suggestion' } } }),
           inventory,
           ['*.reply']
+        );
+        // [*.reply] Local.Extra = warning; [reply.*] Local = suggestion: a section rule level beats a later section style level.
+        sectionRuleOverLaterSectionStyle = ruleStateFor(
+          'reply.reply',
+          resolvedWith({ ...base, SLevels: { '*.reply': { 'Local.Extra': 'warning' }, 'reply.*': { Local: 'suggestion' } } }),
+          inventory,
+          ['*.reply', 'reply.*']
         );
         // [*] Local = suggestion; [*.reply] Local.Extra = warning: the narrower section wins.
         narrowerRule = ruleStateFor(
@@ -328,11 +350,16 @@ describe('rule-state', () => {
         expect({
           global: [global.get('Local.Extra').level, global.get('Local.Other').level],
           narrowerStyle: [narrowerStyle.get('Local.Extra').level, narrowerStyle.get('Local.Other').level],
-          narrowerRule: [narrowerRule.get('Local.Extra').level, narrowerRule.get('Local.Other').level]
+          narrowerRule: [narrowerRule.get('Local.Extra').level, narrowerRule.get('Local.Other').level],
+          sectionRuleOverLaterSectionStyle: [
+            sectionRuleOverLaterSectionStyle.get('Local.Extra').level,
+            sectionRuleOverLaterSectionStyle.get('Local.Other').level
+          ]
         }).toEqual({
           global: ['error', 'suggestion'],
           narrowerStyle: ['suggestion', 'suggestion'],
-          narrowerRule: ['warning', 'suggestion']
+          narrowerRule: ['warning', 'suggestion'],
+          sectionRuleOverLaterSectionStyle: ['warning', 'suggestion']
         });
       });
     });

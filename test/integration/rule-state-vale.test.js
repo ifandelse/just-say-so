@@ -55,6 +55,24 @@ const CASES = {
   commentedHeaderFirst: '[*]\nBasedOnStyles = Local\n[r*.reply] # first\nLocal.Other = NO\n[*.reply]\nLocal.Other = YES\n',
   classHeaderLast: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal.Other = YES\n[reply.[r]eply]\nLocal.Other = NO\n',
   braceSection: '[*]\nBasedOnStyles = Local\n[{*.reply,*.publish}]\nLocal.Other = NO\n',
+  // No list anywhere: [*] settings are fallbacks a section's style mention overrides.
+  noListGlobalRuleYesSectionStyleNo: '[*]\nLocal.Extra = YES\n[*.reply]\nLocal = NO\n',
+  noListGlobalRuleNoSectionStyleYes: '[*]\nLocal.Extra = NO\n[*.reply]\nLocal = YES\n',
+  noListGlobalStyleNoThenSectionList: '[*]\nLocal = NO\n[*.reply]\nBasedOnStyles = Local\n',
+  noListSectionStyleYesAlone: '[*.reply]\nLocal = YES\n',
+  // Among matching sections a per-rule setting beats a style setting in either order.
+  sectionRuleNoThenSectionStyleYes: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal.Extra = NO\n[reply.*]\nLocal = YES\n',
+  sectionRuleYesThenSectionStyleNo: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal.Extra = YES\n[reply.*]\nLocal = NO\n',
+  sectionStyleNoThenSectionRuleYes: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal = NO\n[reply.*]\nLocal.Extra = YES\n',
+  sectionStyleYesThenSectionRuleNo: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal = YES\n[reply.*]\nLocal.Extra = NO\n',
+  sectionRuleNoThenStyleNoThenStyleYes: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal.Extra = NO\n[reply.*]\nLocal = NO\n[r*.reply]\nLocal = YES\n',
+  // A section setting beats a [*] setting of the other kind.
+  globalStyleYesThenSectionRuleNo: '[*]\nBasedOnStyles = Local\nLocal = YES\n[*.reply]\nLocal.Extra = NO\n',
+  globalStyleNoThenSectionRuleYes: '[*]\nBasedOnStyles = Local\nLocal = NO\n[*.reply]\nLocal.Extra = YES\n',
+  // Levels follow the same precedence.
+  sectionRuleLevelThenSectionStyleLevel: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal.Extra = warning\n[reply.*]\nLocal = suggestion\n',
+  sectionStyleLevelThenSectionRuleLevel: '[*]\nBasedOnStyles = Local\n[*.reply]\nLocal = suggestion\n[reply.*]\nLocal.Extra = warning\n',
+  globalStyleLevelThenSectionRuleLevel: '[*]\nBasedOnStyles = Local\nLocal = suggestion\n[*.reply]\nLocal.Extra = warning\n',
   // A narrower section's style-wide level beats a global per-rule level.
   sectionStyleLevelOverGlobalRuleLevel: '[*]\nBasedOnStyles = Local\nLocal.Extra = warning\n[*.reply]\nLocal = suggestion\n',
   // Inside one section a per-rule level beats a style-wide level.

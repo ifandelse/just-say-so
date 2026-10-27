@@ -7,21 +7,21 @@
 // styles directory count. Every failure returns null, and the caller
 // injects the text unchanged.
 //
-// Vale's precedence, measured on 3.24.0 across 25 configurations:
-// sections apply in file order, package configs before the project's, and
-// inside one section the style list applies first, then style-wide
-// settings, then per-rule settings. Vale keeps two sets. The first is the
-// rules its selected styles supply: every BasedOnStyles line, an empty one
-// included, recomputes it from that list, and a per-rule YES adds a rule
-// to it outright. The second is an exclusion set: a per-rule NO adds the
-// rule, a selected style's NO adds all of the style's rules, and only a
-// later YES on the rule or on the selected style removes them; a new
-// style list leaves exclusions in place. Style-wide YES and NO act only on
-// a selected style, and a style-wide level counts as YES. A rule runs when
-// it is in the first set and not in the second. For levels, a per-rule
-// level beats a style-wide level in the same section and a later section
-// beats an earlier one. ls-config serializes the sections as maps, which
-// lose file order, so the order is read from the config files themselves.
+// Vale's precedence, measured on 3.24.0 across some forty configurations
+// and kept as test/integration/rule-state-vale.test.js. Sections apply in
+// file order, package configs before the project's. Selection is only
+// BasedOnStyles: every list, an empty one included, recomputes the rules
+// the selected styles supply, and drops every YES setting made before it
+// while keeping every NO. Settings resolve by precedence, not by order:
+// a per-rule setting in a matching section, then a style-wide setting in
+// a matching section, then a per-rule setting in [*], then a style-wide
+// setting in [*]; among sections the later one wins for the same key. A
+// per-rule YES runs the rule outright. A style-wide YES (a level counts
+// as one) runs a rule only when its style is selected or a per-rule
+// setting mentions the rule somewhere. NO turns the rule off. With no
+// setting, the rule runs when its style is selected. Levels resolve by
+// the same precedence. ls-config serializes the sections as maps, which
+// lose file order, so the order is read from the config files.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -120,56 +120,57 @@ export function sectionOrder(resolved) {
  */
 export function ruleStateFor(name, resolved, inventory, order) {
   const matching = (order ?? []).filter((g) => valeGlobToRegExp(g).test(name));
-  const sections = [
-    { list: resolved.GBaseStyles ?? [], checks: resolved.GChecks ?? {}, levels: resolved.RuleToLevel ?? {} },
-    ...matching.map((g) => ({
-      list: resolved.SBaseStyles?.[g],
-      checks: resolved.SChecks?.[g] ?? {},
-      levels: resolved.SLevels?.[g] ?? {}
-    }))
-  ];
-
   const ids = [...inventory.keys()];
   const styleOf = (id) => id.split('.')[0];
-  const rulesOf = (style) => ids.filter((id) => styleOf(id) === style);
-  let selected = new Set();
-  let supplied = new Set();
-  const excluded = new Set();
-  const levels = new Map(inventory);
+  const isRule = (key) => key.includes('.');
 
-  for (const section of sections) {
-    if (Array.isArray(section.list)) {
-      selected = new Set(section.list);
-      supplied = new Set(ids.filter((id) => selected.has(styleOf(id))));
+  // Each setting remembers where it was made; a section beats [*].
+  const toggles = new Map(); // key → { on, scope }
+  const levels = new Map(); // key → { level, scope }
+  const mentioned = new Set(); // rule ids a per-rule setting names anywhere
+  let supplied = new Set();
+
+  const select = (list) => {
+    const selected = new Set(list);
+    supplied = new Set(ids.filter((id) => selected.has(styleOf(id))));
+    for (const [key, t] of toggles) if (t.on) toggles.delete(key);
+  };
+  const apply = (scope, checks, lvls) => {
+    for (const [key, on] of Object.entries(checks ?? {})) {
+      if (typeof on !== 'boolean') continue;
+      toggles.set(key, { on, scope });
+      if (isRule(key)) mentioned.add(key);
     }
-    const toggles = Object.entries(section.checks).filter(([, v]) => typeof v === 'boolean');
-    for (const [style, on] of toggles.filter(([k]) => !k.includes('.'))) {
-      if (!selected.has(style)) continue;
-      for (const id of rulesOf(style)) {
-        if (on) {
-          excluded.delete(id);
-          supplied.add(id);
-        } else excluded.add(id);
-      }
-    }
-    for (const [id, on] of toggles.filter(([k]) => k.includes('.'))) {
-      if (on) {
-        excluded.delete(id);
-        supplied.add(id);
-      } else excluded.add(id);
-    }
-    for (const [key, level] of Object.entries(section.levels)) {
-      if (key.includes('.')) continue;
-      for (const id of rulesOf(key)) levels.set(id, level);
-    }
-    for (const [key, level] of Object.entries(section.levels)) {
-      if (key.includes('.')) levels.set(key, level);
-    }
+    for (const [key, level] of Object.entries(lvls ?? {})) levels.set(key, { level, scope });
+  };
+
+  select(resolved.GBaseStyles ?? []);
+  apply('global', resolved.GChecks, resolved.RuleToLevel);
+  for (const g of matching) {
+    const list = resolved.SBaseStyles?.[g];
+    if (Array.isArray(list)) select(list);
+    apply('section', resolved.SChecks?.[g], resolved.SLevels?.[g]);
   }
+
+  // Section per-rule, section style-wide, global per-rule, global style-wide.
+  const pick = (map, id) => {
+    const rule = map.get(id);
+    const style = map.get(styleOf(id));
+    if (rule?.scope === 'section') return { ...rule, byRule: true };
+    if (style?.scope === 'section') return { ...style, byRule: false };
+    if (rule) return { ...rule, byRule: true };
+    if (style) return { ...style, byRule: false };
+    return null;
+  };
 
   const state = new Map();
   for (const id of ids) {
-    state.set(id, { enabled: supplied.has(id) && !excluded.has(id), level: levels.get(id) });
+    const t = pick(toggles, id);
+    let enabled;
+    if (!t) enabled = supplied.has(id);
+    else if (!t.on) enabled = false;
+    else enabled = t.byRule || supplied.has(id) || mentioned.has(id);
+    state.set(id, { enabled, level: pick(levels, id)?.level ?? inventory.get(id) });
   }
   return state;
 }

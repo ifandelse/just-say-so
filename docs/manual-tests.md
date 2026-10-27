@@ -153,6 +153,12 @@ EOF
 
 **19a. Dead chat section notice (0.9.0).** Add a `[*.chat.md]` section to that `.vale.ini` and start a session. Expect one system line naming the section and the rename. Remove the JustSaySo package line (or the `[formats]` lines) and start again. Expect the second notice about the missing mapping. With the package synced and no chat section, expect no notice.
 
+## Phase H — the rules manifest (0.10.0)
+
+**20. Config-adjusted reminder.** In the scratch repo's `.vale.ini`, set `JustSaySo.Intensifiers = NO` under `[*]` and add a style of your own with one error-level rule that no shipped bullet names. Start a session. Ground truth: the injected rules (transcript grep `## Communication rules — reminder`) have no "Empty intensifiers" bullet, and end with `This project also enforces these Vale rules at error level:` naming your rule. Remove the `NO` line, start again: the bullet is back.
+
+**20a. Extra rules.** Set `rules.extra` to a JSON file with one section and one rule that has a `short` text. Start a session. Expect the rule as the last bullet of the reminder, and in `/just-say-so:rules` under its own heading.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

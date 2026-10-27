@@ -346,7 +346,8 @@ describe('session-start.run', () => {
 
     it('should inject the rules without probing, complaining, or logging', () => {
       expect({ systemMessage: output.systemMessage, logged }).toEqual({ systemMessage: undefined, logged: false });
-      expect(mockSpawnSync).not.toHaveBeenCalled();
+      // The only spawn is the config read behind the rules text, never the probe.
+      expect(mockSpawnSync.mock.calls.map((c) => c[1][0])).toEqual(['ls-config']);
     });
   });
 

@@ -16,25 +16,25 @@ dictionary and minus its part-of-speech restrictions.
 
 - Lead with the answer, decision, result, or required action.
 - Use descriptive headings and lists when they make longer text easier to scan.
-- One idea per sentence. Most sentences under 20 words.
-- Prefer active voice with a named actor (for example: "the scheduler retries the job," not "the job is retried"). Use passive voice when the actor is unknown or irrelevant.
+- One idea per sentence. Most sentences under 20 words. Checked by STE.SentenceLength.
+- Prefer active voice with a named actor (for example: "the scheduler retries the job," not "the job is retried"). Use passive voice when the actor is unknown or irrelevant. Checked by STE.PassiveVoice.
 - Prefer simple tenses (for example: "we updated," not "has been updated") when they preserve the intended time and state.
 - Use one term for each concept. Do not use that term for a different concept in the same document. Pick one of check/verify/validate for a given concept and keep it.
-- Concrete verbs and nouns over abstractions.
-- Noun clusters: three words maximum. Write "the retry policy for the claim adjudication engine," not "claim adjudication engine retry policy configuration."
-- Give each paragraph one topic. Keep most paragraphs under six sentences.
-- Keep articles and relative pronouns. Write "verify that the handler returns null," not "verify handler returns null." Do not drop function words to save space.
-- End paragraphs with a fact or an instruction, never a flourish. The last sentence of an argument is where trained habit inserts an invented metaphor, personified code ("the config lies," "the field is a trap"), or the same point restated in stronger words. If the closing sentence adds no information, delete it.
+- Concrete verbs and nouns over abstractions. Checked by ai-tells.AbstractionSubject.
+- Noun clusters: three words maximum. Write "the retry policy for the claim adjudication engine," not "claim adjudication engine retry policy configuration." Checked by STE.NounClusters, ai-tells.NounString.
+- Give each paragraph one topic. Keep most paragraphs under six sentences. Checked by STE.ParagraphLength.
+- Keep articles and relative pronouns. Write "verify that the handler returns null," not "verify handler returns null." Do not drop function words to save space. Checked by STE.Articles.
+- End paragraphs with a fact or an instruction, never a flourish. The last sentence of an argument is where trained habit inserts an invented metaphor, personified code ("the config lies," "the field is a trap"), or the same point restated in stronger words. If the closing sentence adds no information, delete it. Checked by ai-tells.MicDrop, ai-tells.PointVerdict, ai-tells.AnthropomorphicCognition, ai-tells.FigurativeIdioms.
 
 ### Banned
 
-- These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them.
-- Any format of "it's not {x}, it's {y}".
-- Filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to").
-- Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence.
-- Restating the question, re-summarizing what was just said, or repeating a point in new words.
-- Banned hedge frames: "It's important to note," "This may seem X, but," stacked hedges. Bare may/might/could are allowed when they state real uncertainty or permission. If uncertain, state what is uncertain and why. Checked by ai-tells HedgingPhrases, DefensiveHedges, StackedHedges.
+- These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them. Checked by JustSaySo.Buzzwords, JustSaySo.Leverage, JustSaySo.Substitutions, ai-tells.StrategyBuzzwords.
+- Any format of "it's not {x}, it's {y}". Checked by JustSaySo.NegativeParallelism, ai-tells.ContrastiveNegation.
+- Filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to"). Checked by JustSaySo.FillerFrames, JustSaySo.Substitutions, ai-tells.FillerPhrases.
+- Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence. Checked by JustSaySo.Intensifiers, ai-tells.FillerIntensifier.
+- Restating the question, re-summarizing what was just said, or repeating a point in new words. Checked by ai-tells.RestatementMarkers, ai-tells.SummativeAppositive.
+- Banned hedge frames: "It's important to note," "This may seem X, but," stacked hedges. Bare may/might/could are allowed when they state real uncertainty or permission. If uncertain, state what is uncertain and why. Checked by ai-tells.HedgingPhrases, ai-tells.DefensiveHedges, ai-tells.StackedHedges.
 
 ### Final check
 
-Delete any sentence whose removal loses nothing. Check the last sentence of each paragraph first — flourish concentrates there.
+Delete any sentence whose removal loses nothing. Check the last sentence of each paragraph first — flourish concentrates there. Checked by ai-tells.EmptyPadding.

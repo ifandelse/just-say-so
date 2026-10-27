@@ -1,4 +1,4 @@
-# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+# Generated from rules/manifest.json by scripts/build.js — do not edit by hand.
 
 extends: existence
 message: "Banned buzzword: '%s'. Use a precise domain term or delete it."
@@ -14,4 +14,8 @@ tokens:
   - "(?<![\\w-])game[\\s\\u00A0-]+changing(?![\\w-])"
   - "(?<![\\w-])synergy(?![\\w-])"
   - "(?<![\\w-])delve(?![\\w-])"
+  - "(?<![\\w-])structural[\\s\\u00A0-]+spine(?![\\w-])"
+  - "(?<![\\w-])load[\\s\\u00A0-]+bearing(?![\\w-])"
+  - "(?<![\\w-])blast[\\s\\u00A0-]+radius(?![\\w-])"
   - "(?<![\\w-])belt[\\s\\u00A0-]+and[\\s\\u00A0-]+suspenders(?![\\w-])"
+  - "(?<![\\w-])honest[\\s\\u00A0-]+take(?![\\w-])"

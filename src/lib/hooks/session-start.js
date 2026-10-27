@@ -6,7 +6,8 @@
 // policy that fails quietly on every edit is worse than one line at startup.
 // Returns the hook output object, or null for silence.
 import { loadConfig, configSnapshot, publishOn, findLegacyKeys } from '../config.js';
-import { readRules, loadMessages, fill } from '../rules.js';
+import { loadMessages, fill } from '../rules.js';
+import { contextRules } from '../rule-state.js';
 import { readSession, writeSession, resetSession, cleanupSessions } from '../state.js';
 import { probeVale, resolveValeConfig, inspectValeConfig } from '../vale.js';
 import { formatReplyReport } from '../reply-alerts.js';
@@ -69,7 +70,7 @@ export function run(input, env = process.env) {
   const out = {};
   if (notices.length > 0) out.systemMessage = notices.join('\n');
   if (injectRules) {
-    const parts = [readRules('condensed', config)];
+    const parts = [contextRules(config, input.cwd, env, { vale: valeFound })];
     if (report) parts.push(report);
     out.hookSpecificOutput = {
       hookEventName: 'SessionStart',

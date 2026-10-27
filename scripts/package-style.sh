@@ -9,7 +9,7 @@
 # and publish sections merged into its own config after `vale sync`.
 set -e
 cd "$(dirname "$0")/.."
-node scripts/build-style.js
+node scripts/build.js
 rm -rf JustSaySo.zip build/package
 mkdir -p build/package/JustSaySo/styles
 grep -v '^StylesPath' vale/fallback.ini > build/package/JustSaySo/.vale.ini

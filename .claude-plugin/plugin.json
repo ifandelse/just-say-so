@@ -2,7 +2,7 @@
   "name": "just-say-so",
   "displayName": "Just Say So",
   "description": "Keeps model output aligned with your communication rules: rules injected at every context start and after a violation, and Vale-backed checks on written files, published text, and replies.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "author": {
     "name": "Jim Cowart"
   },

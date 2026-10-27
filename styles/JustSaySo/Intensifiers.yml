@@ -1,4 +1,4 @@
-# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+# Generated from rules/manifest.json by scripts/build.js — do not edit by hand.
 
 extends: existence
 message: "Empty intensifier: '%s'. Replace it with a measurement or a concrete consequence."

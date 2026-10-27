@@ -1,9 +1,10 @@
-// Generate the JustSaySo Vale style from rules/banned.json. The banned list
-// stays the single source of truth: scripts/build-style.js regenerates the
+// Generate the JustSaySo Vale style from the rules manifest. The manifest
+// stays the single source of truth: scripts/build.js regenerates the
 // style, and a test fails when the committed files drift from the data.
 // The rules never set `nonword`: a nonword rule ignores the Vale
 // vocabulary (verified on 3.24), and the vocabulary is the only exemption
 // route. The lookarounds in each token keep the hyphen guard without it.
+import { styleSpecs, dropInReplacement } from './manifest.js';
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -27,7 +28,7 @@ export function termPattern(term) {
   return BEFORE + tokens.join('[\\s\\u00A0-]+') + AFTER;
 }
 
-const HEADER = '# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.\n';
+const HEADER = '# Generated from rules/manifest.json by scripts/build.js — do not edit by hand.\n';
 
 // Models write curly quotes, so the emitted patterns accept either
 // apostrophe.
@@ -44,14 +45,6 @@ function ruleName(term) {
     .split(/[\s-]+/)
     .map((t) => t.charAt(0).toUpperCase() + t.slice(1).replace(/[^A-Za-z0-9]/g, ''))
     .join('');
-}
-
-// A hint of the form `use "X"` names a drop-in replacement, which Vale's
-// substitution check carries per token. Any other hint is prose for the
-// model and needs its own rule so the message survives.
-function dropInReplacement(hint) {
-  const m = /^use "([^"]+)"$/.exec(hint ?? '');
-  return m ? m[1] : null;
 }
 
 function existenceRule({ message, level, tokens }) {
@@ -85,67 +78,37 @@ function token(term) {
 }
 
 /**
- * Build the JustSaySo style files from a banned-term set. Returns
- * { "Buzzwords.yml": content, ... }. Additions from user config are not
- * included — the style ships only what rules/banned.json ships.
+ * Build the JustSaySo style files from the manifest's style blocks.
+ * Returns { "Buzzwords.yml": content, ... }. Each block becomes one
+ * existence rule named after it. A term with a drop-in hint (`use "to"`)
+ * moves to the shared Substitutions rule, which carries the replacement;
+ * a term with any other hint gets a rule of its own named after the term,
+ * so the hint survives as the message. Patterns are raw regexes.
  */
-export function buildStyleFiles(banned) {
+export function buildStyleFiles(manifest) {
   const files = {};
-  const plainTokens = [];
   const swap = {};
-  const hinted = [];
 
-  for (const entry of [...(banned.words ?? []), ...(banned.phrases ?? [])]) {
-    const replacement = dropInReplacement(entry.hint);
-    if (replacement) swap[token(entry.term)] = replacement;
-    else if (entry.hint) hinted.push(entry);
-    else plainTokens.push(entry);
+  for (const spec of styleSpecs(manifest)) {
+    const tokens = [];
+    for (const entry of spec.terms ?? []) {
+      const replacement = dropInReplacement(entry.hint);
+      if (replacement) swap[token(entry.term)] = replacement;
+      else if (entry.hint) {
+        files[`${ruleName(entry.term)}.yml`] = existenceRule({
+          message: `${spec.message.split(':')[0]}: '%s'. ${capitalize(entry.hint)}.`,
+          level: spec.level,
+          tokens: [token(entry.term)]
+        });
+      } else tokens.push(token(entry.term));
+    }
+    for (const p of spec.patterns ?? []) tokens.push(curlyTolerant(p.regex));
+    files[`${spec.name}.yml`] = existenceRule({ message: spec.message, level: spec.level, tokens });
   }
-
-  const wordTerms = new Set((banned.words ?? []).map((e) => e.term));
-  const buzzwords = plainTokens.filter((e) => wordTerms.has(e.term));
-  const frames = plainTokens.filter((e) => !wordTerms.has(e.term));
-
-  files['Buzzwords.yml'] = existenceRule({
-    message: "Banned buzzword: '%s'. Use a precise domain term or delete it.",
-    level: 'error',
-    tokens: buzzwords.map((e) => token(e.term))
-  });
-
-  files['FillerFrames.yml'] = existenceRule({
-    message: "Banned filler frame: '%s'. Delete it and state the point directly.",
-    level: 'error',
-    tokens: frames.map((e) => token(e.term))
-  });
 
   if (Object.keys(swap).length > 0) {
-    files['Substitutions.yml'] = substitutionRule({
-      message: "Use '%s' instead of '%s'.",
-      level: 'error',
-      swap
-    });
+    files['Substitutions.yml'] = substitutionRule({ message: "Use '%s' instead of '%s'.", level: 'error', swap });
   }
-
-  for (const entry of hinted) {
-    files[`${ruleName(entry.term)}.yml`] = existenceRule({
-      message: `Banned buzzword: '%s'. ${capitalize(entry.hint)}.`,
-      level: 'error',
-      tokens: [token(entry.term)]
-    });
-  }
-
-  files['NegativeParallelism.yml'] = existenceRule({
-    message: "Banned frame: '%s'. State the positive claim directly.",
-    level: 'error',
-    tokens: (banned.patterns ?? []).map((p) => curlyTolerant(p.regex))
-  });
-
-  files['Intensifiers.yml'] = existenceRule({
-    message: "Empty intensifier: '%s'. Replace it with a measurement or a concrete consequence.",
-    level: 'suggestion',
-    tokens: (banned.contextual ?? []).map((e) => token(e.term))
-  });
-
   return files;
 }
 

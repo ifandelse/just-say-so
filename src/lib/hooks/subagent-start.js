@@ -2,7 +2,7 @@
 // injected into the main session don't exist for it. Brief it at spawn.
 // Returns the hook output object, or null when the switch is off.
 import { loadConfig } from '../config.js';
-import { readRules } from '../rules.js';
+import { contextRules } from '../rule-state.js';
 
 export function run(input, env = process.env) {
   const config = loadConfig(input.cwd, env);
@@ -10,7 +10,7 @@ export function run(input, env = process.env) {
   return {
     hookSpecificOutput: {
       hookEventName: 'SubagentStart',
-      additionalContext: readRules('condensed', config)
+      additionalContext: contextRules(config, input.cwd, env)
     }
   };
 }

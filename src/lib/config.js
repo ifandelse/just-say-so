@@ -30,8 +30,8 @@ export const DEFAULTS = {
     onContextStart: ['startup', 'resume', 'clear', 'compact'],
     onSubagentStart: true,
     onViolation: true,
-    fullPath: null, // your own rules file, replaces rules/full.md
-    condensedPath: null, // replaces rules/condensed.md
+    manifest: null, // your own rules manifest, replaces rules/manifest.json
+    extra: null, // a manifest fragment whose sections are appended to the one in force
     messagesPath: null // overrides hook message strings, per key (rules/messages.json)
   },
   vale: {

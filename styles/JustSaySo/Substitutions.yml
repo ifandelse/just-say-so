@@ -1,4 +1,4 @@
-# Generated from rules/banned.json by scripts/build-style.js — do not edit by hand.
+# Generated from rules/manifest.json by scripts/build.js — do not edit by hand.
 
 extends: substitution
 message: "Use '%s' instead of '%s'."
@@ -6,4 +6,4 @@ level: error
 ignorecase: true
 swap:
   "(?<![\\w-])utilize(?![\\w-])": "use"
-  "(?<![\\w-])in[\\s\\u00A0-]+order[\\s\\u00A0-]+to(?![\\w-])": "to"
+  "(?<![\\w-])In[\\s\\u00A0-]+order[\\s\\u00A0-]+to(?![\\w-])": "to"

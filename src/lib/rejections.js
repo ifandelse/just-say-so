@@ -3,7 +3,9 @@
 // hook adds the rewrite. The model never quotes or saves anything itself;
 // both texts come from the harness. The records tune the user's own setup:
 // a rejected reply that Vale passed points at a missing rule or a level set
-// too low, and rejections per prompt is a drift rate for one user's sessions.
+// too low, a rejected reply with a tag no bullet covers points at a judgment
+// rule still to be written, and rejections per turn is a drift rate for one
+// user's sessions.
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir } from './state.js';
@@ -13,14 +15,30 @@ import { pluginVersion } from './version.js';
 
 const COMMAND = /^\/just-say-so:restate(?:\s+([\s\S]*))?$/;
 
+// The tags in a reason: every #word, lowercased, with anything outside
+// [a-z0-9-] turned into a hyphen. The reason keeps the words as typed;
+// the tags are an index over it, so nothing is carved out of the record
+// to make them.
+export function tagsIn(reason) {
+  const out = [];
+  for (const m of String(reason ?? '').matchAll(/(?:^|\s)#([^\s#]+)/g)) {
+    const tag = m[1]
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (tag && !out.includes(tag)) out.push(tag);
+  }
+  return out;
+}
+
 // The prompt hook receives a typed skill command as typed, not expanded.
-// Returns { reason } for the restate command, with reason null when the
-// user gave none; null for any other prompt.
+// Returns { reason, tags } for the restate command, with reason null when
+// the user gave none; null for any other prompt.
 export function parseRestate(prompt) {
   const m = COMMAND.exec(String(prompt ?? '').trim());
   if (!m) return null;
   const reason = (m[1] ?? '').trim();
-  return { reason: reason.length > 0 ? reason : null };
+  return { reason: reason.length > 0 ? reason : null, tags: tagsIn(reason) };
 }
 
 export function rejectionsFile(env = process.env) {
@@ -68,6 +86,7 @@ export function newRecord({
     sinceReminder,
     model,
     reason,
+    tags: tagsIn(reason),
     prompt,
     rejected,
     rewrite: null,

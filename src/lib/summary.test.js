@@ -19,7 +19,9 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *   rejected: per rule per level once per record · clean with reasons ·
  *     warnings-only with rules · unlinted apart
  *   rewrites: clean, keptError, unlinted, surviving rules
- *   reasons grouped lowercase · allows per term with projects · settings
+ *   reasons grouped lowercase · allows per term with projects · settings ·
+ *   tags: stored or derived from the reason, classified by the manifest as
+ *     judgment, vale (with fires on linted rejected replies), or none
  *   observations: frequentNeverRejected at 20+ turns
  *   compaction: a counter reset mid-session changes no count · a mode
  *     change mid-session attributes each reply to the snapshot in force
@@ -398,6 +400,42 @@ describe('summary', () => {
       expect(s.volume).toMatchObject({ turns: 3, rejections: 1, joined: 0, unjoined: 1 });
       expect(s.rejectionRate.per100).toBe(0);
       expect(s.distance.map((d) => d.rejections)).toEqual([0, 0, 0, 0, 0]);
+    });
+  });
+
+  describe('when rejections carry tags and a manifest is given', () => {
+    let s, text;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const manifest = {
+        sections: [
+          { rules: [{ id: 'end-with-fact', vale: ['ai-tells.MicDrop', 'ai-tells.PointVerdict'] }, { id: 'define-on-first-use', vale: [] }] }
+        ]
+      };
+      const tagged = (minutes, reason, alerts, tags) => ({ ...rejection('s1', A, minutes, 2, 0, reason, alerts), tags });
+      const rejections = [
+        tagged(1, '#end-with-fact punchline', [rb('ai-tells.MicDrop', 'error', 'x')], ['end-with-fact']),
+        tagged(2, '#end-with-fact again', [], ['end-with-fact']),
+        tagged(3, '#end-with-fact unlinted', null, ['end-with-fact']),
+        tagged(4, '#define-on-first-use what is a pin', [], ['define-on-first-use']),
+        tagged(5, '#undefined-term #flourish', [], ['undefined-term', 'flourish']),
+        { ...rejection('s1', A, 6, 2, 0, 'old record #undefined-term', []), tags: undefined }
+      ];
+      s = summarize([], rejections, { manifest });
+      text = formatSummary(s);
+    });
+
+    it('should count each tag, classify its cover, and count rule fires for Vale-backed ones', () => {
+      expect(s.tags).toEqual([
+        { tag: 'end-with-fact', count: 3, fired: 1, linted: 2, covers: 'vale', rules: ['ai-tells.MicDrop', 'ai-tells.PointVerdict'] },
+        { tag: 'undefined-term', count: 2, fired: 0, linted: 0, covers: 'none', rules: [] },
+        { tag: 'define-on-first-use', count: 1, fired: 0, linted: 0, covers: 'judgment', rules: [] },
+        { tag: 'flourish', count: 1, fired: 0, linted: 0, covers: 'none', rules: [] }
+      ]);
+      expect(text).toContain('end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules fired on 1 of 2 linted rejected replies');
+      expect(text).toContain('define-on-first-use: 1 · covered by a judgment bullet; no Vale rule can check it');
+      expect(text).toContain('what the rules do not cover yet: undefined-term (2), flourish (1).');
     });
   });
 

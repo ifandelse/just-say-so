@@ -5,6 +5,8 @@
 import { eventsFile, readEvents } from '../lib/events.js';
 import { rejectionsFile, readRecords } from '../lib/rejections.js';
 import { summarize, formatSummary } from '../lib/summary.js';
+import { loadConfig } from '../lib/config.js';
+import { loadManifest } from '../lib/manifest.js';
 
 export function parseSince(value, now = new Date()) {
   if (!value) return null;
@@ -30,5 +32,9 @@ try {
   console.error(`just-say-so summary: ${err.message}`);
   process.exit(1);
 }
-const report = summarize(readEvents(eventsFile()), readRecords(rejectionsFile()), { since, project: opt('--project') });
+const report = summarize(readEvents(eventsFile()), readRecords(rejectionsFile()), {
+  since,
+  project: opt('--project'),
+  manifest: loadManifest(loadConfig(process.cwd()))
+});
 process.stdout.write(args.includes('--json') ? JSON.stringify(report, null, 2) + '\n' : formatSummary(report));

@@ -24,14 +24,20 @@ export function writeTranscript(dir, name, entries) {
   return file;
 }
 
-// A stand-in vale binary for spawned-process tests: answers ls-dirs, and
-// "lints" the target file by flagging every line containing "leverage" or
+// A stand-in vale binary for spawned-process tests: answers ls-dirs, sync,
+// --version, and ls-config, and "lints" the target file by flagging every line containing "leverage" or
 // "synergy" in real Vale JSON shape. Integration must not depend on a real
 // vale install.
 const FAKE_VALE = `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
-if (args[0] === 'ls-dirs') process.exit(0);
+if (args[0] === 'ls-dirs' || args[0] === 'sync') process.exit(0);
+if (args[0] === '--version') { process.stdout.write('vale version 0.0.0-fake\\n'); process.exit(0); }
+if (args[0] === 'ls-config') {
+  // The minimum shape the resolver reads: the shipped mapping, no styles.
+  process.stdout.write(JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }));
+  process.exit(0);
+}
 const target = args[args.length - 1];
 let text;
 try { text = fs.readFileSync(target, 'utf8'); } catch { process.exit(2); }

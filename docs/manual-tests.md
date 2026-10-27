@@ -159,6 +159,12 @@ EOF
 
 **20a. Extra rules.** Set `rules.extra` to a JSON file with one section and one rule that has a `short` text. Start a session. Expect the rule as the last bullet of the reminder, and in `/just-say-so:rules` under its own heading.
 
+## Phase I — init and doctor (0.11.0)
+
+**21. Doctor.** In the scratch repo run `/just-say-so:doctor`. Expect the report in a code block, one line per target, and the warnings the setup deserves (a fresh scratch repo with no `.vale.ini` gets the fallback warning).
+
+**21a. Init.** Run `/just-say-so:init --gh --reply block`. Expect: the skill runs the CLI without a permission prompt, `.vale.ini` and `styles/` appear, `.just-say-so.json` holds the two settings, and the doctor report at the end has no warnings. Run it again: every line says the setup is current. Run `/just-say-so:allow "robust regression"`: the term lands in `styles/config/vocabularies/Project/accept.txt`.
+
 ## Recording results
 
 Mark each scenario pass/fail with the ground-truth evidence.

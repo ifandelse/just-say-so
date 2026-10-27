@@ -2,27 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig } from './config.js';
 import { findValeConfig } from './vale.js';
+import { readKey, setKey } from './vale-ini.js';
 import { logEvent } from './events.js';
 
 // The vocabulary a project gets when its .vale.ini names none. Not
 // "JustSaySo": a package that ships a vocabulary of the same name would
 // overwrite it on vale sync.
 export const DEFAULT_VOCAB = 'Project';
-
-// The ini subset we read is a flat `key = value` line; that covers every
-// config Vale's own docs show.
-function readKey(text, key) {
-  return new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`, 'm').exec(text)?.[1] ?? null;
-}
-
-// Insert `key = value` before the first section header, so it lands in the
-// global block where Vale reads it.
-function insertKey(text, key, value) {
-  const line = `${key} = ${value}\n`;
-  const at = text.search(/^\s*\[/m);
-  if (at === -1) return text.replace(/\n?$/, '\n') + line;
-  return text.slice(0, at) + line + text.slice(at);
-}
 
 /**
  * The accept.txt a term goes to, creating the Vocab (and StylesPath) keys
@@ -38,20 +24,22 @@ export function vocabTarget(cwd) {
   }
   let text = fs.readFileSync(configFile, 'utf8');
   const original = text;
+  // An empty key is replaced in place: Vale reads the later of two lines.
   let stylesPath = readKey(text, 'StylesPath');
   if (!stylesPath) {
     stylesPath = 'styles';
-    text = insertKey(text, 'StylesPath', stylesPath);
+    text = setKey(text, 'StylesPath', stylesPath);
   }
   let vocab = readKey(text, 'Vocab');
   if (!vocab) {
     vocab = DEFAULT_VOCAB;
-    text = insertKey(text, 'Vocab', vocab);
+    text = setKey(text, 'Vocab', vocab);
   }
   const configChanged = text !== original;
   if (configChanged) fs.writeFileSync(configFile, text);
+  // StylesPath is relative to the config file, or absolute; resolve keeps both.
   return {
-    file: path.join(path.dirname(configFile), stylesPath, 'config', 'vocabularies', vocab, 'accept.txt'),
+    file: path.join(path.resolve(path.dirname(configFile), stylesPath), 'config', 'vocabularies', vocab, 'accept.txt'),
     configFile,
     configChanged
   };

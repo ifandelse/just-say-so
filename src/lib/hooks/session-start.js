@@ -8,6 +8,7 @@
 import { loadConfig, configSnapshot, publishOn, findLegacyKeys } from '../config.js';
 import { loadMessages, fill } from '../rules.js';
 import { contextRules, contextStartKind } from '../rule-state.js';
+import { manifestProblem } from '../manifest.js';
 import { readSession, writeSession, resetSession, cleanupSessions } from '../state.js';
 import { probeVale, resolveValeConfig, inspectValeConfig } from '../vale.js';
 import { formatReplyReport } from '../reply-alerts.js';
@@ -53,6 +54,10 @@ export function run(input, env = process.env) {
   for (const { file, keys } of findLegacyKeys(input.cwd, env)) {
     notices.push(fill(messages.legacyConfigKeys, { file, keys: keys.join(', ') }));
   }
+  // A rules.manifest that cannot be read falls back to the shipped rules
+  // in every hook; this is the one place that says so.
+  const problem = manifestProblem(config, input.cwd);
+  if (problem) notices.push(fill(messages.manifestUnreadable, problem));
 
   const project = input.cwd ?? null;
   const promptIndex = source === 'compact' || source === 'clear' ? 0 : before.promptCount;

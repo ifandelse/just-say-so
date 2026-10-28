@@ -13,7 +13,8 @@ import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
 import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
-import { loadExtra, extraFile, mergeExtra, shippedManifestPath, ruleFilePath, DEFAULT_EXTRA } from './manifest.js';
+import { loadExtra, extraFile, mergeExtra, readManifest, DEFAULT_EXTRA } from './manifest.js';
+import { readHookErrors, hookErrorsFile } from './io.js';
 import { pluginVersion } from './version.js';
 import { readCache } from './package-cache.js';
 
@@ -110,18 +111,6 @@ function rawSection(glob, resolved) {
  * shape. Nothing here throws on a broken setup: a missing piece becomes a
  * warning.
  */
-// The manifest the extra file merges into: rules.manifest when set, else
-// the shipped one. Returns { manifest } or { error, file }; the doctor
-// must keep reporting when a custom manifest is missing or malformed.
-function loadManifestBase(config, cwd) {
-  const file = config.rules?.manifest ? ruleFilePath(config.rules.manifest, cwd) : shippedManifestPath();
-  try {
-    return { manifest: JSON.parse(fs.readFileSync(file, 'utf8')), file };
-  } catch (e) {
-    return { error: e?.code === 'ENOENT' ? 'does not exist' : `cannot be read as JSON (${e?.message ?? e})`, file };
-  }
-}
-
 export function doctorReport(cwd, env = process.env) {
   const config = loadConfig(cwd, env);
   const version = pluginVersion();
@@ -237,18 +226,25 @@ export function doctorReport(cwd, env = process.env) {
   const extra = loadExtra(config, cwd);
   const extraWhere = extraFile(config, cwd);
   if (extraWhere && !extra) warnings.push(`${extraWhere.source === 'config' ? 'rules.extra names' : 'the extra rules file'} ${extraWhere.path}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  const base = readManifest(config, cwd);
+  if (base.problem) {
+    warnings.push(`rules.manifest names ${base.problem.file}, which ${base.problem.error}. Every hook falls back to the shipped rules until it is fixed; session start says so once.`);
+  }
   if (extra) {
     const where = `${extraWhere.path} (${extraWhere.source === 'config' ? 'rules.extra' : `the default name, ${DEFAULT_EXTRA}`})`;
-    const base = loadManifestBase(config, cwd);
-    if (base.error) {
-      facts.push(`extra rules: ${where} · counts unavailable, see the warning`);
-      warnings.push(`rules.manifest names ${base.file}, which ${base.error}, so the rules text cannot be built and the extra file cannot be merged. Fix the path or the file.`);
-    } else {
-      const merged = mergeExtra(base.manifest, extra);
-      facts.push(`extra rules: ${where} · added ${merged.added.length}, replaced ${merged.replaced.length}, dropped ${merged.dropped.length}`);
-      if (merged.unknownDrops.length) warnings.push(`The extra rules file drops ${merged.unknownDrops.join(', ')}, which match no bullet id, so nothing was dropped. Check the ids against rules/manifest.json.`);
-    }
+    const merged = mergeExtra(base.manifest, extra);
+    facts.push(`extra rules: ${where} · added ${merged.added.length}, replaced ${merged.replaced.length}, dropped ${merged.dropped.length}${base.problem ? ' (merged into the shipped rules, see the warning)' : ''}`);
+    if (merged.unknownDrops.length) warnings.push(`The extra rules file drops ${merged.unknownDrops.join(', ')}, which match no bullet id, so nothing was dropped. Check the ids against rules/manifest.json.`);
   } else facts.push(`extra rules: none (${DEFAULT_EXTRA} in the project root, or rules.extra, adds, replaces, or drops bullets)`);
+
+  // Hook failures land in hook-errors.jsonl; a quiet hook is otherwise
+  // indistinguishable from a healthy one.
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const errors = readHookErrors(env, weekAgo);
+  if (errors.length > 0) {
+    const last = errors[errors.length - 1];
+    warnings.push(`${errors.length} hook failure(s) in the last 7 days, the latest ${last.t} in ${last.hook}: ${last.message}. Details in ${hookErrorsFile(env)}.`);
+  }
   const unknown = (extra?.sections ?? [])
     .flatMap((sec) => sec.rules ?? [])
     .flatMap((r) => (r.vale ?? []).map((id) => [r.id, id]))

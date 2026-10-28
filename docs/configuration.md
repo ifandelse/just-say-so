@@ -39,7 +39,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "onSubagentStart": true, // brief each subagent at spawn, with the text contextStartText names
     "onViolation": true, // inject the rules plus the reply report on the prompt after a flagged reply;
     // false holds the report for the next context start
-    "manifest": null, // your own rules manifest, replaces rules/manifest.json (see [The rules manifest](rules.md))
+    "manifest": null, // your own rules manifest, replaces rules/manifest.json (see [The rules manifest](rules.md));
+    // a path that does not exist or is not JSON falls back to the shipped rules, and session start says so once
     "extra": null, // a manifest fragment that adds, replaces, or drops bullets; null looks for
     // .just-say-so-rules.json in the project root or above (see The rules manifest)
     "messagesPath": null // overrides hook message strings, per key (rules/messages.json)

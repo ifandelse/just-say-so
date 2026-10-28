@@ -6,6 +6,8 @@ Are you frustrated with how agents talk to you, and with the text they produce i
 - **Judgment rules cover what a linter cannot see.** "Lead with the answer" is an instruction the model follows, not a pattern Vale can match. The plugin injects those rules at every context start, into every subagent, and again after a reply broke one.
 - **You capture the misses, and they feed advice on your own setup.** `/just-say-so:restate` has the model rewrite a bad reply and records the miss with a tag. The records build into a summary, and the summary into advice.
 
+Already using Vale? [What just-say-so adds](#already-using-vale) is the section for you.
+
 Status: pre-1.0. Minor versions change behavior; see [Upgrading](docs/upgrading.md).
 
 ## A first look
@@ -70,7 +72,7 @@ Three terms are used from here on, and each lives in one place:
 
 - A **target** is one kind of text the agent produces. There are three: the `files` it writes, the text it `publish`es through `gh`, MCP tools, and the Artifact tool, and its chat `reply`. The three targets are the top-level keys of the plugin's config file, `.just-say-so.json`.
 - A **mode** is what a target does with an error: `off`, `warn`, or `block`. It is the `mode` field under each target in that same file.
-- A **bullet** is one line of the rules text. The rules text is rendered from [rules/manifest.json](rules/manifest.json), and a `rules.extra` file of your own adds bullets to it. A bullet either names the Vale rules that check it, in its `vale` field, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
+- A **bullet** is one line of the rules text. The rules text is rendered from [rules/manifest.json](rules/manifest.json). You can add bullets of your own in a JSON file of the same shape and name it under `rules.extra` in `.just-say-so.json`; those bullets join the shipped ones. A bullet either names the Vale rules that check it, in its `vale` field, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
 
 Which Vale rules run on which target is neither file's business. That is `.vale.ini`, next.
 
@@ -86,7 +88,7 @@ BasedOnStyles = JustSaySo, ai-tells
 ai-tells.ParagraphLength = NO
 ```
 
-Severity is the policy. An `error` can block; a `warning` or `suggestion` is advice. The JustSaySo package ships the banned list as Vale rules, generated from the same file the rules text comes from, so the two never disagree.
+Severity is the policy. An `error` can block; a `warning` or `suggestion` is advice. Four of the shipped bullets ban things a pattern can match: the buzzwords, the filler frames, the "it's not x, it's y" shape, and the empty intensifiers. Those four are also generated as the Vale rules of the JustSaySo package, from the same manifest the rules text comes from, so the bullet and the rule that checks it never disagree.
 
 The defaults, and what you see under each:
 
@@ -94,7 +96,7 @@ The defaults, and what you see under each:
 | --------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `files`   | `warn`                                                  | After each write, the agent gets the alerts for the lines it added, as in the example above. `block` adds a gate at the end of the turn while errors remain.                                                   |
 | `publish` | `block`, with `gh` and MCP off and the Artifact page on | Nothing checks a `gh pr comment` until you turn `publish.gh` on. Once on, a flagged call is denied before it runs, because nothing can un-publish.                                                             |
-| `reply`   | `warn`                                                  | Each finished reply is linted and the error counts are kept. Nothing interrupts you. The counts ride the next rules injection as a short report (below). `block` makes the model rewrite before the turn ends. |
+| `reply`   | `warn`                                                  | Each finished reply is linted and the error counts are kept. Nothing interrupts you. The counts ride the next rules injection as a short report (below). `block` makes the model rewrite before the turn ends; see the warning under [Settings people change first](#settings-people-change-first) before you use it. |
 
 ### Judgment rules
 
@@ -140,6 +142,17 @@ The model rewrites the reply under the rules. The plugin saves the rejected repl
 
 Those records are what the summary and the advice read. `/just-say-so:summary` prints facts with their counts: how often you reject, which Vale rules fired on the replies you rejected, which tags recur, and what each recurring tag points at. Once a tag has 3 rejections in one project, `/just-say-so:advise` turns it into a recommendation: a `.vale.ini` line, a judgment bullet in a file you own, or a Vale package to install. You apply the change yourself; the plugin edits no config on its own, and none of this changes the model.
 
+## Already using Vale?
+
+Vale is a command you run on files. It knows nothing about an agent, a turn, or a reply, and it forgets each run when it exits. just-say-so adds the parts that need a harness:
+
+- **It runs Vale at the moments the harness offers, and feeds the result back into the model's context.** After a write, the agent gets the alerts for the lines it added. Before a `gh` or MCP call publishes text, the call is checked with the text in hand. At the end of a reply, the reply itself is linted. Vale on its own never reaches the model.
+- **It enforces at the right moment for each target.** A file is gated at the end of the turn, when the agent can still fix it. A publish call is denied before it runs, because nothing can un-publish. A reply is counted and reported on the next prompt.
+- **It carries the rules a linter cannot express.** "Lead with the answer" and "define a term on first use" are instructions, not patterns. just-say-so keeps them in the model's context across session starts, compaction, and subagents, and trims them to your Vale config: a bullet whose rules you turned off disappears, and error-level rules of yours that no bullet describes are named.
+- **It remembers what you rejected.** Vale has no record of the reply you found bad. `/just-say-so:restate` keeps it, with your reason and tag, and the summary and advice turn those records into Vale tunes, judgment bullets, and package suggestions.
+
+Your Vale setup stays the source of truth. The same `.vale.ini` drives your editor, your CI, the commit gate, and every check here. The JustSaySo rules are an ordinary Vale package, your vocabulary is Vale's `accept.txt`, and any style from Vale's ecosystem plugs in unchanged.
+
 ## Everyday commands
 
 In the order you will meet them:
@@ -155,15 +168,16 @@ In the order you will meet them:
 
 ## Settings people change first
 
-The plugin runs with no configuration. To change it, create `.just-say-so.json` in the project root, or `~/.config/just-say-so/just-say-so.json` for every project. Set only the fields you care about; a project file wins over the personal one. The three changes people make first:
+The plugin runs with no configuration. To change it, create `.just-say-so.json` in the project root, or `~/.config/just-say-so/just-say-so.json` for every project. Set only the fields you care about; a project file wins over the personal one. The two changes people make first:
 
 ```jsonc
 {
-  "reply": { "mode": "block" }, // rewrite a flagged reply before the turn ends
-  "publish": { "gh": true, "mcp": ["mcp__confluence__*"] }, // check what goes out through gh and these MCP tools
-  "files": { "mode": "block" } // hold the turn while written files carry errors
+  "files": { "mode": "block" }, // hold the turn while written files carry errors
+  "publish": { "gh": true, "mcp": ["mcp__confluence__*"] } // check what goes out through gh and these MCP tools
 }
 ```
+
+⚠️ Leave `reply.mode` at `warn`. In `block` mode the Stop hook makes the model rewrite a flagged reply, but the harness has already printed the first version, so you read the original and the rewrite both, and a long session fills with pairs. In `warn` mode the counts ride your next prompt as a report, the model applies it without mentioning earlier replies, and you read each reply once. `block` is for single-prompt runs such as CI, where there is no next prompt.
 
 And the shape of the whole file, with its defaults:
 

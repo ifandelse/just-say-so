@@ -98,7 +98,11 @@ The defaults, and what you see under each:
 
 ### Judgment rules
 
-The shipped rules come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own. Each bullet in the manifest has a `full` text and, for most, a `short` one. The short texts make up the **condensed reminder**, which the hooks inject; the full texts are what `/just-say-so:rules` loads. The build renders both from the manifest into [rules/condensed.md](rules/condensed.md) and [rules/full.md](rules/full.md), so you can read them, and a test fails when either drifts. The reminder goes out at every context start (startup, resume, `/clear`, and after compaction), into every subagent when it spawns, and on the prompt after a reply broke a rule. It opens like this:
+The shipped rules come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own.
+
+[rules/manifest.json](rules/manifest.json) holds the rules. Each bullet in it has a `full` text, a `short` text for most of them, and a `vale` list naming the Vale rules that check it, empty for a judgment rule. The build renders two documents from that file: [rules/full.md](rules/full.md), every bullet's full text with the Vale rules that check it, and [rules/condensed.md](rules/condensed.md), the short texts, called the condensed reminder. A test fails when either drifts from the manifest.
+
+The condensed reminder is what the hooks inject: at every context start (startup, resume, `/clear`, and after compaction), into every subagent when it spawns, and on the prompt after a reply broke a rule, when `rules.onViolation` is on, which it is by default. The full text is never injected by a hook. `/just-say-so:rules` loads it into the session when you ask, and otherwise it is the document you read when you want the whole rule and the rules that check it. The reminder opens like this:
 
 ```
 ## Communication rules — reminder
@@ -134,7 +138,7 @@ When a reply is bad in a way you noticed, reject it:
 
 The model rewrites the reply under the rules. The plugin saves the rejected reply as the model wrote it, your reason, the `#tag`, the prompt that produced the reply, and the rewrite, as one line in `rejections.jsonl` under your state directory. Nothing leaves your machine, and nothing is written into the project. A tag is any `#word` you type; there is no list.
 
-Those records are what the summary and the advice read. `/just-say-so:summary` prints facts with their counts: how often you reject, which Vale rules fired on the replies you rejected, which tags recur, and what each recurring tag points at. Once a tag has 3 rejections in one project, `/just-say-so:advise` turns it into a recommendation you apply yourself: a `.vale.ini` line, a judgment bullet in a file you own, or a Vale package to install. The loop proposes configuration changes. It trains nothing.
+Those records are what the summary and the advice read. `/just-say-so:summary` prints facts with their counts: how often you reject, which Vale rules fired on the replies you rejected, which tags recur, and what each recurring tag points at. Once a tag has 3 rejections in one project, `/just-say-so:advise` turns it into a recommendation: a `.vale.ini` line, a judgment bullet in a file you own, or a Vale package to install. You apply the change yourself; the plugin edits no config on its own, and none of this changes the model.
 
 ## Everyday commands
 
@@ -192,7 +196,7 @@ There are four places to change the rules, listed from the smallest change to th
 
 **Turn a rule off or change its level** in `.vale.ini`. A line in `[*]` applies to every target; a line in `[*.reply]` or `[*.publish]` narrows one. `JustSaySo.Intensifiers = NO` drops that rule; `ai-tells.EmDashUsage = error` makes a rule blocking. The reminder follows: a bullet whose rules are all off disappears from it.
 
-**Allow a term** with `/just-say-so:allow`, or edit the vocabulary's `accept.txt` by hand. The rules permit a buzzword "when it has precise meaning or is relevant to the domain"; whether a term qualifies is a fact about your project, so that fact lives in your project and not in the model's judgment.
+**Allow a term** with `/just-say-so:allow`. It writes the term to the project's Vale vocabulary, the file `styles/config/vocabularies/Project/accept.txt`, which you can also edit by hand. The rules permit a buzzword "when it has precise meaning or is relevant to the domain"; whether a term qualifies is a fact about your project, so that fact lives in your project and not in the model's judgment.
 
 **Add a Vale package.** Name it under `Packages` in `.vale.ini`, run `vale sync`, and add its style to `BasedOnStyles`. [ai-tells](https://github.com/tbhb/vale-ai-tells) flags the fingerprints of AI prose and pairs well with the shipped rules. The reminder names the new package's error-level rules at once; `/just-say-so:draft` writes bullets for them.
 

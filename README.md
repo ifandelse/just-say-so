@@ -66,11 +66,13 @@ Local development runs the plugin from a checkout: `claude --plugin-dir /path/to
 
 ## What it does
 
-Three terms are used from here on:
+Three terms are used from here on, and each lives in one place:
 
-- A **target** is one kind of text the agent produces. There are three: the `files` it writes, the text it `publish`es through `gh`, MCP tools, and the Artifact tool, and its chat `reply`.
-- A **bullet** is one line of the rules text. A bullet either names the Vale rules that check it, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
-- A **mode** is what a target does with an error: `off`, `warn`, or `block`.
+- A **target** is one kind of text the agent produces. There are three: the `files` it writes, the text it `publish`es through `gh`, MCP tools, and the Artifact tool, and its chat `reply`. The three targets are the top-level keys of the plugin's config file, `.just-say-so.json`.
+- A **mode** is what a target does with an error: `off`, `warn`, or `block`. It is the `mode` field under each target in that same file.
+- A **bullet** is one line of the rules text. The rules text is rendered from [rules/manifest.json](rules/manifest.json), and a `rules.extra` file of your own adds bullets to it. A bullet either names the Vale rules that check it, in its `vale` field, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
+
+Which Vale rules run on which target is neither file's business. That is `.vale.ini`, next.
 
 ### Vale lints the prose
 

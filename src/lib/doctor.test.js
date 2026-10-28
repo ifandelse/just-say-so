@@ -204,6 +204,32 @@ describe('doctor', () => {
     });
   });
 
+  describe('when a custom manifest is missing or malformed while an extra file is present', () => {
+    let missing, malformed;
+
+    beforeEach(() => {
+      mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) });
+      const run = (manifestText) => {
+        const work = tmpdir();
+        fs.writeFileSync(path.join(work, '.just-say-so-rules.json'), JSON.stringify({ sections: [] }));
+        if (manifestText !== null) fs.writeFileSync(path.join(work, 'custom.json'), manifestText);
+        fs.writeFileSync(path.join(work, 'cfg.json'), JSON.stringify({ rules: { manifest: 'custom.json' } }));
+        return doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'cfg.json'), PATH: process.env.PATH });
+      };
+      missing = run(null);
+      malformed = run('{not json');
+    });
+
+    it('should keep the report, mark the counts unavailable, and warn with the file named', () => {
+      for (const r of [missing, malformed]) {
+        expect(r.facts.find((f) => f.startsWith('extra rules:'))).toMatch(/\(the default name, \.just-say-so-rules\.json\) · counts unavailable, see the warning$/);
+        expect(r.facts.some((f) => f.startsWith('targets:'))).toBe(true);
+      }
+      expect(missing.warnings.some((w) => /^rules\.manifest names .*custom\.json, which does not exist, so the rules text cannot be built/.test(w))).toBe(true);
+      expect(malformed.warnings.some((w) => /^rules\.manifest names .*custom\.json, which cannot be read as JSON \(.*\), so the rules text cannot be built/.test(w))).toBe(true);
+    });
+  });
+
   describe('when rules.extra names a rule no style has, or cannot be read', () => {
     let unknown, unreadable;
 

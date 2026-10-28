@@ -112,7 +112,7 @@ describe('doctor', () => {
     it('should list the facts, read each target, print the raw sections, and warn only about the restated list', () => {
       expect(report.facts.slice(2)).toEqual([
         'targets: files warn (show suggestion) · publish block, gh, mcp 1 pattern(s), artifact · reply block',
-        'rules: context start [startup, resume, clear, compact] · subagents yes · on violation yes',
+        'rules: context start [startup, resume, clear, compact] as full text · subagents yes · on violation yes',
         'package cache: empty (/just-say-so:packages --refresh fills it, for advice on packages you do not have)',
         expect.stringMatching(/^vale config: .*\.vale\.ini \(nearest above cwd\)$/),
         expect.stringMatching(/^packages: https:\/\/github\.com\/ifandelse\/just-say-so\/releases\/download\/v[\d.]+\/JustSaySo\.zip$/),

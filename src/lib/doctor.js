@@ -133,7 +133,7 @@ export function doctorReport(cwd, env = process.env) {
     `targets: files ${config.files.mode} (show ${config.files.show}) · publish ${p.mode}${p.gh ? ', gh' : ''}${p.mcp.length ? `, mcp ${p.mcp.length} pattern(s)` : ''}${p.artifact ? ', artifact' : ''}${publishOn(config) ? '' : ' (no source on)'} · reply ${config.reply.mode}`
   );
   facts.push(
-    `rules: context start [${(config.rules.onContextStart ?? []).join(', ')}] · subagents ${config.rules.onSubagentStart ? 'yes' : 'no'} · on violation ${config.rules.onViolation ? 'yes' : 'no'}`
+    `rules: context start [${(config.rules.onContextStart ?? []).join(', ')}] as ${config.rules.contextStartText === 'condensed' ? 'condensed' : 'full'} text · subagents ${config.rules.onSubagentStart ? 'yes' : 'no'} · on violation ${config.rules.onViolation ? 'yes' : 'no'}`
   );
   const cache = readCache(env);
   if (cache.length === 0) facts.push('package cache: empty (/just-say-so:packages --refresh fills it, for advice on packages you do not have)');

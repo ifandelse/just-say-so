@@ -95,11 +95,11 @@ describe('session-start.run', () => {
       ]);
     });
 
-    it('should inject the condensed rules with the reply report after them', () => {
+    it('should inject the full rules with the reply report after them', () => {
       expect(output).toEqual({
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
-          additionalContext: expect.stringMatching(/^## Communication rules — reminder[^]*Recent replies broke these rules[^]*"synergy" \(2\)/)
+          additionalContext: expect.stringMatching(/^## Communication rules\n[^]*### Precision first[^]*Checked by STE\.SentenceLength[^]*Recent replies broke these rules[^]*"synergy" \(2\)/)
         }
       });
     });
@@ -132,9 +132,24 @@ describe('session-start.run', () => {
 
     it('should reset the counters and inject', () => {
       expect({
-        injected: output.hookSpecificOutput.additionalContext.includes('## Communication rules — reminder'),
+        injected: output.hookSpecificOutput.additionalContext.includes('### Precision first'),
         promptCount: state.promptCount
       }).toEqual({ injected: true, promptCount: 0 });
+    });
+  });
+
+  describe('when the config asks for the condensed text at context start', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ rules: { contextStartText: 'condensed' } });
+      valePresent();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should inject the reminder instead of the full text', () => {
+      expect(output.hookSpecificOutput.additionalContext).toMatch(/^## Communication rules — reminder\n/);
+      expect(output.hookSpecificOutput.additionalContext).not.toContain('### Precision first');
     });
   });
 

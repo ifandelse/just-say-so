@@ -4,11 +4,11 @@
 
 [rules/manifest.json](../rules/manifest.json) is the one source for the rules. `npm run build` renders [rules/full.md](../rules/full.md) and [rules/condensed.md](../rules/condensed.md) from it and generates the `JustSaySo` style, and a test fails when any of the three drift. Each rule carries:
 
-- `full`, the text in the full rules, and `short`, the text in the condensed reminder. A rule without `short` appears in the full text only. `condensed` at the top of the file lists the ids in reminder order.
+- `full`, the text in the full rules, which a context start and a subagent start inject, and `short`, the text in the condensed reminder, which the prompt after a violation carries. A rule without `short` appears in the full text only. `condensed` at the top of the file lists the ids in reminder order.
 - `vale`, the Vale rules that check it. An empty list marks a judgment rule such as "lead with the answer" that no linter sees. The full text names them after each bullet, as "Checked by".
 - `style`, on the four banned-term rules: the name, message, level, and terms of the generated Vale rule. The `{terms}` placeholder in the text renders that list, so the rules text and the style never disagree about what is banned.
 
-**What the `vale` field buys.** At every context start, the plugin runs `vale ls-config` for the reply target and adjusts the condensed text before injecting it. A bullet is left out when every installed Vale rule behind it is turned off; a rule from a style the project never installed does not count. Error-level rules in the project's styles that no bullet names are added as one closing line, twelve at most, so the model at least sees their names. A project that sets `JustSaySo.Intensifiers = NO` and runs `ai-tells.EmDashUsage` at error gets a reminder without the intensifiers bullet and with the em-dash rule named at the end. When `vale` is missing the text goes out unadjusted.
+**What the `vale` field buys.** Before every injection, the plugin runs `vale ls-config` for the reply target and adjusts the text, full or condensed, before injecting it. A bullet is left out when every installed Vale rule behind it is turned off; a rule from a style the project never installed does not count. Error-level rules in the project's styles that no bullet names are added as one closing line, twelve at most, so the model at least sees their names. A project that sets `JustSaySo.Intensifiers = NO` and runs `ai-tells.EmDashUsage` at error gets a reminder without the intensifiers bullet and with the em-dash rule named at the end. When `vale` is missing the text goes out unadjusted.
 
 ## Bullets for your own Vale rules
 

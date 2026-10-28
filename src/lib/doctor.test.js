@@ -117,7 +117,8 @@ describe('doctor', () => {
         expect.stringMatching(/^vale config: .*\.vale\.ini \(nearest above cwd\)$/),
         expect.stringMatching(/^packages: https:\/\/github\.com\/ifandelse\/just-say-so\/releases\/download\/v[\d.]+\/JustSaySo\.zip$/),
         'vocabulary: Project (2 accepted)',
-        'formats: reply = md, publish = md'
+        'formats: reply = md, publish = md',
+        'extra rules: none (.just-say-so-rules.json in the project root, or rules.extra, adds, replaces, or drops bullets)'
       ]);
       expect(report.targets.map((t) => [t.label, t.line.replace(/\s+/g, ' ').trim(), t.sections])).toEqual([
         ['reply', 'reply reply.reply JustSaySo 1 of 2 rules on · levels: 1 error · off: JustSaySo.Intensifiers', '[*] [*.reply]'],
@@ -180,6 +181,52 @@ describe('doctor', () => {
         'artifact is in block mode but no error-level rule is enabled for artifact.page.html, so it can never block.',
         'reply is in block mode but no error-level rule is enabled for reply.reply, so it can never block.'
       ]);
+    });
+  });
+
+  describe('when the default extra file replaces, drops, and mis-drops bullets', () => {
+    let report;
+
+    beforeEach(() => {
+      const work = tmpdir();
+      fs.writeFileSync(
+        path.join(work, '.just-say-so-rules.json'),
+        JSON.stringify({ sections: [{ title: 'Mine', rules: [{ id: 'intensifiers', full: 'Mine.', short: 'Mine.', vale: ['JustSaySo.Intensifiers'] }, { id: 'headings-and-lists', drop: true }, { id: 'nope', drop: true }, { id: 'fresh', full: 'New.', vale: [] }] }] })
+      );
+      fs.writeFileSync(path.join(work, 'none.json'), '{}');
+      mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) });
+      report = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), PATH: process.env.PATH });
+    });
+
+    it('should report the file, its counts, and the drop that matched nothing', () => {
+      expect(report.facts.find((f) => f.startsWith('extra rules:'))).toMatch(/^extra rules: .*\.just-say-so-rules\.json \(the default name, \.just-say-so-rules\.json\) · added 1, replaced 1, dropped 1$/);
+      expect(report.warnings).toContain('The extra rules file drops nope, which match no bullet id, so nothing was dropped. Check the ids against rules/manifest.json.');
+    });
+  });
+
+  describe('when a custom manifest is missing or malformed while an extra file is present', () => {
+    let missing, malformed;
+
+    beforeEach(() => {
+      mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) });
+      const run = (manifestText) => {
+        const work = tmpdir();
+        fs.writeFileSync(path.join(work, '.just-say-so-rules.json'), JSON.stringify({ sections: [] }));
+        if (manifestText !== null) fs.writeFileSync(path.join(work, 'custom.json'), manifestText);
+        fs.writeFileSync(path.join(work, 'cfg.json'), JSON.stringify({ rules: { manifest: 'custom.json' } }));
+        return doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'cfg.json'), PATH: process.env.PATH });
+      };
+      missing = run(null);
+      malformed = run('{not json');
+    });
+
+    it('should keep the report, mark the counts unavailable, and warn with the file named', () => {
+      for (const r of [missing, malformed]) {
+        expect(r.facts.find((f) => f.startsWith('extra rules:'))).toMatch(/\(the default name, \.just-say-so-rules\.json\) · counts unavailable, see the warning$/);
+        expect(r.facts.some((f) => f.startsWith('targets:'))).toBe(true);
+      }
+      expect(missing.warnings.some((w) => /^rules\.manifest names .*custom\.json, which does not exist, so the rules text cannot be built/.test(w))).toBe(true);
+      expect(malformed.warnings.some((w) => /^rules\.manifest names .*custom\.json, which cannot be read as JSON \(.*\), so the rules text cannot be built/.test(w))).toBe(true);
     });
   });
 

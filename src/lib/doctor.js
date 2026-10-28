@@ -13,7 +13,7 @@ import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
 import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
-import { loadExtra } from './manifest.js';
+import { loadExtra, extraFile, mergeExtra, shippedManifestPath, ruleFilePath, DEFAULT_EXTRA } from './manifest.js';
 import { pluginVersion } from './version.js';
 import { readCache } from './package-cache.js';
 
@@ -110,6 +110,18 @@ function rawSection(glob, resolved) {
  * shape. Nothing here throws on a broken setup: a missing piece becomes a
  * warning.
  */
+// The manifest the extra file merges into: rules.manifest when set, else
+// the shipped one. Returns { manifest } or { error, file }; the doctor
+// must keep reporting when a custom manifest is missing or malformed.
+function loadManifestBase(config, cwd) {
+  const file = config.rules?.manifest ? ruleFilePath(config.rules.manifest, cwd) : shippedManifestPath();
+  try {
+    return { manifest: JSON.parse(fs.readFileSync(file, 'utf8')), file };
+  } catch (e) {
+    return { error: e?.code === 'ENOENT' ? 'does not exist' : `cannot be read as JSON (${e?.message ?? e})`, file };
+  }
+}
+
 export function doctorReport(cwd, env = process.env) {
   const config = loadConfig(cwd, env);
   const version = pluginVersion();
@@ -223,7 +235,20 @@ export function doctorReport(cwd, env = process.env) {
   for (const g of order) raw.push(rawSection(g, resolved));
 
   const extra = loadExtra(config, cwd);
-  if (config.rules?.extra && !extra) warnings.push(`rules.extra names ${config.rules.extra}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  const extraWhere = extraFile(config, cwd);
+  if (extraWhere && !extra) warnings.push(`${extraWhere.source === 'config' ? 'rules.extra names' : 'the extra rules file'} ${extraWhere.path}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  if (extra) {
+    const where = `${extraWhere.path} (${extraWhere.source === 'config' ? 'rules.extra' : `the default name, ${DEFAULT_EXTRA}`})`;
+    const base = loadManifestBase(config, cwd);
+    if (base.error) {
+      facts.push(`extra rules: ${where} · counts unavailable, see the warning`);
+      warnings.push(`rules.manifest names ${base.file}, which ${base.error}, so the rules text cannot be built and the extra file cannot be merged. Fix the path or the file.`);
+    } else {
+      const merged = mergeExtra(base.manifest, extra);
+      facts.push(`extra rules: ${where} · added ${merged.added.length}, replaced ${merged.replaced.length}, dropped ${merged.dropped.length}`);
+      if (merged.unknownDrops.length) warnings.push(`The extra rules file drops ${merged.unknownDrops.join(', ')}, which match no bullet id, so nothing was dropped. Check the ids against rules/manifest.json.`);
+    }
+  } else facts.push(`extra rules: none (${DEFAULT_EXTRA} in the project root, or rules.extra, adds, replaces, or drops bullets)`);
   const unknown = (extra?.sections ?? [])
     .flatMap((sec) => sec.rules ?? [])
     .flatMap((r) => (r.vale ?? []).map((id) => [r.id, id]))

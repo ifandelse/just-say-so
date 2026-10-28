@@ -11,12 +11,19 @@ import {
   styleSpecs,
   fixedTerms,
   dropInReplacement,
-  shippedManifestPath
+  shippedManifestPath,
+  mergeExtra,
+  findDefaultExtra,
+  extraFile
 } from './manifest.js';
 
 /*
  * Branch map — src/lib/manifest.js
  *   loadManifest: shipped · rules.manifest override (tilde expanded) ·
+ *     an extra bullet replaces a shipped id in place, drops one with
+ *     drop: true, appends a new one; condensed keeps slots for replaced
+ *     bullets with a short text, drops dropped ones, appends new ones ·
+ *     the default extra file is found by walking up from the project ·
  *     relative paths resolve against the project directory ·
  *     rules.extra appends sections and the ids with a short text ·
  *     malformed extra ignored
@@ -146,6 +153,64 @@ describe('manifest', () => {
           titles: ['Shape', 'Words', 'Last', 'Project'],
           condensed: ['lead', 'words', 'frames', 'missing-id', 'dash']
         });
+      });
+    });
+
+    describe('when the extra file replaces, drops, and adds bullets', () => {
+      let merged, result;
+
+      beforeEach(() => {
+        const dir = tmpdir();
+        fs.writeFileSync(path.join(dir, 'm.json'), JSON.stringify(SMALL));
+        const extra = {
+          sections: [
+            {
+              title: 'Mine',
+              rules: [
+                { id: 'words', full: 'My words rule.', short: 'My words.', vale: ['acme.Words'] },
+                { id: 'frames', full: 'Frames, full only now.', vale: [] },
+                { id: 'lead', drop: true },
+                { id: 'ghost', drop: true },
+                { id: 'fresh', full: 'Fresh.', short: 'Fresh.', vale: [] }
+              ]
+            }
+          ]
+        };
+        fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify(extra));
+        merged = loadManifest({ rules: { manifest: path.join(dir, 'm.json'), extra: path.join(dir, 'x.json') } });
+        result = mergeExtra(SMALL, extra);
+      });
+
+      it('should replace in place, drop, append, and keep the condensed order honest', () => {
+        const words = merged.sections.find((s) => s.title === 'Words').rules.find((r) => r.id === 'words');
+        expect(words).toEqual({ id: 'words', full: 'My words rule.', short: 'My words.', vale: ['acme.Words'] });
+        expect(merged.sections.flatMap((s) => s.rules.map((r) => r.id))).toEqual(['long', 'words', 'frames', 'final', 'fresh']);
+        expect(merged.condensed).toEqual(['words', 'missing-id', 'fresh']);
+        expect({ added: result.added, replaced: result.replaced, dropped: result.dropped, unknownDrops: result.unknownDrops }).toEqual({
+          added: ['fresh'], replaced: ['words', 'frames'], dropped: ['lead'], unknownDrops: ['ghost']
+        });
+      });
+    });
+
+    describe('when no rules.extra is set but the default file sits above the project directory', () => {
+      let found, manifest, where, none;
+
+      beforeEach(() => {
+        const root = tmpdir();
+        const nested = path.join(root, 'packages', 'app');
+        fs.mkdirSync(nested, { recursive: true });
+        fs.writeFileSync(path.join(root, '.just-say-so-rules.json'), JSON.stringify({ sections: [{ title: 'Mine', rules: [{ id: 'mine', full: 'Mine.', short: 'Mine.', vale: [] }] }] }));
+        found = findDefaultExtra(nested);
+        where = extraFile({}, nested);
+        manifest = loadManifest({}, nested);
+        none = extraFile({}, tmpdir());
+      });
+
+      it('should find it by walking up and merge it in', () => {
+        expect(found).toMatch(/\.just-say-so-rules\.json$/);
+        expect(where).toEqual({ path: found, source: 'default' });
+        expect(manifest.condensed.at(-1)).toBe('mine');
+        expect(none).toBeNull();
       });
     });
 

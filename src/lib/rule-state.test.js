@@ -6,7 +6,7 @@ import path from 'node:path';
 const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
 
-import { ruleStateFor, sectionOrder, contextRules, describedIds, undescribedIds } from './rule-state.js';
+import { ruleStateFor, sectionOrder, contextRules, describedIds, undescribedIds, contextStartKind } from './rule-state.js';
 import { DEFAULTS } from './config.js';
 
 /*
@@ -36,7 +36,9 @@ import { DEFAULTS } from './config.js';
  *     unselected rule not counting ·
  *     a bullet with only uninstalled rules stays · error rules no bullet
  *     names are appended, capped, sorted · a style-wide level below error
- *     keeps a rule out of the trailer · nothing to append → no trailer
+ *     keeps a rule out of the trailer · nothing to append → no trailer ·
+ *     kind full applies the same drops and trailer to the full text ·
+ *     contextStartKind: condensed when asked, full otherwise
  */
 
 function tmpdir() {
@@ -448,6 +450,18 @@ describe('rule-state', () => {
         expect(text).not.toContain("it's not {x}");
         expect(text).toContain('- One idea per sentence.');
         expect(text).toMatch(/\n\nThis project also enforces these Vale rules at error level: acme\.Alpha, acme\.Beta\.\n$/);
+      });
+
+      it('should apply the same drops and trailer to the full rendering', () => {
+        const full = contextRules(DEFAULTS, os.tmpdir(), {}, { kind: 'full' });
+        expect(full).toMatch(/^## Communication rules\n/);
+        expect(full).toContain('### Precision first');
+        expect(full).toContain('On first use of a term the reader may not know');
+        expect(full).not.toContain('Empty intensifiers');
+        expect(full).not.toContain("it's not {x}");
+        expect(full).toMatch(/\n\nThis project also enforces these Vale rules at error level: acme\.Alpha, acme\.Beta\.\n$/);
+        expect(contextStartKind({ rules: { contextStartText: 'condensed' } })).toBe('condensed');
+        expect([contextStartKind(DEFAULTS), contextStartKind({}), contextStartKind({ rules: { contextStartText: 'bogus' } })]).toEqual(['full', 'full', 'full']);
       });
     });
 

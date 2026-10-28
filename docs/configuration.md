@@ -31,9 +31,12 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
   },
   "rules": {
     "onContextStart": ["startup", "resume", "clear", "compact"],
+    "contextStartText": "full", // what a context start and a subagent start inject: "full" (every bullet with its
+    // examples and the rules that check it) or "condensed" (the short texts); the prompt after a violation always
+    // carries the condensed form with the report
     // inject at the start of every context; trim the list to inject on fewer sources
     // (for example ["compact"] if your CLAUDE.md already carries the rules at startup)
-    "onSubagentStart": true, // brief each subagent with the condensed rules at spawn
+    "onSubagentStart": true, // brief each subagent at spawn, with the text contextStartText names
     "onViolation": true, // inject the rules plus the reply report on the prompt after a flagged reply;
     // false holds the report for the next context start
     "manifest": null, // your own rules manifest, replaces rules/manifest.json (see [The rules manifest](rules.md))

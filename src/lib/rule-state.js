@@ -205,17 +205,18 @@ export function undescribedIds(state, manifest, minLevel = 'error') {
 }
 
 /**
- * The condensed rules text for a context, adjusted to the project's Vale
- * config for the reply target. Returns the unadjusted text when vale or
- * the config cannot be read, or when the caller's probe already found
- * no vale binary (`vale: false`).
+ * The rules text for a context, adjusted to the project's Vale config for
+ * the reply target. `kind` is "condensed" (the default, what the prompt
+ * after a violation carries) or "full". Returns the unadjusted text when
+ * vale or the config cannot be read, or when the caller's probe already
+ * found no vale binary (`vale: false`).
  */
-export function contextRules(config, anchorDir, env = process.env, { vale = null } = {}) {
+export function contextRules(config, anchorDir, env = process.env, { vale = null, kind = 'condensed' } = {}) {
   const manifest = loadManifest(config, anchorDir);
-  if (vale === false) return renderRules(manifest, 'condensed');
+  if (vale === false) return renderRules(manifest, kind);
   const configPath = resolveValeConfig(anchorDir, config);
   const resolved = lsConfig(configPath, env);
-  if (!resolved) return renderRules(manifest, 'condensed');
+  if (!resolved) return renderRules(manifest, kind);
 
   const inventory = listStyleRules(resolved.Paths ?? []);
   const state = ruleStateFor(REPLY_NAME, resolved, inventory, sectionOrder(resolved));
@@ -242,5 +243,10 @@ export function contextRules(config, anchorDir, env = process.env, { vale = null
       rules: shown.join(', ') + (more > 0 ? ` ${fill(messages.replyReportMore, { n: more })}` : '')
     });
   }
-  return renderRules(manifest, 'condensed', { drop, append });
+  return renderRules(manifest, kind, { drop, append });
+}
+
+/** The rendering a context start and a subagent start inject. */
+export function contextStartKind(config) {
+  return config?.rules?.contextStartText === 'condensed' ? 'condensed' : 'full';
 }

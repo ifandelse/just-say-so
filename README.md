@@ -98,11 +98,11 @@ The defaults, and what you see under each:
 
 ### Judgment rules
 
-The shipped rules come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own.
+Earlier, judgment rules were described as one of the pillars in just-say-so. Where Vale lints based on patterns, judgment rules are about instructing the model with principles on _how_ to communicate. In other words, a judgment rule and a Vale rule are two different things. The judgment rules shipped with just-say-so come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own.
 
 [rules/manifest.json](rules/manifest.json) holds the rules. Each bullet in it has a `full` text, a `short` text for most of them, and a `vale` list naming the Vale rules that check it, empty for a judgment rule. The build renders two documents from that file: [rules/full.md](rules/full.md), every bullet's full text with the Vale rules that check it, and [rules/condensed.md](rules/condensed.md), the short texts, called the condensed reminder. A test fails when either drifts from the manifest.
 
-The condensed reminder is what the hooks inject: at every context start (startup, resume, `/clear`, and after compaction), into every subagent when it spawns, and on the prompt after a reply broke a rule, when `rules.onViolation` is on, which it is by default. The full text is never injected by a hook. `/just-say-so:rules` loads it into the session when you ask, and otherwise it is the document you read when you want the whole rule and the rules that check it. The reminder opens like this:
+The full text goes out at every context start (startup, resume, `/clear`, and after compaction) and into every subagent when it spawns. The condensed reminder goes out on the prompt after a reply broke a rule, with the report of what broke, when `rules.onViolation` is on, which it is by default. `rules.contextStartText: "condensed"` sends the reminder at context start instead. `/just-say-so:rules` loads the full text by hand, and `/just-say-so:remind` the reminder. The reminder opens like this:
 
 ```
 ## Communication rules — reminder
@@ -180,6 +180,7 @@ And the shape of the whole file, with its defaults:
   "reply": { "mode": "warn" },
   "rules": {
     "onContextStart": ["startup", "resume", "clear", "compact"],
+    "contextStartText": "full",
     "onSubagentStart": true,
     "onViolation": true
   },
@@ -219,7 +220,7 @@ The hooks run only inside Claude Code. Text reaches a repository in other ways t
 - [The rules manifest](docs/rules.md): the manifest shape, drafting bullets, your own rules, your own messages.
 - [The commit gate, CI, and pinning](docs/commit-gate.md).
 - [Other harnesses](docs/harnesses.md): what Codex, Cursor, Copilot CLI, Gemini CLI, and OpenCode can carry, checked against their docs.
-- [Upgrading from 0.8.x and 0.9.x](docs/upgrading.md).
+- [Upgrading](docs/upgrading.md): 0.17.0, and the 0.8.x and 0.9.x tables.
 - [Limits](docs/limits.md).
 
 ## Development

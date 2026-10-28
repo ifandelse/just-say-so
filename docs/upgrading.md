@@ -1,4 +1,10 @@
-# Upgrading from 0.8.x and 0.9.x
+# Upgrading
+
+## 0.17.0
+
+A context start and a subagent start now inject the full rules text instead of the condensed reminder, which had gone out at session start since 0.1.2. Three bullets with no short text (define a term on first use, the technical-term test, and headings and lists) reach the model for the first time from a hook. The prompt after a violation still carries the condensed reminder. Set `rules.contextStartText` to `"condensed"` to keep the old behavior.
+
+## 0.8.x and 0.9.x
 
 Upgrading from 0.9.x: `rules.fullPath` and `rules.condensedPath` are gone. The rules text renders from [rules/manifest.json](../rules/manifest.json); point `rules.manifest` at a manifest of your own, or add bullets with `rules.extra`. See [The rules manifest](rules.md#the-rules-manifest). Upgrading from 0.8.x: the config is keyed by target now, and there is no compatibility shim. A file that still sets `reminder`, `bannedCheck`, or `outputCheck` configures nothing, and session start names the file and the keys once per session. The table maps the old keys to the new ones:
 

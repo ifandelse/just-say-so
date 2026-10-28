@@ -98,7 +98,7 @@ The defaults, and what you see under each:
 
 ### Judgment rules
 
-The shipped rules come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own. The rules text has two forms: the full rules ([rules/full.md](rules/full.md)) and a condensed reminder ([rules/condensed.md](rules/condensed.md)). The reminder goes out at every context start (startup, resume, `/clear`, and after compaction), into every subagent when it spawns, and on the prompt after a reply broke a rule. It opens like this:
+The shipped rules come from the [ASD-STE100 standard](https://www.asd-ste100.org/) (Simplified Technical English), minus its 900-word dictionary, and you can swap in your own. Each bullet in the manifest has a `full` text and, for most, a `short` one. The short texts make up the **condensed reminder**, which the hooks inject; the full texts are what `/just-say-so:rules` loads. The build renders both from the manifest into [rules/condensed.md](rules/condensed.md) and [rules/full.md](rules/full.md), so you can read them, and a test fails when either drifts. The reminder goes out at every context start (startup, resume, `/clear`, and after compaction), into every subagent when it spawns, and on the prompt after a reply broke a rule. It opens like this:
 
 ```
 ## Communication rules — reminder

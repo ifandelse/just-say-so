@@ -66,7 +66,11 @@ Local development runs the plugin from a checkout: `claude --plugin-dir /path/to
 
 ## What it does
 
-Three words carry the rest of this file. A **target** is one kind of text the agent produces: `files` it writes, text it **publishes** through `gh`, MCP tools, and the Artifact tool, and its chat **replies**. A **rule** is one line in the rules text, called a **bullet**; a bullet either names the Vale rules that check it or carries none, and a bullet with none is a **judgment rule**. A **mode** is what a target does with an error: `off`, `warn`, or `block`.
+Three terms are used from here on:
+
+- A **target** is one kind of text the agent produces. There are three: the `files` it writes, the text it `publish`es through `gh`, MCP tools, and the Artifact tool, and its chat `reply`.
+- A **bullet** is one line of the rules text. A bullet either names the Vale rules that check it, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
+- A **mode** is what a target does with an error: `off`, `warn`, or `block`.
 
 ### Vale lints the prose
 
@@ -182,7 +186,7 @@ Every field, the layers, and the forced layer for CI are in the [configuration r
 
 ## Tuning the rules
 
-Four places, from the smallest change to the largest.
+There are four places to change the rules, listed from the smallest change to the largest.
 
 **Turn a rule off or change its level** in `.vale.ini`. A line in `[*]` applies to every target; a line in `[*.reply]` or `[*.publish]` narrows one. `JustSaySo.Intensifiers = NO` drops that rule; `ai-tells.EmDashUsage = error` makes a rule blocking. The reminder follows: a bullet whose rules are all off disappears from it.
 

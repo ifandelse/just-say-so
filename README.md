@@ -72,7 +72,7 @@ Three terms are used from here on, and each lives in one place:
 
 - A **target** is one kind of text the agent produces. There are three: the `files` it writes, the text it `publish`es through `gh`, MCP tools, and the Artifact tool, and its chat `reply`. The three targets are the top-level keys of the plugin's config file, `.just-say-so.json`.
 - A **mode** is what a target does with an error: `off`, `warn`, or `block`. It is the `mode` field under each target in that same file.
-- A **bullet** is one line of the rules text. The rules text is rendered from [rules/manifest.json](rules/manifest.json), and a `rules.extra` file of your own adds bullets to it. A bullet either names the Vale rules that check it, in its `vale` field, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
+- A **bullet** is one line of the rules text. The rules text is rendered from [rules/manifest.json](rules/manifest.json). You can add bullets of your own in a JSON file of the same shape and name it under `rules.extra` in `.just-say-so.json`; those bullets join the shipped ones. A bullet either names the Vale rules that check it, in its `vale` field, or names none. A bullet with none is a **judgment rule**: the model follows it, and no linter checks it.
 
 Which Vale rules run on which target is neither file's business. That is `.vale.ini`, next.
 

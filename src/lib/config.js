@@ -29,6 +29,11 @@ export const DEFAULTS = {
     // harness reports; trim the list to inject on fewer. onViolation sends
     // the rules plus the reply report on the prompt after a reply broke one.
     onContextStart: ['startup', 'resume', 'clear', 'compact'],
+    // Which rendering goes out at a context start and into a subagent:
+    // "full" (every bullet with its examples and the rules that check it)
+    // or "condensed" (the short texts). The prompt after a violation always
+    // carries the condensed form with the report.
+    contextStartText: 'full',
     onSubagentStart: true,
     onViolation: true,
     manifest: null, // your own rules manifest, replaces rules/manifest.json

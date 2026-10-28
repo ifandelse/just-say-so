@@ -88,7 +88,7 @@ BasedOnStyles = JustSaySo, ai-tells
 ai-tells.ParagraphLength = NO
 ```
 
-Severity is the policy. An `error` can block; a `warning` or `suggestion` is advice. The JustSaySo package ships the banned list as Vale rules, generated from the same file the rules text comes from, so the two never disagree.
+Severity is the policy. An `error` can block; a `warning` or `suggestion` is advice. Four of the shipped bullets ban things a pattern can match: the buzzwords, the filler frames, the "it's not x, it's y" shape, and the empty intensifiers. Those four are also generated as the Vale rules of the JustSaySo package, from the same manifest the rules text comes from, so the bullet and the rule that checks it never disagree.
 
 The defaults, and what you see under each:
 

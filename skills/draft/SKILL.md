@@ -38,4 +38,4 @@ Print the result as one JSON object in a code block, in this shape:
 }
 ```
 
-Then tell the user, in three sentences at most: this is a draft to edit; save it as a file such as `.just-say-so-rules.json` and set `"rules": { "extra": ".just-say-so-rules.json" }` in `.just-say-so.json`; the reminder then carries these bullets and stops naming those rules. Do not write any file yourself.
+Then tell the user, in three sentences at most: this is a draft to edit; save it as `.just-say-so-rules.json` in the project root, where the plugin finds it with no setting (or anywhere `rules.extra` points); the reminder then carries these bullets and stops naming those rules. Do not write any file yourself.

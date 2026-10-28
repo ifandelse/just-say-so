@@ -18,7 +18,7 @@ A project that runs a style the shipped manifest does not describe, ai-tells say
 
 You might hate my rules, fair enough. Two routes:
 
-- `rules.extra` names a manifest fragment, a JSON file with `sections` of rules in the shape of [rules/manifest.json](../rules/manifest.json), which the plugin appends to the shipped manifest. Its rules with a `short` text join the reminder after the shipped ones. This is the place for a bullet about a rule your own Vale style enforces.
+- An extra file, `.just-say-so-rules.json` in the project root (or in a directory above it) with no setting, or any path `rules.extra` names, is a manifest fragment: a JSON file with `sections` of rules in the shape of [rules/manifest.json](../rules/manifest.json). A bullet with a new `id` is appended under the fragment's own section. A bullet with the `id` of a shipped one replaces it in place, text, `short`, and `vale` alike, and keeps its slot in the reminder while it has a `short` text. `{ "id": "<shipped id>", "drop": true }` removes a shipped bullet from the full text and the reminder. The doctor reports the file in force with its added, replaced, and dropped counts, and warns about a drop that matches no id. Its rules with a `short` text join the reminder after the shipped ones. This is the place for a bullet about a rule your own Vale style enforces.
 - `rules.manifest` replaces the shipped manifest with your own. The generated style still ships the shipped terms; put your own terms in a Vale style of your own and set `JustSaySo = NO` in `.vale.ini` where you disagree.
 
 All the hooks, commands, and config machinery stay the same.

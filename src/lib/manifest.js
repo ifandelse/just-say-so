@@ -34,36 +34,95 @@ export function ruleFilePath(p, cwd) {
   return path.resolve(cwd, expandHome(p));
 }
 
+// The extra file a project gets without a setting: this name in the
+// project root, or in a directory above the working one, found the way
+// .just-say-so.json is.
+export const DEFAULT_EXTRA = '.just-say-so-rules.json';
+
+export function findDefaultExtra(cwd) {
+  let dir = cwd ? path.resolve(cwd) : null;
+  while (dir) {
+    const candidate = path.join(dir, DEFAULT_EXTRA);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * The extra file in force: { path, source: "config" | "default" }, or
+ * null. A configured path wins; otherwise the default name is looked for.
+ */
+export function extraFile(config, cwd = process.cwd()) {
+  const configured = config?.rules?.extra;
+  if (configured) return { path: ruleFilePath(configured, cwd), source: 'config' };
+  const found = findDefaultExtra(cwd);
+  return found ? { path: found, source: 'default' } : null;
+}
+
+/**
+ * Merge an extra file into a manifest. An extra bullet whose id matches a
+ * shipped one replaces it in place; one with `drop: true` removes it;
+ * any other is appended under the extra file's own sections. The
+ * condensed order follows: a replaced bullet keeps its slot while it has
+ * a short text, a dropped one leaves, and a new one with a short text
+ * joins the end. Returns { manifest, added, replaced, dropped, unknownDrops }.
+ */
+export function mergeExtra(manifest, extra) {
+  const shippedIds = new Set(allRules(manifest).map((r) => r.id));
+  const replace = new Map();
+  const drop = new Set();
+  const unknownDrops = [];
+  const newSections = [];
+  for (const section of extra?.sections ?? []) {
+    const fresh = [];
+    for (const rule of section.rules ?? []) {
+      if (!rule || typeof rule.id !== 'string') continue;
+      if (rule.drop === true) {
+        if (shippedIds.has(rule.id)) drop.add(rule.id);
+        else unknownDrops.push(rule.id);
+      } else if (shippedIds.has(rule.id)) replace.set(rule.id, rule);
+      else fresh.push(rule);
+    }
+    if (fresh.length) newSections.push({ ...section, rules: fresh });
+  }
+  const sections = (manifest.sections ?? [])
+    .map((s) => ({ ...s, rules: (s.rules ?? []).filter((r) => !drop.has(r.id)).map((r) => replace.get(r.id) ?? r) }))
+    .concat(newSections);
+  const byId = new Map(sections.flatMap((s) => s.rules ?? []).map((r) => [r.id, r]));
+  const kept = (manifest.condensed ?? []).filter((id) => !drop.has(id) && (!byId.has(id) || byId.get(id).short));
+  const joined = [...replace.keys(), ...newSections.flatMap((s) => s.rules.map((r) => r.id))].filter((id) => byId.get(id)?.short && !kept.includes(id));
+  return {
+    manifest: { ...manifest, sections, condensed: [...kept, ...joined] },
+    added: newSections.flatMap((s) => s.rules.map((r) => r.id)),
+    replaced: [...replace.keys()],
+    dropped: [...drop],
+    unknownDrops
+  };
+}
+
 /**
  * The manifest in force: the shipped one, or the file rules.manifest
- * names, with the sections of rules.extra appended. An extra file holds
- * the same shape (sections of rules); its rules with a `short` text join
- * the condensed reminder after the shipped ones. A missing or malformed
- * extra file is ignored, so a typo in a project file never breaks a hook.
- * `cwd` is the project directory relative paths resolve against.
+ * names, with the extra file merged in (see mergeExtra). A missing or
+ * malformed extra file is ignored, so a typo in a project file never
+ * breaks a hook. `cwd` is the project directory relative paths resolve
+ * against and the default extra file is looked for from.
  */
 export function loadManifest(config, cwd = process.cwd()) {
   const override = config?.rules?.manifest;
   const manifest = readJson(override ? ruleFilePath(override, cwd) : shippedManifestPath());
-  const extraPath = config?.rules?.extra;
-  if (!extraPath) return manifest;
-  let extra;
-  try {
-    extra = readJson(ruleFilePath(extraPath, cwd));
-  } catch {
-    return manifest;
-  }
-  const sections = [...(manifest.sections ?? []), ...(extra.sections ?? [])];
-  const extraIds = (extra.sections ?? []).flatMap((s) => (s.rules ?? []).filter((r) => r.short).map((r) => r.id));
-  return { ...manifest, sections, condensed: [...(manifest.condensed ?? []), ...extraIds] };
+  const extra = loadExtra(config, cwd);
+  return extra ? mergeExtra(manifest, extra).manifest : manifest;
 }
 
-/** The rules.extra manifest fragment alone, or null when none is set or readable. */
+/** The extra manifest fragment alone, or null when none is in force or readable. */
 export function loadExtra(config, cwd = process.cwd()) {
-  const extraPath = config?.rules?.extra;
-  if (!extraPath) return null;
+  const file = extraFile(config, cwd);
+  if (!file) return null;
   try {
-    return readJson(ruleFilePath(extraPath, cwd));
+    return readJson(file.path);
   } catch {
     return null;
   }

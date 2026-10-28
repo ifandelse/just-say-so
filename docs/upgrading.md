@@ -1,5 +1,9 @@
 # Upgrading
 
+## 0.18.0
+
+A file named `.just-say-so-rules.json` in the project root, or in a directory above it, is read as the extra rules file with no setting; `rules.extra` still names any other path and wins when set. An extra bullet whose `id` matches a shipped bullet now replaces it instead of adding a duplicate, and `{ "id": "...", "drop": true }` removes a shipped bullet. An extra file that reused a shipped id by accident changes behavior: the shipped bullet is replaced.
+
 ## 0.17.0
 
 A context start and a subagent start now inject the full rules text instead of the condensed reminder, which had gone out at session start since 0.1.2. Three bullets with no short text (define a term on first use, the technical-term test, and headings and lists) reach the model for the first time from a hook. The prompt after a violation still carries the condensed reminder. Set `rules.contextStartText` to `"condensed"` to keep the old behavior.

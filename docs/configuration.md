@@ -40,7 +40,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
     "onViolation": true, // inject the rules plus the reply report on the prompt after a flagged reply;
     // false holds the report for the next context start
     "manifest": null, // your own rules manifest, replaces rules/manifest.json (see [The rules manifest](rules.md))
-    "extra": null, // a manifest fragment whose sections are appended to the one in force
+    "extra": null, // a manifest fragment that adds, replaces, or drops bullets; null looks for
+    // .just-say-so-rules.json in the project root or above (see The rules manifest)
     "messagesPath": null // overrides hook message strings, per key (rules/messages.json)
   },
   "vale": {

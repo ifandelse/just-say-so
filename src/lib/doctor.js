@@ -6,6 +6,7 @@
 // against the config when they disagree.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { loadConfig, configFiles, findLegacyKeys, publishOn } from './config.js';
 import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, REPLY_NAME } from './vale.js';
@@ -13,7 +14,7 @@ import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
 import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
-import { loadExtra } from './manifest.js';
+import { loadExtra, extraFile, mergeExtra, shippedManifestPath, DEFAULT_EXTRA } from './manifest.js';
 import { pluginVersion } from './version.js';
 import { readCache } from './package-cache.js';
 
@@ -110,6 +111,10 @@ function rawSection(glob, resolved) {
  * shape. Nothing here throws on a broken setup: a missing piece becomes a
  * warning.
  */
+function loadManifestBase(config, cwd) {
+  return JSON.parse(fs.readFileSync(path.resolve(cwd, String(config.rules.manifest).replace(/^~/, os.homedir())), 'utf8'));
+}
+
 export function doctorReport(cwd, env = process.env) {
   const config = loadConfig(cwd, env);
   const version = pluginVersion();
@@ -223,7 +228,14 @@ export function doctorReport(cwd, env = process.env) {
   for (const g of order) raw.push(rawSection(g, resolved));
 
   const extra = loadExtra(config, cwd);
-  if (config.rules?.extra && !extra) warnings.push(`rules.extra names ${config.rules.extra}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  const extraWhere = extraFile(config, cwd);
+  if (extraWhere && !extra) warnings.push(`${extraWhere.source === 'config' ? 'rules.extra names' : 'the extra rules file'} ${extraWhere.path}, which cannot be read as JSON, so its bullets are not in the reminder.`);
+  if (extra) {
+    const base = config.rules?.manifest ? loadManifestBase(config, cwd) : JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
+    const merged = mergeExtra(base, extra);
+    facts.push(`extra rules: ${extraWhere.path} (${extraWhere.source === 'config' ? 'rules.extra' : `the default name, ${DEFAULT_EXTRA}`}) · added ${merged.added.length}, replaced ${merged.replaced.length}, dropped ${merged.dropped.length}`);
+    if (merged.unknownDrops.length) warnings.push(`The extra rules file drops ${merged.unknownDrops.join(', ')}, which match no bullet id, so nothing was dropped. Check the ids against rules/manifest.json.`);
+  } else facts.push(`extra rules: none (${DEFAULT_EXTRA} in the project root, or rules.extra, adds, replaces, or drops bullets)`);
   const unknown = (extra?.sections ?? [])
     .flatMap((sec) => sec.rules ?? [])
     .flatMap((r) => (r.vale ?? []).map((id) => [r.id, id]))

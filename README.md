@@ -1,6 +1,6 @@
 # just-say-so
 
-Are you frustrated with how agents talk to you, and with the text they produce in Markdown files, pull requests, and other artifacts? You are not alone. `just-say-so` is a Claude Code plugin that pulls together the tools I use against this problem. Three pillars:
+Are you frustrated with how agents talk to you, and with the text they produce in Markdown files, pull requests, and other artifacts? You are not alone. `just-say-so` is a Claude Code plugin that pulls together the tools I use to solve this problem. It has three pillars:
 
 - **Vale lints the prose.** [Vale](https://vale.sh) is a prose linter. The plugin runs it on the files the agent writes, on the text it publishes, and on each chat reply, under rules you control in `.vale.ini`.
 - **Judgment rules cover what a linter cannot see.** "Lead with the answer" is an instruction the model follows, not a pattern Vale can match. The plugin injects those rules at every context start, into every subagent, and again after a reply broke one.
@@ -10,7 +10,7 @@ Status: pre-1.0. Minor versions change behavior; see [Upgrading](docs/upgrading.
 
 ## A first look
 
-The agent writes a file. The plugin runs Vale on it and hands the agent the facts. With the default settings, that is advice, and nothing blocks:
+The agent writes a file. The plugin runs Vale on the file it just wrote and hands the agent the alerts. Under the default setting the write stands, the agent is told to fix the errors, and the turn can still end with them in place. In `block` mode the turn is held until they are fixed. The message the agent gets:
 
 ```
 just-say-so: Vale reports 3 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
@@ -21,7 +21,7 @@ just-say-so: Vale reports 3 error(s), 0 warning(s), 1 suggestion(s) in notes.md 
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```
 
-The agent sees that message. You see the fixed file.
+You see none of this unless you look. The agent sees the message and, in most cases, fixes the file.
 
 ## Install
 
@@ -84,11 +84,11 @@ Severity is the policy. An `error` can block; a `warning` or `suggestion` is adv
 
 The defaults, and what you see under each:
 
-| Target | Default | What happens |
-| --- | --- | --- |
-| `files` | `warn` | After each write, the agent gets the alerts for the lines it added, as in the example above. `block` adds a gate at the end of the turn while errors remain. |
-| `publish` | `block`, with `gh` and MCP off and the Artifact page on | Nothing checks a `gh pr comment` until you turn `publish.gh` on. Once on, a flagged call is denied before it runs, because nothing can un-publish. |
-| `reply` | `warn` | Each finished reply is linted and the error counts are kept. Nothing interrupts you. The counts ride the next rules injection as a short report (below). `block` makes the model rewrite before the turn ends. |
+| Target    | Default                                                 | What happens                                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `files`   | `warn`                                                  | After each write, the agent gets the alerts for the lines it added, as in the example above. `block` adds a gate at the end of the turn while errors remain.                                                   |
+| `publish` | `block`, with `gh` and MCP off and the Artifact page on | Nothing checks a `gh pr comment` until you turn `publish.gh` on. Once on, a flagged call is denied before it runs, because nothing can un-publish.                                                             |
+| `reply`   | `warn`                                                  | Each finished reply is linted and the error counts are kept. Nothing interrupts you. The counts ride the next rules injection as a short report (below). `block` makes the model rewrite before the turn ends. |
 
 ### Judgment rules
 
@@ -149,9 +149,9 @@ The plugin runs with no configuration. To change it, create `.just-say-so.json` 
 
 ```jsonc
 {
-  "reply": { "mode": "block" },                // rewrite a flagged reply before the turn ends
+  "reply": { "mode": "block" }, // rewrite a flagged reply before the turn ends
   "publish": { "gh": true, "mcp": ["mcp__confluence__*"] }, // check what goes out through gh and these MCP tools
-  "files": { "mode": "block" }                 // hold the turn while written files carry errors
+  "files": { "mode": "block" } // hold the turn while written files carry errors
 }
 ```
 
@@ -159,12 +159,22 @@ And the shape of the whole file, with its defaults:
 
 ```jsonc
 {
-  "files":   { "mode": "warn", "show": "suggestion" },
-  "publish": { "mode": "block", "gh": false, "mcp": [], "artifact": true, "unresolved": "ask" },
-  "reply":   { "mode": "warn" },
-  "rules":   { "onContextStart": ["startup", "resume", "clear", "compact"], "onSubagentStart": true, "onViolation": true },
-  "vale":    { "config": null },
-  "events":  { "mode": "on" }
+  "files": { "mode": "warn", "show": "suggestion" },
+  "publish": {
+    "mode": "block",
+    "gh": false,
+    "mcp": [],
+    "artifact": true,
+    "unresolved": "ask"
+  },
+  "reply": { "mode": "warn" },
+  "rules": {
+    "onContextStart": ["startup", "resume", "clear", "compact"],
+    "onSubagentStart": true,
+    "onViolation": true
+  },
+  "vale": { "config": null },
+  "events": { "mode": "on" }
 }
 ```
 

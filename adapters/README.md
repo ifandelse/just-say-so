@@ -1,6 +1,6 @@
 # Adapters
 
-just-say-so separates payload from delivery. The payload is the manifest (`rules/manifest.json`), the `JustSaySo` Vale style generated from it, and the logic in `src/lib/`, none of which assumes a harness. The Claude Code adapter is `hooks/hooks.json`, the stdin shims in `src/hooks/`, and `skills/`. This document records what an adapter for another harness has to provide, verified against the vendor docs on 2026-10-27. The feature table is in the README under "Other harnesses".
+just-say-so separates payload from delivery. The payload is the manifest (`rules/manifest.json`), the `JustSaySo` Vale style generated from it, and the logic in `src/lib/`, none of which assumes a harness. The Claude Code adapter is `hooks/hooks.json`, the stdin shims in `src/hooks/`, and `skills/`. This document records what an adapter for another harness has to provide, verified against the vendor docs on 2026-10-27. The feature table is in [docs/harnesses.md](../docs/harnesses.md).
 
 ## The contract
 

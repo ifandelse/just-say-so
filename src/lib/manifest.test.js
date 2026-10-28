@@ -14,12 +14,16 @@ import {
   shippedManifestPath,
   mergeExtra,
   findDefaultExtra,
-  extraFile
+  extraFile,
+  readManifest,
+  manifestProblem
 } from './manifest.js';
 
 /*
  * Branch map — src/lib/manifest.js
- *   loadManifest: shipped · rules.manifest override (tilde expanded) ·
+ *   loadManifest: shipped · rules.manifest override (tilde expanded) · a
+ *     missing or malformed override falls back to the shipped manifest and
+ *     readManifest/manifestProblem name the file and the failure ·
  *     an extra bullet replaces a shipped id in place, drops one with
  *     drop: true, appends a new one; condensed keeps slots for replaced
  *     bullets with a short text, drops dropped ones, appends new ones ·
@@ -109,19 +113,23 @@ describe('manifest', () => {
       });
     });
 
-    describe('when rules.manifest names a file under a tilde', () => {
-      let thrown;
+    describe('when rules.manifest names a file under a tilde that does not exist, or a malformed one', () => {
+      let missing, malformed, fallback;
 
       beforeEach(() => {
-        try {
-          loadManifest({ rules: { manifest: '~/MISSING_JSS_MANIFEST_8675309.json' } });
-        } catch (e) {
-          thrown = e;
-        }
+        missing = readManifest({ rules: { manifest: '~/MISSING_JSS_MANIFEST_8675309.json' } });
+        const dir = tmpdir();
+        fs.writeFileSync(path.join(dir, 'bad.json'), '{nope');
+        malformed = readManifest({ rules: { manifest: 'bad.json' } }, dir);
+        fallback = loadManifest({ rules: { manifest: 'bad.json' } }, dir);
       });
 
-      it('should expand the tilde before reading', () => {
-        expect(thrown.path).toBe(path.join(os.homedir(), 'MISSING_JSS_MANIFEST_8675309.json'));
+      it('should expand the tilde, fall back to the shipped manifest, and name the problem', () => {
+        expect(missing.problem).toEqual({ file: path.join(os.homedir(), 'MISSING_JSS_MANIFEST_8675309.json'), error: 'does not exist' });
+        expect(missing.manifest.title).toBe('Communication rules');
+        expect(malformed.problem).toEqual({ file: expect.stringMatching(/bad\.json$/), error: 'cannot be read as JSON' });
+        expect(fallback.title).toBe('Communication rules');
+        expect(manifestProblem({}, os.tmpdir())).toBeNull();
       });
     });
 

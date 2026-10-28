@@ -104,15 +104,37 @@ export function mergeExtra(manifest, extra) {
 }
 
 /**
- * The manifest in force: the shipped one, or the file rules.manifest
- * names, with the extra file merged in (see mergeExtra). A missing or
- * malformed extra file is ignored, so a typo in a project file never
- * breaks a hook. `cwd` is the project directory relative paths resolve
- * against and the default extra file is looked for from.
+ * The base manifest: the file rules.manifest names, or the shipped one.
+ * A missing or malformed override falls back to the shipped manifest and
+ * reports the problem, so a typo in a path never leaves a session without
+ * rules. Returns { manifest, problem }, problem being null or
+ * { file, error } with error "does not exist" or "cannot be read as JSON".
+ */
+export function readManifest(config, cwd = process.cwd()) {
+  const override = config?.rules?.manifest;
+  if (!override) return { manifest: readJson(shippedManifestPath()), problem: null };
+  const file = ruleFilePath(override, cwd);
+  try {
+    return { manifest: readJson(file), problem: null };
+  } catch (e) {
+    const error = e?.code === 'ENOENT' ? 'does not exist' : 'cannot be read as JSON';
+    return { manifest: readJson(shippedManifestPath()), problem: { file, error } };
+  }
+}
+
+/** The rules.manifest problem in force, or null. */
+export function manifestProblem(config, cwd = process.cwd()) {
+  return readManifest(config, cwd).problem;
+}
+
+/**
+ * The manifest in force: the base (see readManifest) with the extra file
+ * merged in (see mergeExtra). A missing or malformed extra file is
+ * ignored. `cwd` is the project directory relative paths resolve against
+ * and the default extra file is looked for from.
  */
 export function loadManifest(config, cwd = process.cwd()) {
-  const override = config?.rules?.manifest;
-  const manifest = readJson(override ? ruleFilePath(override, cwd) : shippedManifestPath());
+  const { manifest } = readManifest(config, cwd);
   const extra = loadExtra(config, cwd);
   return extra ? mergeExtra(manifest, extra).manifest : manifest;
 }

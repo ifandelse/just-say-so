@@ -195,7 +195,7 @@ describe('doctor', () => {
       );
       fs.writeFileSync(path.join(work, 'none.json'), '{}');
       mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) });
-      report = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), PATH: process.env.PATH });
+      report = doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), PATH: process.env.PATH });
     });
 
     it('should report the file, its counts, and the drop that matched nothing', () => {
@@ -214,19 +214,42 @@ describe('doctor', () => {
         fs.writeFileSync(path.join(work, '.just-say-so-rules.json'), JSON.stringify({ sections: [] }));
         if (manifestText !== null) fs.writeFileSync(path.join(work, 'custom.json'), manifestText);
         fs.writeFileSync(path.join(work, 'cfg.json'), JSON.stringify({ rules: { manifest: 'custom.json' } }));
-        return doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'cfg.json'), PATH: process.env.PATH });
+        return doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'cfg.json'), PATH: process.env.PATH });
       };
       missing = run(null);
       malformed = run('{not json');
     });
 
-    it('should keep the report, mark the counts unavailable, and warn with the file named', () => {
+    it('should keep the report, merge into the shipped rules, and warn with the file named', () => {
       for (const r of [missing, malformed]) {
-        expect(r.facts.find((f) => f.startsWith('extra rules:'))).toMatch(/\(the default name, \.just-say-so-rules\.json\) · counts unavailable, see the warning$/);
+        expect(r.facts.find((f) => f.startsWith('extra rules:'))).toMatch(/\(the default name, \.just-say-so-rules\.json\) · added 0, replaced 0, dropped 0 \(merged into the shipped rules, see the warning\)$/);
         expect(r.facts.some((f) => f.startsWith('targets:'))).toBe(true);
       }
-      expect(missing.warnings.some((w) => /^rules\.manifest names .*custom\.json, which does not exist, so the rules text cannot be built/.test(w))).toBe(true);
-      expect(malformed.warnings.some((w) => /^rules\.manifest names .*custom\.json, which cannot be read as JSON \(.*\), so the rules text cannot be built/.test(w))).toBe(true);
+      expect(missing.warnings.some((w) => /^rules\.manifest names .*custom\.json, which does not exist\. Every hook falls back to the shipped rules/.test(w))).toBe(true);
+      expect(malformed.warnings.some((w) => /^rules\.manifest names .*custom\.json, which cannot be read as JSON\. Every hook falls back/.test(w))).toBe(true);
+    });
+  });
+
+  describe('when hooks have failed this week', () => {
+    let report;
+
+    beforeEach(() => {
+      const work = tmpdir();
+      const state = path.join(work, 'state');
+      fs.mkdirSync(state, { recursive: true });
+      const old = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+      const recent = new Date(Date.now() - 60 * 1000).toISOString();
+      fs.writeFileSync(
+        path.join(state, 'hook-errors.jsonl'),
+        [JSON.stringify({ t: old, hook: 'remind.js', message: 'old', stack: '' }), 'torn{', JSON.stringify({ t: recent, hook: 'check-vale.js', message: 'ENOENT: no such file', stack: '' })].join('\n') + '\n'
+      );
+      fs.writeFileSync(path.join(work, 'none.json'), '{}');
+      mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) });
+      report = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), JUST_SAY_SO_STATE_DIR: state, PATH: process.env.PATH });
+    });
+
+    it('should warn with the count, the latest failure, and the file', () => {
+      expect(report.warnings.some((w) => /^1 hook failure\(s\) in the last 7 days, the latest .* in check-vale\.js: ENOENT: no such file\. Details in .*hook-errors\.jsonl\.$/.test(w))).toBe(true);
     });
   });
 
@@ -242,9 +265,9 @@ describe('doctor', () => {
       const resolved = { Formats: { reply: 'md', publish: 'md' }, GBaseStyles: ['JustSaySo'], Paths: [styles], ConfigFiles: [] };
       vale({ resolved });
       fs.writeFileSync(path.join(work, 'none.json'), JSON.stringify({ rules: { extra: path.join(work, 'x.json') } }));
-      unknown = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+      unknown = doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
       fs.writeFileSync(path.join(work, 'none.json'), JSON.stringify({ rules: { extra: path.join(work, 'missing.json') } }));
-      unreadable = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+      unreadable = doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
     });
 
     it('should name the unknown id with its bullet, and the unreadable file', () => {
@@ -260,10 +283,10 @@ describe('doctor', () => {
       const work = tmpdir();
       fs.writeFileSync(path.join(work, 'custom.ini'), 'StylesPath = styles\n');
       vale({ resolved: null });
-      unreadable = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+      unreadable = doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
       fs.writeFileSync(path.join(work, 'none.json'), JSON.stringify({ vale: { config: path.join(work, 'custom.ini') } }));
       vale({ resolved: { Formats: { reply: 'md', publish: 'md' }, GBaseStyles: [], Paths: [], ConfigFiles: [] } });
-      explicit = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
+      explicit = doctorReport(work, { JUST_SAY_SO_STATE_DIR: path.join(os.tmpdir(), `jss-doc-${process.pid}-${Math.random().toString(36).slice(2)}`), JUST_SAY_SO_CONFIG: path.join(work, 'none.json') });
     });
 
     it('should warn about the unreadable config and name the explicit one', () => {

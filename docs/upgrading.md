@@ -1,5 +1,9 @@
 # Upgrading
 
+## 0.18.1
+
+A `rules.manifest` path that does not exist or is not JSON no longer leaves a session without rules: every hook falls back to the shipped manifest, session start prints one notice naming the file, and the doctor warns. A hook that throws still exits 0 with nothing on stdout, and now writes one line to stderr and one JSON line to `hook-errors.jsonl` in the state directory; the doctor reports the last 7 days.
+
 ## 0.18.0
 
 A file named `.just-say-so-rules.json` in the project root, or in a directory above it, is read as the extra rules file with no setting; `rules.extra` still names any other path and wins when set. An extra bullet whose `id` matches a shipped bullet now replaces it instead of adding a duplicate, and `{ "id": "...", "drop": true }` removes a shipped bullet. An extra file that reused a shipped id by accident changes behavior: the shipped bullet is replaced.

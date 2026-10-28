@@ -18,6 +18,7 @@ import { makeSandbox } from '../../../test/helpers/sandbox.js';
  *   source outside a trimmed configured list → null, no reset
  *   source missing → defaults to "startup" → inject
  *   cleanupSessions runs on every call (old files removed)
+ *   rules.manifest unreadable → shipped rules injected, one notice
  *   vale probe: checks on + probe fails → systemMessage (with or without
  *     rules injection) · probe passes → no message · checks off → no probe
  *   reply counts: injection carries the report · compact resets them ·
@@ -327,6 +328,21 @@ describe('session-start.run', () => {
       expect(output).toEqual({
         systemMessage: `just-say-so: ${sandbox.configFile} sets reminder, bannedCheck, which 0.9.0 no longer reads. The config is keyed by target now (files, publish, reply, rules). See the README section Upgrading from 0.8.x.`
       });
+    });
+  });
+
+  describe('when rules.manifest names a file that does not exist', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ rules: { manifest: '/nowhere/custom-rules.json' } });
+      valePresent();
+      output = run({ session_id: SESSION, cwd: sandbox.work, source: 'startup' }, sandbox.env);
+    });
+
+    it('should inject the shipped rules and say so once', () => {
+      expect(output.systemMessage).toBe('just-say-so: rules.manifest names /nowhere/custom-rules.json, which does not exist. The shipped rules are in force until it is fixed; /just-say-so:doctor shows the details.');
+      expect(output.hookSpecificOutput.additionalContext).toMatch(/^## Communication rules\n/);
     });
   });
 

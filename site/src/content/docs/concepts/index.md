@@ -2,6 +2,7 @@
 title: "Concepts"
 description: "Why the pieces work the way they do."
 sidebar:
+  label: Overview
   order: 0
 ---
 

@@ -2,6 +2,7 @@
 title: "From the ground up"
 description: "One path from a fresh install to a tuned setup, in nine chapters, each ending at a state you can check."
 sidebar:
+  label: Overview
   order: 0
 ---
 

@@ -2,6 +2,7 @@
 title: "How-to guides"
 description: "One task per page, for a setup that already works."
 sidebar:
+  label: Overview
   order: 0
 ---
 

@@ -2,6 +2,7 @@
 title: "Commands"
 description: "The ten skills, in the order you meet them, and the shape every command page follows."
 sidebar:
+  label: Overview
   order: 0
 ---
 

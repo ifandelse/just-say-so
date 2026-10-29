@@ -17,6 +17,22 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 **Your rejections become advice.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
 
+## Linting and injection are two different mechanisms
+
+The plugin does two separate things, and they behave differently.
+
+| | Linting | Injection |
+| --- | --- | --- |
+| What it is | Vale runs over text and reports alerts. | The rules text is placed in the model's context. |
+| What drives it | Vale rules, from the JustSaySo package and any package you add, selected in `.vale.ini`. | The bullets in the rules manifest. |
+| Where it applies | Written files, published text (`gh`, MCP tools, the Artifact page), and chat replies. | Everything the model writes from then on. |
+| How reliable it is | Deterministic. The same text gets the same alerts every time. | Not deterministic. The model follows an instruction most of the time and ignores it some of the time. |
+| What happens on a miss | An error can hold a turn, deny a publish call, or be reported on the next prompt. | Nothing, on its own. |
+
+The two connect at one point. When Vale finds an error in a finished reply, the next prompt carries the rules text again, with a report of what broke. That is the plugin's answer to instructions fading as a session grows: the linter notices, and the reminder follows. It only works for a bullet that Vale rules back. A judgment rule has no linter behind it, so breaking one produces no alert and no reminder, and the only record of the miss is the one you make with `/just-say-so:restate`.
+
+The manifest sits under both columns. Its bullets are the injected text, and four of them are also generated as the Vale rules of the JustSaySo package, so a bullet and the rule that checks it come from one record.
+
 ## What you see on a normal day
 
 With the default settings, written files and replies are on `warn`: the agent is told what broke and nothing is held. Publishing is on `block` for the Artifact page from the start, because nothing can un-publish. After the agent writes a file, it gets a message like this one and fixes the file:

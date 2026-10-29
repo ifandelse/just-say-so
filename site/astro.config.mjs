@@ -27,14 +27,13 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ifandelse/just-say-so' }],
       editLink: { baseUrl: 'https://github.com/ifandelse/just-say-so/edit/main/site/' },
       sidebar: [
-        {
-          label: 'Start here',
-          items: [{ label: 'What is just-say-so', link: '/' }]
-        },
-        {
-          label: 'Reference',
-          items: [{ autogenerate: { directory: 'reference' } }]
-        }
+        { label: 'Start here', items: [{ autogenerate: { directory: 'start' } }] },
+        { label: 'From the ground up', items: [{ autogenerate: { directory: 'tutorial' } }] },
+        { label: 'How-to guides', items: [{ autogenerate: { directory: 'guides' } }] },
+        { label: 'Commands', items: [{ autogenerate: { directory: 'commands' } }] },
+        { label: 'Configuration', items: [{ autogenerate: { directory: 'configuration' } }] },
+        { label: 'Concepts', items: [{ autogenerate: { directory: 'concepts' } }] },
+        { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] }
       ],
       plugins: [starlightLinksValidator()],
       customCss: ['./src/styles/custom.css']

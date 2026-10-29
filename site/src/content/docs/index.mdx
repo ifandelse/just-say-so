@@ -1,0 +1,51 @@
+---
+title: just-say-so
+description: A Claude Code plugin that lints what the agent writes and says with Vale, keeps judgment rules in its context, and turns the replies you reject into advice on your own setup.
+template: splash
+hero:
+  tagline: Agents talk down to you, and they talk in a slippery verbal shorthand at the same time. The prose they generate is loaded with tells. just-say-so puts your communication rules in the harness so you can spend less time fighting the slop, and more time building the things you love.
+  image:
+    file: ../../assets/mark.svg
+    alt: The just-say-so mark
+  actions:
+    - text: Get started
+      link: /start/what-is-just-say-so/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/ifandelse/just-say-so
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Three pillars
+
+<CardGrid>
+  <Card title="Vale lints the prose" icon="approve-check">
+    [Vale](https://vale.sh) is a prose linter. just-say-so runs Vale on the
+    files the agent writes, on the text it publishes through MCP & CLI tools,
+    and on each chat reply, under rules you control in `.vale.ini`.
+  </Card>
+  <Card title="Judgment rules cover the rest" icon="document">
+    "Lead with the answer" is an instruction the model follows, not a pattern a
+    linter like Vale can match. just-say-so injects those judgment rules at
+    every context start, into every subagent, and again after a reply broke a
+    rule.
+  </Card>
+  <Card title="Your rejections become advice" icon="setting">
+    When an agent chat reply is bad, `/just-say-so:restate` has the model
+    rewrite it and record the miss with a tag. Over time, these records build
+    your case on how you want the agent to talk to you. Those records can be
+    used to provide configuration advice to improve how you use the plugin.
+  </Card>
+</CardGrid>
+
+## Install
+
+```
+/plugin marketplace add ifandelse/just-say-so
+/plugin install just-say-so@just-say-so
+```
+
+Then run `/just-say-so:init` in a project. [Getting started](/start/getting-started/) walks through one session in about fifteen minutes. [From the ground up](/tutorial/) continues that path through blocking, publishing, packages, and your own bullets. The [how-to guides](/guides/) take one task each, the [commands](/commands/) and [configuration](/configuration/) pages are the reference, and [concepts](/concepts/) explain why the pieces work the way they do.

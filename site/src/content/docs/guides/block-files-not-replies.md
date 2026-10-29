@@ -1,0 +1,32 @@
+---
+title: "Block errors in written files but not in replies"
+description: "Hold the turn while a written file carries an error, and leave replies on warn."
+sidebar:
+  order: 1
+---
+
+**Goal.** An error-level alert on a line the agent added cannot end the turn, while a reply that breaks a rule is reported on the next prompt and never rewritten in front of you.
+
+**Precondition.** The plugin is installed and the project has a `.vale.ini`.
+
+## Steps
+
+1. Create or edit `.just-say-so.json` in the project root:
+
+   ```json
+   { "files": { "mode": "block" } }
+   ```
+
+   Leave `reply` out; its default is `warn`.
+
+2. Start a new session. The setting is read at every hook, so a running session picks it up on the next write.
+
+3. Confirm with `/just-say-so:doctor`: the `targets` line reads `files block (show suggestion) · ... · reply warn`.
+
+## If you want it everywhere
+
+Put the same JSON in `~/.config/just-say-so/just-say-so.json`. A project file wins over it when both set a field, so a project can go back to `warn` on its own.
+
+## What block does at the end of a turn
+
+The edit-time check records the error-level alerts on lines each edit added. At the end of the turn a gate re-lints those files and holds the turn while any recorded alert remains. An error on a line the agent did not touch is not recorded and does not hold the turn, and the commit gate, which also judges only added lines, leaves it too. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. A term that keeps tripping it is a case for [allowing the term](/guides/allow-a-term/). The gate only sees files written through the file tools; the [commit gate](/guides/commit-gate/) covers the lines added by anything else, shell-written files and teammates' commits included.

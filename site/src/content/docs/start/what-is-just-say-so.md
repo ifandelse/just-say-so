@@ -19,7 +19,7 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 ## Linting and rules injection
 
-The plugin does two separate things: injects judgment rules into the context window and lints model output.
+The plugin does two separate things: injects the rules text into the context window and lints model output.
 
 | | Linting | Injection |
 | --- | --- | --- |

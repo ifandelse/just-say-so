@@ -17,9 +17,9 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 **Your rejections become advice.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
 
-## Linting and injection are two different mechanisms
+## Linting and rules injection
 
-The plugin does two separate things, and they behave differently.
+The plugin does two separate things: injects judgment rules into the context window and lints model output.
 
 | | Linting | Injection |
 | --- | --- | --- |

@@ -23,7 +23,7 @@ If you want this in every project, put the same JSON in `~/.config/just-say-so/j
 
 ## See the gate
 
-Start a new session and ask for another file with a buzzword in it. The agent gets the same alerts as before, and the edit-time check records the error-level ones that sit on lines the edit added. Now, at the end of the turn, a gate re-lints those files. While any recorded error is still there, the turn is held and the agent is told to fix it. The turn ends when they are gone. An error on a line the agent never touched, in a file it opened to edit a different paragraph, was never recorded and does not hold the turn; the [commit gate](/tutorial/9-the-commit-gate/) is what catches those.
+Start a new session and ask for another file with a buzzword in it. The agent gets the same alerts as before, and the edit-time check records the error-level ones that sit on lines the edit added. Now, at the end of the turn, a gate re-lints those files. While any recorded error is still there, the turn is held and the agent is told to fix it. The turn ends when they are gone. An error on a line the agent never touched, in a file it opened to edit a different paragraph, was never recorded and does not hold the turn. The [commit gate](/tutorial/9-the-commit-gate/) works the same way on the lines a commit adds, so prose that was already in a file stays outside both gates until someone edits it.
 
 When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. A stuck term never loops.
 

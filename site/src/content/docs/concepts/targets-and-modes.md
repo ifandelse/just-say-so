@@ -9,7 +9,7 @@ A **target** is one kind of text the agent produces. There are three: the `files
 
 The config is keyed by target because the right moment to enforce differs by target, and a single global switch would have to pick one moment for all three.
 
-A written file can be fixed after the fact. The agent gets the alerts as soon as the write lands, and in `block` mode the turn is held at its end while an error the edit-time check recorded on an added line is still there. Nothing is lost by waiting until the end of the turn, and the gate only answers for what the agent changed: an error on a line it never touched is the commit gate's business.
+A written file can be fixed after the fact. The agent gets the alerts as soon as the write lands, and in `block` mode the turn is held at its end while an error the edit-time check recorded on an added line is still there. Nothing is lost by waiting until the end of the turn, and the gate only answers for what the agent changed. An error on a line it never touched stays where it was; the commit gate, which also judges only added lines, leaves it too, so existing prose is checked when someone next edits it.
 
 Published text cannot be unpublished. A pull request comment with a banned word in it is on GitHub the moment the command runs. So `publish` is the one target that blocks before the action: the hook extracts the text from the call, lints it, and denies the call. It is also why `block` is the default there, and why values the checker cannot read before the call are a setting of their own.
 

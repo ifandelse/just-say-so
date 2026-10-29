@@ -25,4 +25,4 @@ The lowest alert level passed to the agent at edit time: `error`, `warning`, or 
 
 ## What counts as a written file
 
-Any path the `Write`, `Edit`, `MultiEdit`, or `NotebookEdit` tools touch. Which of those files Vale checks, and under which rules, is `.vale.ini`'s decision; a section with an empty `BasedOnStyles` exempts its paths. Files the agent writes through a shell command never pass this check; the [commit gate](/reference/commit-gate/) catches those.
+Any path the `Write`, `Edit`, `MultiEdit`, or `NotebookEdit` tools touch. Which of those files Vale checks, and under which rules, is `.vale.ini`'s decision; a section with an empty `BasedOnStyles` exempts its paths. Files the agent writes through a shell command never pass this check; the [commit gate](/reference/commit-gate/) catches the lines those add, at commit time.

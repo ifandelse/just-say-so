@@ -1,0 +1,43 @@
+---
+title: just-say-so
+description: A Claude Code plugin that lints what the agent writes and says with Vale, keeps judgment rules in its context, and turns the replies you reject into advice on your own setup.
+template: splash
+hero:
+  tagline: Agents talk down to you and in shorthand at the same time, and the text they write has the same tells. just-say-so puts your communication rules in the harness.
+  image:
+    file: ../../assets/mark.svg
+    alt: The just-say-so mark
+  actions:
+    - text: Read the rules
+      link: /reference/the-rules/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/ifandelse/just-say-so
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Three pillars
+
+<CardGrid>
+  <Card title="Vale lints the prose" icon="approve-check">
+    [Vale](https://vale.sh) is a prose linter. The plugin runs it on the files the agent writes, on the text it publishes through `gh` and MCP tools, and on each chat reply, under rules you control in `.vale.ini`.
+  </Card>
+  <Card title="Judgment rules cover the rest" icon="document">
+    "Lead with the answer" is an instruction the model follows, not a pattern a linter can match. The plugin injects those rules at every context start, into every subagent, and again after a reply broke one.
+  </Card>
+  <Card title="Your rejections become advice" icon="setting">
+    When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary, and the summary into advice on your own setup.
+  </Card>
+</CardGrid>
+
+## Install
+
+```
+/plugin marketplace add ifandelse/just-say-so
+/plugin install just-say-so@just-say-so
+```
+
+Then run `/just-say-so:init` in a project. The [README](https://github.com/ifandelse/just-say-so#readme) has the full install and a first look at what the agent sees. The guides and the tutorial are on their way here; the [reference](/reference/the-rules/) is already complete.

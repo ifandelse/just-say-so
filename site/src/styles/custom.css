@@ -1,0 +1,15 @@
+/* The brand blue as the accent, light and dark. */
+:root {
+  --sl-color-accent-low: #e8f0fe;
+  --sl-color-accent: #2757a5;
+  --sl-color-accent-high: #1b3d75;
+}
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #1b2a4a;
+  --sl-color-accent: #5b8be0;
+  --sl-color-accent-high: #c3d6f7;
+}
+/* The lockup replaces the site title; give it room. */
+.site-title img {
+  height: 1.6rem;
+}

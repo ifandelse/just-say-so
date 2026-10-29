@@ -13,13 +13,13 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 **Vale lints the prose.** [Vale](https://vale.sh) is a prose linter. The plugin runs it at the moments the harness offers: on a file the agent just wrote, before a `gh` or MCP call publishes text, and on each finished chat reply. The agent gets the alerts in its context. Which rules apply is Vale's job, in your `.vale.ini`, so any style in Vale's ecosystem plugs in.
 
-**Judgment rules cover what a linter cannot see.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config and trims the text to match: a bullet whose rules you turned off disappears, and error-level rules of yours that no bullet describes are named.
+**Judgment rules cover what a linter cannot see.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config and trims the text to match: a bullet whose rules you turned off doesn't get injected, and error-level rules of yours that no bullet describes are named.
 
 **Your rejections become advice.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
 
 ## What you see on a normal day
 
-With the default settings, nothing blocks. After the agent writes a file, it gets a message like this one and fixes the file:
+With the default settings, written files and replies are on `warn`: the agent is told what broke and nothing is held. Publishing is on `block` for the Artifact page from the start, because nothing can un-publish. After the agent writes a file, it gets a message like this one and fixes the file:
 
 ```
 just-say-so: Vale reports 3 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):

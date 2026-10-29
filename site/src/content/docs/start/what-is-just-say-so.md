@@ -36,7 +36,7 @@ The plugin runs two kinds of rule, and the word "rule" on this site always means
 
 **Judgment rules** are the bullets in the rules text: instructions the model follows and no linter checks. The shipped set is adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) for Simplified Technical English, minus its 900-word dictionary. They live in one file, `rules/manifest.json`, and you can add bullets of your own, reword or drop shipped ones, or replace the whole set. [The rules](/reference/the-rules/) shows the text before the plugin trims it to a project's Vale config.
 
-**Vale rules** are patterns a linter matches. Four of the shipped bullets ban things a pattern can match, the buzzwords, the filler frames, the "it's not x, it's y" shape, and the empty intensifiers, and the build generates those four as the Vale rules of the JustSaySo package from the same manifest, so a bullet and the rule that checks it never disagree. Every other Vale rule comes from a package you add in `.vale.ini`, such as ai-tells.
+**Vale rules** are patterns a linter matches. Four of the shipped bullets ban things a pattern can match, the buzzwords, the filler frames, the `it's not x, it's y` shape, and the empty intensifiers, and the build generates those four as the Vale rules of the JustSaySo package from the same manifest, so a bullet and the rule that checks it never disagree. Every other Vale rule comes from a package you add in `.vale.ini`, such as ai-tells.
 
 A bullet records which Vale rules back it in its `vale` field. A bullet with none is a judgment rule. [Judgment rules and Vale rules](/concepts/judgment-rules-and-vale-rules/) explains why the plugin keeps both.
 

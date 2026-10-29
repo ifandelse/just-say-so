@@ -7,7 +7,7 @@ sidebar:
 
 just-say-so is a Claude Code plugin. It puts your communication rules into the harness, so the agent writes under them instead of being asked to remember them.
 
-Agents talk down to you and in shorthand at the same time. The files, pull requests, and pages they write carry the same tells: buzzwords, filler frames, hedges stacked three deep, a flourish at the end of every paragraph. A rule stated once at the start of a session loses force as the context grows. The plugin keeps the rules in force three ways.
+Agents talk down to you and in 'cognitively slippery' verbal shorthand at the same time. The files, pull requests, and pages they write carry the same tells: buzzwords, filler frames, hedges stacked three deep, a flourish at the end of every paragraph. A rule stated once at the start of a session loses force as the context grows. The plugin keeps the rules in force three ways.
 
 ## Three pillars
 
@@ -21,13 +21,13 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 The plugin does two separate things: injects the rules text into the context window and lints model output.
 
-| | Linting | Injection |
-| --- | --- | --- |
-| What it is | Vale runs over text and reports alerts. | The rules text is placed in the model's context. |
-| What drives it | Vale rules, from the JustSaySo package and any package you add, selected in `.vale.ini`. | The bullets in the rules manifest. |
-| Where it applies | Written files, published text (`gh`, MCP tools, the Artifact page), and chat replies. | Everything the model writes from then on. |
-| How reliable it is | Deterministic. The same text gets the same alerts every time. | Not deterministic. The model follows an instruction most of the time and ignores it some of the time. |
-| What happens on a miss | An error can hold a turn, deny a publish call, or be reported on the next prompt. | Nothing, on its own. |
+|                        | Linting                                                                                  | Injection                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| What it is             | Vale runs over text and reports alerts.                                                  | The rules text is placed in the model's context.                                                      |
+| What drives it         | Vale rules, from the JustSaySo package and any package you add, selected in `.vale.ini`. | The bullets in the rules manifest.                                                                    |
+| Where it applies       | Written files, published text (`gh`, MCP tools, the Artifact page), and chat replies.    | Everything the model writes from then on.                                                             |
+| How reliable it is     | Deterministic. The same text gets the same alerts every time.                            | Not deterministic. The model follows an instruction most of the time and ignores it some of the time. |
+| What happens on a miss | An error can hold a turn, deny a publish call, or be reported on the next prompt.        | Nothing, on its own.                                                                                  |
 
 The two connect at one point. When Vale finds an error in a finished reply, the next prompt carries the rules text again, with a report of what broke. That is the plugin's answer to instructions fading as a session grows: the linter notices, and the reminder follows. It only works for a bullet that Vale rules back. A judgment rule has no linter behind it, so breaking one produces no alert and no reminder, and the only record of the miss is the one you make with `/just-say-so:restate`.
 

@@ -1,3 +1,15 @@
+/* Type: Inter for text, Space Grotesk for headings to match the wordmark.
+   Both self-hosted through Fontsource, so no request leaves the site. */
+:root {
+  --sl-font: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --jss-font-heading: 'Space Grotesk Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+}
+h1, h2, h3, h4, h5, h6,
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--jss-font-heading);
+  letter-spacing: -0.01em;
+}
+
 /* The brand blue as the accent, light and dark. */
 :root {
   --sl-color-accent-low: #e8f0fe;

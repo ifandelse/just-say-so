@@ -36,7 +36,7 @@ export default defineConfig({
         { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] }
       ],
       plugins: [starlightLinksValidator()],
-      customCss: ['./src/styles/custom.css']
+      customCss: ['@fontsource-variable/inter', '@fontsource-variable/space-grotesk', './src/styles/custom.css']
     })
   ]
 });

@@ -13,7 +13,7 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 **Vale lints the prose.** [Vale](https://vale.sh) is a prose linter. The plugin runs it at the moments the harness offers: on a file the agent just wrote, before a `gh` or MCP call publishes text, and on each finished chat reply. The agent gets the alerts in its context. Which rules apply is Vale's job, in your `.vale.ini`, so any style in Vale's ecosystem plugs in.
 
-**Judgment rules cover what a linter cannot see.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config and trims the text to match: a bullet whose rules you turned off doesn't get injected, and error-level rules of yours that no bullet describes are named.
+**Judgment rules cover what a linter cannot see.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config. A bullet backed by Vale rules you have turned off is left out, and error-level Vale rules of yours that no bullet describes are named at the end, so the agent gets the rules your project runs.
 
 **Your rejections become advice.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
 
@@ -34,7 +34,7 @@ A reply that broke a rule costs you nothing at the time. On your next prompt, th
 
 The plugin runs two kinds of rule, and the word "rule" on this site always means one or the other.
 
-**Judgment rules** are the bullets in the rules text: instructions the model follows and no linter checks. The shipped set is adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) for Simplified Technical English, minus its 900-word dictionary. They live in one file, `rules/manifest.json`, and you can add bullets of your own, reword or drop shipped ones, or replace the whole set. [The rules](/reference/the-rules/) shows the text before the plugin trims it to a project's Vale config.
+**Judgment rules** are the bullets in the rules text: instructions the model follows and no linter checks. The shipped set is adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) for Simplified Technical English, minus its 900-word dictionary. They live in one file, `rules/manifest.json`, and you can add bullets of your own, reword or drop shipped ones, or replace the whole set. [The rules](/reference/the-rules/) shows the complete text, with nothing left out and nothing added.
 
 **Vale rules** are patterns a linter matches. Four of the shipped bullets ban things a pattern can match, the buzzwords, the filler frames, the `it's not x, it's y` shape, and the empty intensifiers, and the build generates those four as the Vale rules of the JustSaySo package from the same manifest, so a bullet and the rule that checks it never disagree. Every other Vale rule comes from a package you add in `.vale.ini`, such as ai-tells.
 

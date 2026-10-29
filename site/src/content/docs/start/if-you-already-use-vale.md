@@ -13,7 +13,7 @@ Vale is a command you run on files. It knows nothing about an agent, a turn, or 
 
 **It enforces at the right moment for each target.** A file is gated at the end of the turn, when the agent can still fix it. A publish call is denied before it runs, because nothing can un-publish. A reply is counted and reported on the next prompt.
 
-**It carries the rules a linter cannot express.** "Lead with the answer" is an instruction, not a pattern. The plugin keeps the judgment rules in the model's context across session starts, compaction, and subagents, and trims them to your Vale config: a bullet whose rules you turned off disappears, and error-level rules of yours that no bullet describes are named at the end.
+**It carries the rules a linter cannot express.** "Lead with the answer" is an instruction, not a pattern. The plugin keeps the judgment rules in the model's context across session starts, compaction, and subagents. It also reads your Vale config before each injection: a bullet backed by Vale rules you turned off is left out, and error-level rules of yours that no bullet describes are named at the end.
 
 **It remembers what you rejected.** Vale has no record of the reply you found bad. `/just-say-so:restate` keeps it, with your reason and tag. The summary counts, and the advice turns recurring tags into Vale tunes, judgment bullets, and package suggestions.
 

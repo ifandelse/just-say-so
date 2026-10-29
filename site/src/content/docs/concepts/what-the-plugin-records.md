@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-Two files in the state directory hold everything the plugin keeps beyond the current session. The directory is `~/.local/state/just-say-so/` by default, or `$XDG_STATE_HOME/just-say-so`, or wherever `JUST_SAY_SO_STATE_DIR` points. Nothing is written into a project, and nothing leaves the machine.
+Two files in the state directory hold everything the plugin keeps beyond the current session. The directory is the first of these that is set: `JUST_SAY_SO_STATE_DIR`; `$CLAUDE_PLUGIN_DATA/state`, which Claude Code sets for an installed plugin; `$XDG_STATE_HOME/just-say-so`; and otherwise `~/.local/state/just-say-so/`. The doctor does not print it; `/just-say-so:packages` with no arguments names the cache directory inside it. Nothing is written into a project, and nothing leaves the machine.
 
 `rejections.jsonl` holds one record per `/just-say-so:restate`: the rejected reply, the reason and tags, the prompt that produced the reply, the model id, the distance from the last rules injection, the Vale alerts on the rejected text at every level, and the rewrite with its alerts. This is the one file that holds prose, and it holds it because the rejected and rewritten pairs are a test set for any judge that scores replies against the rules.
 

@@ -39,7 +39,26 @@ The doctor reports the file in force with its added, replaced, and dropped count
 
 ## The manifest override
 
-`rules.manifest` replaces the shipped rules outright with a file of your own in the same shape. You then get no new shipped bullets on upgrade. The generated JustSaySo style still carries the shipped terms; put your own terms in a Vale style of your own and set `JustSaySo = NO` in `.vale.ini` where you disagree. The extra file still merges on top.
+`rules.manifest` replaces the shipped rules outright with a manifest of your own. A full manifest is more than an extra file: it also carries the `title` the rules text opens with, the `intro` line under it, and `condensed`, the list of bullet ids in the order the reminder prints them. The renderer reads `condensed` to build the reminder; it does not infer the order from which bullets have a `short` text. An extra file needs none of those, because it merges into a manifest that has them.
+
+```json
+{
+  "title": "House rules",
+  "intro": "Apply to all prose: chat, docs, reports, answers.",
+  "condensed": ["lead", "define-on-first-use"],
+  "sections": [
+    {
+      "title": "Shape",
+      "rules": [
+        { "id": "lead", "full": "Lead with the answer, decision, result, or required action.", "short": "Lead with the answer.", "vale": [] },
+        { "id": "define-on-first-use", "full": "On first use of a term the reader may not know, define it in the same sentence.", "short": "Define a term on first use.", "vale": [] }
+      ]
+    }
+  ]
+}
+```
+
+A bullet left out of `condensed` appears in the full text only. You then get no new shipped bullets on upgrade. The generated JustSaySo style still carries the shipped terms; put your own terms in a Vale style of your own and set `JustSaySo = NO` in `.vale.ini` where you disagree. The extra file still merges on top.
 
 ## Messages
 

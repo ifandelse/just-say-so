@@ -7,7 +7,7 @@ sidebar:
 
 ## What it does
 
-Loads the full rules text into the conversation and tells the model to apply it to all output for the rest of the session. The full text is what a context start injects by default; this command puts it in front of you too, and re-asserts it in a harness that has no hooks.
+Loads the full rules text into the conversation and tells the model to apply it to all output for the rest of the session. It prints the manifest's text as rendered, with your extra file merged in. A context start injects the same text after one adjustment to your Vale config, dropping bullets whose rules are off and naming undescribed error-level rules; this command makes no such adjustment. Use it to read the rules, and to re-assert them in a harness that has no hooks.
 
 ## Synopsis
 
@@ -25,7 +25,7 @@ Reads the manifest in force, with your extra file merged in. Writes nothing.
 
 ## What it prints
 
-The full rules text, rendered from the manifest, with "Checked by" after each bullet that Vale rules back.
+The full rules text, rendered from the manifest, with "Checked by" after each bullet that Vale rules back. Not adjusted to the Vale config.
 
 ## Example
 

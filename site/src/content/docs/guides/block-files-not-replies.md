@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-**Goal.** A file the agent writes cannot end the turn with an error-level alert in it, while a reply that breaks a rule is reported on the next prompt and never rewritten in front of you.
+**Goal.** An error-level alert on a line the agent added cannot end the turn, while a reply that breaks a rule is reported on the next prompt and never rewritten in front of you.
 
 **Precondition.** The plugin is installed and the project has a `.vale.ini`.
 
@@ -29,4 +29,4 @@ Put the same JSON in `~/.config/just-say-so/just-say-so.json`. A project file wi
 
 ## What block does at the end of a turn
 
-A gate re-lints every file this session wrote and holds the turn while any carries an error-level alert. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. A term that keeps tripping it is a case for [allowing the term](/guides/allow-a-term/). The gate only sees files written through the file tools; the [commit gate](/guides/commit-gate/) covers the rest.
+The edit-time check records the error-level alerts on lines each edit added. At the end of the turn a gate re-lints those files and holds the turn while any recorded alert remains. An error on a line the agent did not touch is not recorded and does not hold the turn. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. A term that keeps tripping it is a case for [allowing the term](/guides/allow-a-term/). The gate only sees files written through the file tools; the [commit gate](/guides/commit-gate/) covers the rest.

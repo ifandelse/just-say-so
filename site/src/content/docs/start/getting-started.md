@@ -62,7 +62,7 @@ Start a new session in the project. The rules text goes out at every context sta
 /just-say-so:rules
 ```
 
-That loads the full text into the conversation. It opens with "Lead with the answer, decision, result, or required action."
+That loads the full text into the conversation, as the manifest renders it. The hooks inject the same text after trimming it to your Vale config, which changes nothing on a fresh setup. It opens with "Lead with the answer, decision, result, or required action."
 
 ## 5. Write a file and read the check
 

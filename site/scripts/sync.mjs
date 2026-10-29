@@ -24,6 +24,7 @@ fs.mkdirSync(out, { recursive: true });
 
 function frontmatter(title, extra = {}) {
   const lines = ['---', `title: ${JSON.stringify(title)}`];
+  // Generated pages are gitignored, so "Edit page" must point at the source.
   for (const [k, v] of Object.entries(extra)) lines.push(`${k}: ${JSON.stringify(v)}`);
   lines.push('---', '');
   return lines.join('\n');
@@ -52,7 +53,7 @@ for (const name of pages) {
   const m = /^#\s+(.+?)\s*$/m.exec(text);
   const title = m ? m[1] : slug;
   const body = m ? text.slice(m.index + m[0].length) : text;
-  fs.writeFileSync(path.join(out, name), frontmatter(title, { sidebar: { order: rank === -1 ? 100 : rank + 1 } }) + rewriteLinks(body.trimStart()));
+  fs.writeFileSync(path.join(out, name), frontmatter(title, { sidebar: { order: rank === -1 ? 100 : rank + 1 }, editUrl: `https://github.com/ifandelse/just-say-so/edit/main/docs/${name}` }) + rewriteLinks(body.trimStart()));
 }
 
 const manifest = JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
@@ -60,7 +61,7 @@ const manifest = JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
 const rules = renderRules(manifest, 'full').replace(/^## [^\n]*\n\n/, '');
 fs.writeFileSync(
   path.join(out, 'the-rules.md'),
-  frontmatter('The rules', { sidebar: { order: 0 }, description: 'The communication rules the plugin injects, rendered from rules/manifest.json.' }) +
+  frontmatter('The rules', { sidebar: { order: 0 }, description: 'The communication rules the plugin injects, rendered from rules/manifest.json.', editUrl: 'https://github.com/ifandelse/just-say-so/edit/main/rules/manifest.json' }) +
     `This page is rendered from [rules/manifest.json](${GITHUB}/rules/manifest.json) at build time. It is the full text, the one a context start injects; the condensed reminder is the short form of the same bullets. "Checked by" names the Vale rules behind a bullet; a bullet without one is a judgment rule.\n\n` +
     rules
 );

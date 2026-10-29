@@ -7,7 +7,7 @@ sidebar:
 
 ## What it does
 
-Injects the condensed reminder, the short texts of the bullets, the way the hook does on the prompt after a violation. Useful in a harness without hooks, and when you want the rules reasserted without loading the full text.
+Injects the condensed reminder, the short texts of the bullets, as the manifest renders them. The hook that fires on the prompt after a violation injects the same reminder after adjusting it to your Vale config and adds the report of what broke; this command makes no adjustment and carries no report. Useful in a harness without hooks, and when you want the rules reasserted without loading the full text.
 
 ## Synopsis
 

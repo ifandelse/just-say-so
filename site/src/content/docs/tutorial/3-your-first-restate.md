@@ -21,7 +21,7 @@ The model rewrites the reply under the rules. It keeps every fact, number, path,
 
 ## What was recorded
 
-The plugin read the rejected reply from the transcript, so the record holds what the model wrote and not what it remembers writing. It saved one line to `rejections.jsonl` in your state directory, which is `~/.local/state/just-say-so/` unless you moved it, with the rejected reply, your reason as typed, the tag `undefined-term`, the prompt that produced the reply, and the Vale alerts on the rejected text at every level. When the rewrite landed, it joined the record with its own alerts.
+The plugin read the rejected reply from the transcript, so the record holds what the model wrote and not what it remembers writing. It saved one line to `rejections.jsonl` in your state directory, which for an installed plugin is `$CLAUDE_PLUGIN_DATA/state` and otherwise `~/.local/state/just-say-so/` unless `JUST_SAY_SO_STATE_DIR` or `XDG_STATE_HOME` moves it, with the rejected reply, your reason as typed, the tag `undefined-term`, the prompt that produced the reply, and the Vale alerts on the rejected text at every level. When the rewrite landed, it joined the record with its own alerts.
 
 Nothing was written into the project. Nothing leaves your machine.
 

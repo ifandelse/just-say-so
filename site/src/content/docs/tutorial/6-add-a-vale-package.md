@@ -24,9 +24,9 @@ BasedOnStyles = JustSaySo, ai-tells
 
 Run `vale sync`. [ai-tells](https://github.com/tbhb/vale-ai-tells) is a community package of 137 rules that flag the fingerprints of AI prose, every one at error level, and it pairs well with the shipped rules.
 
-## See the reminder change
+## See what the agent will get
 
-Start a new session and run `/just-say-so:rules`. The text now ends with a line naming ai-tells rules at error level that no bullet describes, twelve at most, with a count of the rest. The model knows the names and nothing else about them. The doctor's `reply` target now shows two styles.
+Run `/just-say-so:doctor`. The `reply` target now shows two styles: `JustSaySo 6 of 6 rules on · ai-tells 137 of 137 rules on`. That is what the hooks read before each injection. From the next context start, the rules text the agent gets ends with a line naming ai-tells rules at error level that no bullet describes, twelve at most, with a count of the rest. The model knows the names and nothing else about them. `/just-say-so:rules` does not show that line; it prints the manifest's text without the adjustment.
 
 ## Draft the bullets
 

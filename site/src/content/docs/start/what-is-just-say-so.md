@@ -32,7 +32,7 @@ A reply that broke a rule costs you nothing at the time. On your next prompt, th
 
 ## Where the rules come from
 
-The shipped rules are adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) for Simplified Technical English, minus its 900-word dictionary. They live in one file, `rules/manifest.json`, which renders the full text, the condensed reminder, and the Vale rules that check the banned terms, so the three never disagree. You can add bullets of your own, reword or drop shipped ones, or replace the whole set. [The rules](/reference/the-rules/) shows the text as the plugin injects it.
+The shipped rules are adapted from the [ASD-STE100 standard](https://www.asd-ste100.org/) for Simplified Technical English, minus its 900-word dictionary. They live in one file, `rules/manifest.json`, which renders the full text, the condensed reminder, and the Vale rules that check the banned terms, so the three never disagree. You can add bullets of your own, reword or drop shipped ones, or replace the whole set. [The rules](/reference/the-rules/) shows the text before the plugin trims it to a project's Vale config.
 
 ## Next
 

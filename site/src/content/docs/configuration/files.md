@@ -17,7 +17,7 @@ The `files` target is every file the agent writes through the file tools. After 
 | --- | --- |
 | `off` | No file checks. |
 | `warn` | The default. The agent gets the alerts and is told to fix the errors before finishing. The turn can still end with errors in the file. |
-| `block` | Adds a gate at the end of the turn: while any file this session wrote still carries an error-level alert, the turn is held and the agent is told to fix it. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. |
+| `block` | Adds a gate at the end of the turn. The edit-time check records the error-level alerts on the lines each edit added; the gate re-lints those files and holds the turn while any recorded alert remains. An error on a line the agent did not touch is not recorded and does not hold the turn. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. |
 
 ## show
 

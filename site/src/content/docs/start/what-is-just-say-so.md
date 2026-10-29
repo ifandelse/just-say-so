@@ -11,11 +11,11 @@ Agents talk down to you and in shorthand at the same time. The files, pull reque
 
 ## Three pillars
 
-**Vale lints the prose.** [Vale](https://vale.sh) is a prose linter. The plugin runs it at the moments the harness offers: on a file the agent just wrote, before a `gh` or MCP call publishes text, and on each finished chat reply. The agent gets the alerts in its context. Which rules apply is Vale's job, in your `.vale.ini`, so any style in Vale's ecosystem plugs in.
+**Proactive communication rules.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config. A bullet backed by Vale rules you have turned off is left out, and error-level Vale rules of yours that no bullet describes are named at the end, so the agent gets the rules your project runs.
 
-**Judgment rules cover what a linter cannot see.** "Lead with the answer" and "define a term on first use" are instructions the model follows, not patterns Vale can match. The plugin injects the rules text at every context start, into every subagent when it spawns, and again on the prompt after a reply broke a rule. Before each injection it reads your Vale config. A bullet backed by Vale rules you have turned off is left out, and error-level Vale rules of yours that no bullet describes are named at the end, so the agent gets the rules your project runs.
+**Linting of generated text.** [Vale](https://vale.sh) is a prose linter. The plugin runs it at the moments the harness offers: on a file the agent just wrote, before a `gh` or MCP call publishes text, and on each finished chat reply. The agent gets the alerts in its context. Which rules apply is Vale's job, in your `.vale.ini`, so any style in Vale's ecosystem plugs in.
 
-**Your rejections become advice.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
+**Guided self-improvement.** When a reply is bad in a way you noticed, `/just-say-so:restate` has the model rewrite it and records the miss with a tag. The records build into a summary of what breaks and how often. Once a tag recurs, `/just-say-so:advise` turns it into a change to make: a Vale setting, a judgment bullet, or a Vale package to install.
 
 ## Linting and rules injection
 

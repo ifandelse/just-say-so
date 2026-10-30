@@ -54,6 +54,7 @@ describe('style-gen', () => {
                     level: 'error',
                     terms: [
                       { term: 'flumoxide' },
+                      { term: 'quuxly', checkedBy: 'acme.Quux' },
                       { term: 'calzone cannon' },
                       { term: 'utilize', hint: 'use "use"' },
                       { term: 'leverage', hint: 'use a concrete verb: use, apply, rely on' }
@@ -82,8 +83,9 @@ describe('style-gen', () => {
         });
       });
 
-      it('should put hintless words and phrases in the block\'s own rule', () => {
+      it('should put hintless words and phrases in the block\'s own rule and leave out a term a bundled rule checks', () => {
         expect(files['Buzzwords.yml']).toContain('(?<![\\\\w-])flumoxide(?![\\\\w-])');
+        expect(files['Buzzwords.yml']).not.toContain('quuxly');
         expect(files['Buzzwords.yml']).toContain('calzone[\\\\s\\\\u00A0-]+cannon');
       });
 

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  checkedTerms,
   loadManifest,
   loadExtra,
   renderRules,
@@ -369,6 +370,41 @@ describe('manifest', () => {
         .filter((id) => id.startsWith('JustSaySo.'))
         .sort();
       expect(named).toEqual(generated);
+    });
+  });
+  describe('when the manifest marks terms as checked by a bundled rule', () => {
+    let pairs, unlisted, named, missing;
+
+    beforeEach(() => {
+      const manifest = JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
+      pairs = checkedTerms(manifest);
+      unlisted = pairs.filter((p) => !p.vale.includes(p.checkedBy)).map((p) => p.term);
+      const stylesDir = path.join(ROOT, 'styles');
+      const exists = (id) => {
+        const [style, ...rest] = id.split('.');
+        return fs.existsSync(path.join(stylesDir, style, `${rest.join('/')}.yml`));
+      };
+      named = valeIds(manifest);
+      missing = named.filter((id) => !exists(id));
+    });
+
+    it('should name each checking rule in the bullet\'s vale list and name only rules that exist under styles/', () => {
+      expect({ terms: pairs.length > 0, unlisted, missing }).toEqual({ terms: true, unlisted: [], missing: [] });
+    });
+  });
+
+  describe('when a bullet names more than four Vale rules', () => {
+    let text;
+
+    beforeEach(() => {
+      text = renderRules(
+        { title: 'T', intro: 'i', sections: [{ title: 's', rules: [{ id: 'a', full: 'A.', vale: ['x.1', 'x.2', 'x.3', 'x.4', 'x.5'] }] }] },
+        'full'
+      );
+    });
+
+    it('should give the count and the first three names', () => {
+      expect(text).toContain('- A. Checked by 5 Vale rules, among them x.1, x.2, x.3.');
     });
   });
 });

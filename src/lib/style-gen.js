@@ -83,7 +83,8 @@ function token(term) {
  * existence rule named after it. A term with a drop-in hint (`use "to"`)
  * moves to the shared Substitutions rule, which carries the replacement;
  * a term with any other hint gets a rule of its own named after the term,
- * so the hint survives as the message. Patterns are raw regexes.
+ * so the hint survives as the message. A term with `checkedBy` is
+ * skipped. Patterns are raw regexes.
  */
 export function buildStyleFiles(manifest) {
   const files = {};
@@ -92,6 +93,9 @@ export function buildStyleFiles(manifest) {
   for (const spec of styleSpecs(manifest)) {
     const tokens = [];
     for (const entry of spec.terms ?? []) {
+      // A term a bundled rule already reports stays in the rules text and
+      // out of this style, so one word raises one alert.
+      if (entry.checkedBy) continue;
       const replacement = dropInReplacement(entry.hint);
       if (replacement) swap[token(entry.term)] = replacement;
       else if (entry.hint) {

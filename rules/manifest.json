@@ -1,11 +1,12 @@
 {
-  "$comment": "The one source for the communication rules. scripts/build.js renders rules/full.md and rules/condensed.md from it and generates styles/JustSaySo/ from the rules that carry a `style` block; a test fails when any of the three drift. Each rule has an id, the `full` text, an optional `short` text for the condensed reminder, and `vale`: the Vale rules that check it (an empty list is a judgment rule nothing lints). `condensed` lists the ids in reminder order.",
+  "$comment": "The one source for the communication rules. scripts/build.js renders rules/full.md and rules/condensed.md from it and generates styles/JustSaySo/ from the rules that carry a `style` block; a test fails when any of the three drift. Each rule has an id, the `full` text, an optional `short` text for the condensed reminder, and `vale`: the Vale rules that check it (an empty list is a judgment rule nothing lints). `condensed` lists the ids in reminder order. A term with `checkedBy` is listed in the text but left out of the generated style, because the named bundled rule already reports it; the bullet's `vale` list names that rule.",
   "title": "Communication rules",
   "intro": "Apply to all prose: chat, explanations, docs, reports, answers.",
   "condensed": [
     "lead-with-answer",
     "precise-term",
     "keep-substance",
+    "checkable-claims",
     "one-idea",
     "active-voice",
     "simple-tenses",
@@ -14,6 +15,7 @@
     "noun-clusters",
     "paragraph-topic",
     "end-with-fact",
+    "punctuation",
     "keep-function-words",
     "buzzwords",
     "negative-parallelism",
@@ -31,7 +33,13 @@
           "id": "precise-term",
           "full": "Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one.",
           "short": "Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one.",
-          "vale": []
+          "vale": [
+            "STE.Ambiguity",
+            "ai-tells.IncompleteComparison",
+            "ai-tells.FigurativeWorth",
+            "ai-tells.FigurativeEarns",
+            "ai-tells.FigurativeMints"
+          ]
         },
         {
           "id": "define-on-first-use",
@@ -48,6 +56,16 @@
           "full": "Do not remove information the reader needs. Remove information they do not need. Simplify the sentence, not the substance.",
           "short": "Do not remove information the reader needs. Remove information they do not need. Simplify the sentence, not the substance.",
           "vale": []
+        },
+        {
+          "id": "checkable-claims",
+          "full": "Claims you can check. Do not write \"the only way\", \"handles all edge cases\", or \"every concern is addressed\" unless you checked every case. Say which cases you checked.",
+          "short": "Do not claim \"the only way\" or \"every case\" unless you checked every case. Say which cases you checked.",
+          "vale": [
+            "ai-tells.AbsoluteAssertions",
+            "ai-tells.UniversalObject",
+            "ai-tells.UniversalSubject"
+          ]
         }
       ]
     },
@@ -59,24 +77,43 @@
           "id": "lead-with-answer",
           "full": "Lead with the answer, decision, result, or required action.",
           "short": "Lead with the answer, decision, result, or required action.",
-          "vale": []
+          "vale": [
+            "ai-tells.CataphoricForecasting",
+            "ai-tells.ExplainerLeads",
+            "ai-tells.RhetoricalDevices",
+            "ai-tells.RhetoricalSelfAnswer"
+          ]
         },
         {
           "id": "headings-and-lists",
           "full": "Use descriptive headings and lists when they make longer text easier to scan.",
-          "vale": []
+          "vale": [
+            "ai-tells.AnnouncementHeadings",
+            "ai-tells.MarketingHeadings",
+            "ai-tells.WrapUpHeadings",
+            "ai-tells.MicDropHeadings"
+          ]
         },
         {
           "id": "one-idea",
           "full": "One idea per sentence. Most sentences under 20 words.",
           "short": "One idea per sentence. Most sentences under 20 words.",
-          "vale": ["STE.SentenceLength"]
+          "vale": [
+            "STE.SentenceLength",
+            "ai-tells.ConsequenceClause",
+            "ai-tells.ConsequenceParticiple",
+            "ai-tells.ScopePartition",
+            "ai-tells.VerbTricolonDensity",
+            "STE.OneInstruction"
+          ]
         },
         {
           "id": "active-voice",
           "full": "Prefer active voice with a named actor (for example: \"the scheduler retries the job,\" not \"the job is retried\"). Use passive voice when the actor is unknown or irrelevant.",
           "short": "Prefer active voice with a named actor. Use passive voice when the actor is unknown or irrelevant.",
-          "vale": ["STE.PassiveVoice"]
+          "vale": [
+            "STE.PassiveVoice"
+          ]
         },
         {
           "id": "simple-tenses",
@@ -94,31 +131,108 @@
           "id": "concrete-words",
           "full": "Concrete verbs and nouns over abstractions.",
           "short": "Concrete verbs and nouns over abstractions.",
-          "vale": ["ai-tells.AbstractionSubject"]
+          "vale": [
+            "ai-tells.AbstractionSubject",
+            "ai-tells.ServesAsDodge",
+            "ai-tells.PseudoCleft",
+            "ai-tells.ShellNounCopula",
+            "ai-tells.NominalizedScopeChange",
+            "ai-tells.UnderRegime",
+            "ai-tells.FigurativeQuantities",
+            "ai-tells.FigurativeNouns"
+          ]
         },
         {
           "id": "noun-clusters",
           "full": "Noun clusters: three words maximum. Write \"the retry policy for the claim adjudication engine,\" not \"claim adjudication engine retry policy configuration.\"",
           "short": "Noun clusters: three words maximum.",
-          "vale": ["STE.NounClusters", "ai-tells.NounString"]
+          "vale": [
+            "STE.NounClusters",
+            "ai-tells.NounString"
+          ]
         },
         {
           "id": "paragraph-topic",
           "full": "Give each paragraph one topic. Keep most paragraphs under six sentences.",
           "short": "Give each paragraph one topic.",
-          "vale": ["STE.ParagraphLength"]
+          "vale": [
+            "STE.ParagraphLength"
+          ]
         },
         {
           "id": "keep-function-words",
           "full": "Keep articles and relative pronouns. Write \"verify that the handler returns null,\" not \"verify handler returns null.\" Do not drop function words to save space.",
           "short": "Keep articles and relative pronouns. Do not drop function words to save space.",
-          "vale": ["STE.Articles"]
+          "vale": [
+            "STE.Articles"
+          ]
         },
         {
           "id": "end-with-fact",
           "full": "End paragraphs with a fact or an instruction, never a flourish. The last sentence of an argument is where trained habit inserts an invented metaphor, personified code (\"the config lies,\" \"the field is a trap\"), or the same point restated in stronger words. If the closing sentence adds no information, delete it.",
           "short": "End paragraphs with a fact, not a flourish. No invented metaphors, no personified code, no closing restatement.",
-          "vale": ["ai-tells.MicDrop", "ai-tells.PointVerdict", "ai-tells.AnthropomorphicCognition", "ai-tells.FigurativeIdioms"]
+          "vale": [
+            "ai-tells.MicDrop",
+            "ai-tells.PointVerdict",
+            "ai-tells.AnthropomorphicCognition",
+            "ai-tells.FigurativeIdioms",
+            "ai-tells.FigurativeCarries",
+            "ai-tells.FigurativeCasts",
+            "ai-tells.FigurativeClears",
+            "ai-tells.FigurativeDemands",
+            "ai-tells.FigurativeDisguises",
+            "ai-tells.FigurativeDraws",
+            "ai-tells.FigurativeFalls",
+            "ai-tells.FigurativeFires",
+            "ai-tells.FigurativeHolds",
+            "ai-tells.FigurativeKeeps",
+            "ai-tells.FigurativeLands",
+            "ai-tells.FigurativeLends",
+            "ai-tells.FigurativeLives",
+            "ai-tells.FigurativeLoud",
+            "ai-tells.FigurativeOwns",
+            "ai-tells.FigurativePays",
+            "ai-tells.FigurativeQuiet",
+            "ai-tells.FigurativeReaches",
+            "ai-tells.FigurativeRides",
+            "ai-tells.FigurativeRuns",
+            "ai-tells.FigurativeSees",
+            "ai-tells.FigurativeSettles",
+            "ai-tells.FigurativeShape",
+            "ai-tells.FigurativeSits",
+            "ai-tells.FigurativeStays",
+            "ai-tells.FigurativeStrikes",
+            "ai-tells.FigurativeSurfaces",
+            "ai-tells.FigurativeSweeps",
+            "ai-tells.FigurativeTravels",
+            "ai-tells.FigurativeTrips",
+            "ai-tells.FigurativeWins",
+            "ai-tells.FigurativeBreeds",
+            "ai-tells.BareReaches",
+            "ai-tells.DepletionMetaphors",
+            "ai-tells.EnforcementMetaphors",
+            "ai-tells.EvasionMetaphors",
+            "ai-tells.FusionMetaphors",
+            "ai-tells.JourneyMetaphors",
+            "ai-tells.MortalityMetaphors",
+            "ai-tells.MotionMetaphors",
+            "ai-tells.AnthropomorphicJustification",
+            "ai-tells.StackedAnaphora",
+            "ai-tells.ParallelStaccato",
+            "ai-tells.ColloquialAssessments",
+            "ai-tells.AffirmativeFormulas",
+            "ai-tells.NarrativePivots"
+          ]
+        },
+        {
+          "id": "punctuation",
+          "full": "Punctuation. No em dashes. A semicolon joins two clauses only when the second has its own comma. Otherwise write two sentences. A literal `--` belongs in a code span.",
+          "short": "No em dashes. A semicolon joins two clauses only when the second has its own comma; otherwise write two sentences.",
+          "vale": [
+            "ai-tells.EmDashUsage",
+            "ai-tells.SemicolonUsage",
+            "ai-tells.DoubleHyphen"
+          ]
         }
       ]
     },
@@ -129,28 +243,91 @@
           "id": "buzzwords",
           "full": "These buzzwords are banned in vague or ornamental usage: {terms}. When these words have precise meaning or are relevant to the domain, use them.",
           "short": "These buzzwords are banned in vague or ornamental usage: {terms}. When these words have precise meaning or are relevant to the domain, use them.",
-          "vale": ["JustSaySo.Buzzwords", "JustSaySo.Leverage", "JustSaySo.Substitutions", "ai-tells.StrategyBuzzwords"],
+          "vale": [
+            "JustSaySo.Buzzwords",
+            "ai-tells.StrategyBuzzwords",
+            "ai-tells.OverusedVocabulary",
+            "ai-tells.OverusedVocabularyVerbs",
+            "ai-tells.AIAdjectiveNounPairs",
+            "ai-tells.AICompoundPhrases",
+            "ai-tells.FormalRegister",
+            "ai-tells.GrowthMetaphors",
+            "ai-tells.ResonateOveruse",
+            "ai-tells.PromotionalPuffery",
+            "ai-tells.RedundantPrecaution",
+            "ai-tells.AnthropomorphicJustification",
+            "ai-tells.FigurativeIdioms",
+            "ai-tells.FillerPhrases"
+          ],
           "style": {
             "name": "Buzzwords",
             "message": "Banned buzzword: '%s'. Use a precise domain term or delete it.",
             "level": "error",
             "terms": [
-              { "term": "leverage", "hint": "use a concrete verb: use, apply, rely on" },
-              { "term": "robust" },
-              { "term": "seamless" },
-              { "term": "holistic" },
-              { "term": "streamline" },
-              { "term": "empower" },
-              { "term": "cutting-edge" },
-              { "term": "game-changing" },
-              { "term": "synergy" },
-              { "term": "delve" },
-              { "term": "utilize", "hint": "use \"use\"" },
-              { "term": "structural spine" },
-              { "term": "load bearing" },
-              { "term": "blast radius" },
-              { "term": "belt-and-suspenders" },
-              { "term": "honest take" }
+              {
+                "term": "leverage",
+                "hint": "use a concrete verb: use, apply, rely on",
+                "checkedBy": "ai-tells.OverusedVocabularyVerbs"
+              },
+              {
+                "term": "robust",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "seamless"
+              },
+              {
+                "term": "holistic",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "streamline",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "empower",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "cutting-edge",
+                "checkedBy": "ai-tells.AICompoundPhrases"
+              },
+              {
+                "term": "game-changing",
+                "checkedBy": "ai-tells.AICompoundPhrases"
+              },
+              {
+                "term": "synergy",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "delve",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "utilize",
+                "hint": "use \"use\"",
+                "checkedBy": "ai-tells.FormalRegister"
+              },
+              {
+                "term": "structural spine"
+              },
+              {
+                "term": "load bearing",
+                "checkedBy": "ai-tells.AnthropomorphicJustification"
+              },
+              {
+                "term": "blast radius",
+                "checkedBy": "ai-tells.FigurativeIdioms"
+              },
+              {
+                "term": "belt-and-suspenders",
+                "checkedBy": "ai-tells.RedundantPrecaution"
+              },
+              {
+                "term": "honest take",
+                "checkedBy": "ai-tells.FillerPhrases"
+              }
             ]
           }
         },
@@ -158,7 +335,16 @@
           "id": "negative-parallelism",
           "full": "Any format of \"it's not {x}, it's {y}\".",
           "short": "Banned: any format of \"it's not {x}, it's {y}\".",
-          "vale": ["JustSaySo.NegativeParallelism", "ai-tells.ContrastiveNegation"],
+          "vale": [
+            "JustSaySo.NegativeParallelism",
+            "ai-tells.ContrastiveNegation",
+            "ai-tells.ContrastiveFormulas",
+            "ai-tells.StrawmanContrast",
+            "ai-tells.CoordinatedReveal",
+            "ai-tells.NegatedPair",
+            "ai-tells.NegatedSubject",
+            "ai-tells.NegatedObject"
+          ],
           "style": {
             "name": "NegativeParallelism",
             "message": "Banned frame: '%s'. State the positive claim directly.",
@@ -175,16 +361,47 @@
           "id": "filler-frames",
           "full": "Filler frames: {terms}.",
           "short": "Banned filler frames: {terms}.",
-          "vale": ["JustSaySo.FillerFrames", "JustSaySo.Substitutions", "ai-tells.FillerPhrases"],
+          "vale": [
+            "JustSaySo.FillerFrames",
+            "ai-tells.FillerPhrases",
+            "ai-tells.HedgingPhrases",
+            "ai-tells.FormalTransitions",
+            "ai-tells.ParticipialPadding",
+            "ai-tells.Metacommentary",
+            "ai-tells.ListIntroductions",
+            "ai-tells.StructureAnnouncements",
+            "ai-tells.UnpackExplore",
+            "ai-tells.SequencingMarkers",
+            "ai-tells.OpeningCliches",
+            "ai-tells.ClosingPleasantries",
+            "ai-tells.ConclusionMarkers",
+            "ai-tells.SycophancyMarkers",
+            "ai-tells.LabelAndExplain"
+          ],
           "style": {
             "name": "FillerFrames",
             "message": "Banned filler frame: '%s'. Delete it and state the point directly.",
             "level": "error",
             "terms": [
-              { "term": "It's important to note", "quote": true },
-              { "term": "It should be noted that", "quote": true },
-              { "term": "In today's landscape", "quote": true },
-              { "term": "In order to", "quote": true, "hint": "use \"to\"" }
+              {
+                "term": "It's important to note",
+                "quote": true
+              },
+              {
+                "term": "It should be noted that",
+                "quote": true,
+                "checkedBy": "ai-tells.HedgingPhrases"
+              },
+              {
+                "term": "In today's landscape",
+                "quote": true
+              },
+              {
+                "term": "In order to",
+                "quote": true,
+                "hint": "use \"to\"",
+                "checkedBy": "ai-tells.FillerPhrases"
+              }
             ]
           }
         },
@@ -192,25 +409,61 @@
           "id": "intensifiers",
           "full": "Empty intensifiers: {terms}. Replace them with a measurement or a concrete consequence.",
           "short": "Empty intensifiers: {terms}. Replace them with a measurement or a concrete consequence.",
-          "vale": ["JustSaySo.Intensifiers", "ai-tells.FillerIntensifier"],
+          "vale": [
+            "JustSaySo.Intensifiers",
+            "ai-tells.FillerIntensifier",
+            "ai-tells.OverusedVocabulary",
+            "ai-tells.EmphaticCopula",
+            "ai-tells.EmptyPaddingStacked"
+          ],
           "style": {
             "name": "Intensifiers",
             "message": "Empty intensifier: '%s'. Replace it with a measurement or a concrete consequence.",
             "level": "suggestion",
-            "terms": [{ "term": "very" }, { "term": "truly" }, { "term": "crucial" }, { "term": "vital" }]
+            "terms": [
+              {
+                "term": "very"
+              },
+              {
+                "term": "truly"
+              },
+              {
+                "term": "crucial",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              },
+              {
+                "term": "vital",
+                "checkedBy": "ai-tells.OverusedVocabulary"
+              }
+            ]
           }
         },
         {
           "id": "no-restating",
           "full": "Restating the question, re-summarizing what was just said, or repeating a point in new words.",
           "short": "Restating the question, re-summarizing what was just said, or repeating a point in new words.",
-          "vale": ["ai-tells.RestatementMarkers", "ai-tells.SummativeAppositive"]
+          "vale": [
+            "ai-tells.RestatementMarkers",
+            "ai-tells.SummativeAppositive",
+            "ai-tells.SelfReference",
+            "ai-tells.HollowAcknowledgment"
+          ]
         },
         {
           "id": "hedge-frames",
           "full": "Banned hedge frames: \"It's important to note,\" \"This may seem X, but,\" stacked hedges. Bare may/might/could are allowed when they state real uncertainty or permission. If uncertain, state what is uncertain and why.",
           "short": "Banned hedge frames (\"It's important to note,\" \"This may seem X, but,\" stacked hedges). Bare may/might/could are allowed for real uncertainty or permission. If uncertain, state what is uncertain and why.",
-          "vale": ["ai-tells.HedgingPhrases", "ai-tells.DefensiveHedges", "ai-tells.StackedHedges"]
+          "vale": [
+            "ai-tells.HedgingPhrases",
+            "ai-tells.DefensiveHedges",
+            "ai-tells.StackedHedges",
+            "ai-tells.DespiteChallenges",
+            "ai-tells.FalseBalance",
+            "ai-tells.FalseExclusivity",
+            "ai-tells.UrgencyInflation",
+            "ai-tells.VagueAttributions",
+            "ai-tells.OrganicConsequence"
+          ]
         }
       ]
     },
@@ -220,9 +473,11 @@
       "rules": [
         {
           "id": "final-check",
-          "full": "Delete any sentence whose removal loses nothing. Check the last sentence of each paragraph first — flourish concentrates there.",
+          "full": "Delete any sentence whose removal loses nothing. Check the last sentence of each paragraph first, where flourish concentrates.",
           "short": "Delete any sentence whose removal loses nothing.",
-          "vale": ["ai-tells.EmptyPadding"]
+          "vale": [
+            "ai-tells.EmptyPadding"
+          ]
         }
       ]
     }

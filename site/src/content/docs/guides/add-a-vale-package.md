@@ -11,12 +11,12 @@ sidebar:
 
 ## Steps
 
-1. Add the package to `Packages`, and add its style to `BasedOnStyles` in a section for the formats you want, restating the bundled styles:
+1. Add the package to `Packages`, and add its style to `BasedOnStyles` in a section for the targets you want, restating the bundled styles. The reminder and `/just-say-so:draft` read the `reply.reply` target, so include `*.reply` when you want them to see the package:
 
    ```ini
    Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip, Google
 
-   [*.md]
+   [{*.md,*.reply}]
    BasedOnStyles = JustSaySo, ai-tells, STE, Google
    ```
 

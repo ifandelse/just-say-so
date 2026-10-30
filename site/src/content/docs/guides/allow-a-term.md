@@ -23,7 +23,7 @@ sidebar:
 
 ## Spelling and case
 
-An entry is a case-sensitive regular expression. `robust regression` does not cover `Robust regression` at the start of a sentence. Run the command once per spelling, or edit `accept.txt` and write `[Rr]obust regression`. Quote the whole collocation, not the bare word. The exemption then covers the one use and not every `robust`.
+An entry is a case-sensitive regular expression. `robust regression` does not cover `Robust regression` at the start of a sentence. Run the command once per spelling, or edit `accept.txt` and write `[Rr]obust regression`. Quote the whole collocation, not the bare word. The exemption then covers the one use and not every `robust`. The command drops a final period from the term, because Vale matches an entry against the words around the flagged term and an entry that ends in a period matches nothing. A rule that matches by part of speech, such as the verb rules in ai-tells, may report a word only inside a sentence, so quote the sentence when the flagged word is a verb.
 
 ## When the vocabulary cannot help
 

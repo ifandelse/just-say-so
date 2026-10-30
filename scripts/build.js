@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildStyleFiles } from '../src/lib/style-gen.js';
-import { renderRules, checkedTerms, shippedManifestPath } from '../src/lib/manifest.js';
+import { renderRules, shippedManifestPath } from '../src/lib/manifest.js';
 import { readPackages, renderValeSections, spliceGenerated } from '../src/lib/packages.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,7 +25,7 @@ fs.writeFileSync(path.join(root, 'rules', 'full.md'), renderRules(manifest, 'ful
 fs.writeFileSync(path.join(root, 'rules', 'condensed.md'), renderRules(manifest, 'condensed'));
 
 // The bundled rules that cover the manifest's banned terms run on code comments too.
-const block = renderValeSections(readPackages(), { codeRules: checkedTerms(manifest).map((t) => t.checkedBy) });
+const block = renderValeSections(readPackages());
 const configs = [path.join(root, 'vale', 'fallback.ini'), path.join(root, '.vale.ini')];
 for (const file of configs) {
   fs.writeFileSync(file, spliceGenerated(fs.readFileSync(file, 'utf8'), block));

@@ -1,5 +1,5 @@
 {
-  "$comment": "The one source for the communication rules. scripts/build.js renders rules/full.md and rules/condensed.md from it and generates styles/JustSaySo/ from the rules that carry a `style` block; a test fails when any of the three drift. Each rule has an id, the `full` text, an optional `short` text for the condensed reminder, and `vale`: the Vale rules that check it (an empty list is a judgment rule nothing lints). `condensed` lists the ids in reminder order. A term with `checkedBy` is listed in the text but left out of the generated style, because the named bundled rule already reports it; the bullet's `vale` list names that rule.",
+  "$comment": "The one source for the communication rules. scripts/build.js renders rules/full.md and rules/condensed.md from it and generates styles/JustSaySo/ from the rules that carry a `style` block; a test fails when any of the three drift. Each rule has an id, the `full` text, an optional `short` text for the condensed reminder, and `vale`: the Vale rules that check it (an empty list is a judgment rule nothing lints). `condensed` lists the ids in reminder order.",
   "title": "Communication rules",
   "intro": "Apply to all prose: chat, explanations, docs, reports, answers.",
   "condensed": [
@@ -245,6 +245,8 @@
           "short": "These buzzwords are banned in vague or ornamental usage: {terms}. When these words have precise meaning or are relevant to the domain, use them.",
           "vale": [
             "JustSaySo.Buzzwords",
+            "JustSaySo.Substitutions",
+            "JustSaySo.Leverage",
             "ai-tells.StrategyBuzzwords",
             "ai-tells.OverusedVocabulary",
             "ai-tells.OverusedVocabularyVerbs",
@@ -266,67 +268,53 @@
             "terms": [
               {
                 "term": "leverage",
-                "hint": "use a concrete verb: use, apply, rely on",
-                "checkedBy": "ai-tells.OverusedVocabularyVerbs"
+                "hint": "use a concrete verb: use, apply, rely on"
               },
               {
-                "term": "robust",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "robust"
               },
               {
                 "term": "seamless"
               },
               {
-                "term": "holistic",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "holistic"
               },
               {
-                "term": "streamline",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "streamline"
               },
               {
-                "term": "empower",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "empower"
               },
               {
-                "term": "cutting-edge",
-                "checkedBy": "ai-tells.AICompoundPhrases"
+                "term": "cutting-edge"
               },
               {
-                "term": "game-changing",
-                "checkedBy": "ai-tells.AICompoundPhrases"
+                "term": "game-changing"
               },
               {
-                "term": "synergy",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "synergy"
               },
               {
-                "term": "delve",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "delve"
               },
               {
                 "term": "utilize",
-                "hint": "use \"use\"",
-                "checkedBy": "ai-tells.FormalRegister"
+                "hint": "use \"use\""
               },
               {
                 "term": "structural spine"
               },
               {
-                "term": "load bearing",
-                "checkedBy": "ai-tells.AnthropomorphicJustification"
+                "term": "load bearing"
               },
               {
-                "term": "blast radius",
-                "checkedBy": "ai-tells.FigurativeIdioms"
+                "term": "blast radius"
               },
               {
-                "term": "belt-and-suspenders",
-                "checkedBy": "ai-tells.RedundantPrecaution"
+                "term": "belt-and-suspenders"
               },
               {
-                "term": "honest take",
-                "checkedBy": "ai-tells.FillerPhrases"
+                "term": "honest take"
               }
             ]
           }
@@ -363,6 +351,7 @@
           "short": "Banned filler frames: {terms}.",
           "vale": [
             "JustSaySo.FillerFrames",
+            "JustSaySo.Substitutions",
             "ai-tells.FillerPhrases",
             "ai-tells.HedgingPhrases",
             "ai-tells.FormalTransitions",
@@ -389,8 +378,7 @@
               },
               {
                 "term": "It should be noted that",
-                "quote": true,
-                "checkedBy": "ai-tells.HedgingPhrases"
+                "quote": true
               },
               {
                 "term": "In today's landscape",
@@ -399,8 +387,7 @@
               {
                 "term": "In order to",
                 "quote": true,
-                "hint": "use \"to\"",
-                "checkedBy": "ai-tells.FillerPhrases"
+                "hint": "use \"to\""
               }
             ]
           }
@@ -428,12 +415,10 @@
                 "term": "truly"
               },
               {
-                "term": "crucial",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "crucial"
               },
               {
-                "term": "vital",
-                "checkedBy": "ai-tells.OverusedVocabulary"
+                "term": "vital"
               }
             ]
           }

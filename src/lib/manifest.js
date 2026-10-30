@@ -244,13 +244,6 @@ export function styleSpecs(manifest) {
     .map((r) => r.style);
 }
 
-/** Every term's `checkedBy` rule paired with its bullet's `vale` list: [{ term, checkedBy, vale }]. */
-export function checkedTerms(manifest) {
-  return allRules(manifest)
-    .filter((r) => r.style)
-    .flatMap((r) => (r.style.terms ?? []).filter((t) => t.checkedBy).map((t) => ({ term: t.term, checkedBy: t.checkedBy, vale: r.vale ?? [] })));
-}
-
 /** The terms the JustSaySo style bans, as written in the manifest. */
 export function fixedTerms(manifest) {
   return styleSpecs(manifest).flatMap((s) => (s.terms ?? []).map((t) => t.term));

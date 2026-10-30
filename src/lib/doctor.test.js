@@ -350,7 +350,7 @@ describe('doctor', () => {
       expect(report.warnings).toEqual(
         expect.arrayContaining([
           expect.stringMatching(/^The synced copy of ai-tells under .* has 2 rules and the plugin bundles 137 \(v1\.37\.0\)\. Update the Packages URL and run vale sync\.$/),
-          'The vocabulary entry "stays armed" has no effect on acme.Armed: Vale ignores accept.txt for a rule that sets nonword. Reword the text, or turn the rule off with acme.Armed = NO.'
+          'The vocabulary entry "stays armed" has no effect on acme.Armed, which still reports it: Vale ignores accept.txt for that rule. Reword the text, or turn the rule off with acme.Armed = NO.'
         ])
       );
       expect(report.warnings.filter((w) => w.includes('vocabulary entry'))).toHaveLength(1);

@@ -40,8 +40,8 @@ With the default settings, written files and replies are on `warn`: the agent is
 ```
 just-say-so: Vale reports 5 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
   - L3 error JustSaySo.FillerFrames: Banned filler frame: 'It's important to note'. Delete it and state the point directly. ["It's important to note"]
-  - L3 error ai-tells.OverusedVocabularyVerbs: AI vocabulary (verb form): 'leverage'. Replace with a direct verb. ["leverage"]
-  - L3 error ai-tells.OverusedVocabulary: AI vocabulary: 'streamline'. Replace with a more specific or common word. ["streamline"]
+  - L3 error JustSaySo.Leverage: Banned buzzword: 'leverage'. Use a concrete verb: use, apply, rely on. ["leverage"]
+  - L3 error JustSaySo.Buzzwords: Banned buzzword: 'streamline'. Use a precise domain term or delete it. ["streamline"]
   - L3 suggestion JustSaySo.Intensifiers: Empty intensifier: 'very'. Replace it with a measurement or a concrete consequence. ["very"]
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```

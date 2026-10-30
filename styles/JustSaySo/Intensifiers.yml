@@ -7,3 +7,5 @@ ignorecase: true
 tokens:
   - "(?<![\\w-])very(?![\\w-])"
   - "(?<![\\w-])truly(?![\\w-])"
+  - "(?<![\\w-])crucial(?![\\w-])"
+  - "(?<![\\w-])vital(?![\\w-])"

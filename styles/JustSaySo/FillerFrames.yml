@@ -6,4 +6,5 @@ level: error
 ignorecase: true
 tokens:
   - "(?<![\\w-])It['’]s[\\s\\u00A0-]+important[\\s\\u00A0-]+to[\\s\\u00A0-]+note(?![\\w-])"
+  - "(?<![\\w-])It[\\s\\u00A0-]+should[\\s\\u00A0-]+be[\\s\\u00A0-]+noted[\\s\\u00A0-]+that(?![\\w-])"
   - "(?<![\\w-])In[\\s\\u00A0-]+today['’]s[\\s\\u00A0-]+landscape(?![\\w-])"

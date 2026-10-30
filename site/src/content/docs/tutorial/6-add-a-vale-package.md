@@ -11,14 +11,14 @@ Files and `gh` publishing are gated under the bundled styles: JustSaySo, ai-tell
 
 ## Add the package
 
-Edit `.vale.ini`. Add `Google` to `Packages`, and add it to `BasedOnStyles` in a section for the prose formats, because a restated list in a section starts from that list alone:
+Edit `.vale.ini`. Add `Google` to `Packages`, and add it to `BasedOnStyles` in a section that covers Markdown files and chat replies, because a restated list in a section starts from that list alone:
 
 ```ini
 StylesPath = styles
 Vocab = Project
 Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip, Google
 
-[*.md]
+[{*.md,*.reply}]
 BasedOnStyles = JustSaySo, ai-tells, STE, Google
 ```
 
@@ -26,7 +26,7 @@ Run `vale sync`. [Google](https://github.com/errata-ai/Google) is the Vale style
 
 ## See what the agent will get
 
-Run `/just-say-so:doctor`. The `files .md` target now shows four styles, with `Google 36 of 36 rules on` at the end. The hooks read that before each injection. From the next context start, the rules text the agent gets ends with a line naming Google rules at error level that no bullet describes, twelve at most, with a count of the rest. The model knows the names and nothing else about them. `/just-say-so:rules` does not show that line. It prints the manifest's text without the adjustment.
+Run `/just-say-so:doctor`. The `reply` and `files .md` targets now show four styles, with `Google 36 of 36 rules on` at the end. The reply target is the one the hooks read for the rules text. The hooks read that before each injection. From the next context start, the rules text the agent gets ends with a line naming Google rules at error level that no bullet describes, twelve at most, with a count of the rest. The model knows the names and nothing else about them. `/just-say-so:rules` does not show that line. It prints the manifest's text without the adjustment.
 
 ## Draft the bullets
 
@@ -40,7 +40,7 @@ From the next context start, the reminder has your sentences in place of the rul
 
 ## Check
 
-The doctor's `extra rules` line names the file with `added N, replaced 0, dropped 0`, and the `files .md` target still reads `Google 36 of 36 rules on`.
+The doctor's `extra rules` line names the file with `added N, replaced 0, dropped 0`, and the `reply` target still reads `Google 36 of 36 rules on`.
 
 ## Next
 

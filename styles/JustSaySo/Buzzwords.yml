@@ -5,5 +5,17 @@ message: "Banned buzzword: '%s'. Use a precise domain term or delete it."
 level: error
 ignorecase: true
 tokens:
+  - "(?<![\\w-])robust(?![\\w-])"
   - "(?<![\\w-])seamless(?![\\w-])"
+  - "(?<![\\w-])holistic(?![\\w-])"
+  - "(?<![\\w-])streamline(?![\\w-])"
+  - "(?<![\\w-])empower(?![\\w-])"
+  - "(?<![\\w-])cutting[\\s\\u00A0-]+edge(?![\\w-])"
+  - "(?<![\\w-])game[\\s\\u00A0-]+changing(?![\\w-])"
+  - "(?<![\\w-])synergy(?![\\w-])"
+  - "(?<![\\w-])delve(?![\\w-])"
   - "(?<![\\w-])structural[\\s\\u00A0-]+spine(?![\\w-])"
+  - "(?<![\\w-])load[\\s\\u00A0-]+bearing(?![\\w-])"
+  - "(?<![\\w-])blast[\\s\\u00A0-]+radius(?![\\w-])"
+  - "(?<![\\w-])belt[\\s\\u00A0-]+and[\\s\\u00A0-]+suspenders(?![\\w-])"
+  - "(?<![\\w-])honest[\\s\\u00A0-]+take(?![\\w-])"

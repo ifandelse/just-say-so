@@ -48,9 +48,9 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
-  files .md    doc.md               JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 

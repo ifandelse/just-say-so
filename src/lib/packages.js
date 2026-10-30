@@ -16,8 +16,7 @@ export const MARK_END = '# --- end generated ---';
 export const OWN_STYLE = 'JustSaySo';
 
 // Where the bundled styles apply: prose formats, chat replies, and
-// published fragments. Code files keep JustSaySo alone under [*], plus
-// the bundled rules that cover the banned terms (`codeRules`), so a
+// published fragments. Code files keep JustSaySo alone under [*], so a
 // comment is checked for the banned list and nothing wider. A project's
 // own [*.md] section restates the list and so drops the bundle for that
 // format, the same way it always dropped JustSaySo.
@@ -54,16 +53,14 @@ export function ruleSettingLines(packages) {
 }
 
 /**
- * The generated block: markers, [*] with JustSaySo, the per-rule YES lines
- * for `codeRules`, and the NO settings, then the prose section with every
- * bundled style and the level settings. A NO under [*] reaches every
- * section; a level line enables the rule wherever it sits, so the levels
- * stay in the prose section and code comments see only the banned list.
+ * The generated block: markers, [*] with JustSaySo and the NO settings,
+ * then the prose section with every bundled style and the level
+ * settings. A NO under [*] reaches every section; a level line enables
+ * the rule wherever it sits, so the levels stay in the prose section.
  */
-export function renderValeSections(packages, { codeRules = [] } = {}) {
+export function renderValeSections(packages) {
   const settings = ruleSettingLines(packages);
   const lines = [MARK_BEGIN, '[*]', `BasedOnStyles = ${OWN_STYLE}`];
-  for (const id of [...new Set(codeRules)].sort()) lines.push(`${id} = YES`);
   lines.push(...settings.filter((l) => l.endsWith(' = NO')));
   lines.push('', `[${PROSE_GLOB}]`, `BasedOnStyles = ${styleNames(packages).join(', ')}`);
   lines.push(...settings.filter((l) => !l.endsWith(' = NO')));

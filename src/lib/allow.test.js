@@ -144,6 +144,7 @@ describe('allow', () => {
           term: 'robust regression',
           file: acceptPath(root),
           added: true,
+          present: false,
           written: true,
           honoured: null,
           unreachable: null,
@@ -306,7 +307,7 @@ describe('allow', () => {
           honoured: ['JustSaySo.Buzzwords'],
           unreachable: []
         });
-        expect(text).toBe(`just-say-so: added "synergy" to the Vale vocabulary (${acceptPath(p.root)})\njust-say-so: JustSaySo.Buzzwords will no longer report it.\n`);
+        expect(text).toBe(`just-say-so: added "synergy" to the Vale vocabulary (${acceptPath(p.root)})\njust-say-so: JustSaySo.Buzzwords no longer reports it (checked by linting the term again).\n`);
       });
     });
 
@@ -320,15 +321,15 @@ describe('allow', () => {
       });
 
       it('should write nothing and explain the two ways out', () => {
-        expect({ written: result.written, added: result.added, honoured: result.honoured, exists: fs.existsSync(acceptPath(p.root)) }).toEqual({
+        expect({ written: result.written, added: result.added, honoured: result.honoured, kept: fs.existsSync(acceptPath(p.root)) && fs.readFileSync(acceptPath(p.root), 'utf8').includes('armed') }).toEqual({
           written: false,
           added: false,
           honoured: [],
-          exists: false
+          kept: false
         });
-        expect(result.unreachable).toEqual([{ id: 'acme.Armed', message: "Enforcement metaphor: 'armed'. Say what the check refuses.", nonword: true }]);
-        expect(text).toContain('"stays armed" is reported by acme.Armed.\n\nThat rule matches text across word boundaries');
-        expect(text).toContain('nothing for it, so nothing was written.');
+        expect(result.unreachable).toEqual([{ id: 'acme.Armed', message: "Enforcement metaphor: 'armed'. Say what the check refuses.", reason: 'nonword' }]);
+        expect(text).toContain('"stays armed" is reported by acme.Armed.\n\nThat rule matches text across word boundaries, and Vale ignores the project\nvocabulary (accept.txt) for it.');
+        expect(text).toContain('nothing for\nit, so the entry was not kept.');
         expect(text).toContain("  1. Rewrite the phrase.\n     acme.Armed: Enforcement metaphor: 'armed'. Say what the check refuses.");
         expect(text).toContain('       acme.Armed = NO\n');
       });
@@ -349,8 +350,61 @@ describe('allow', () => {
           honoured: ['JustSaySo.Buzzwords'],
           unreachable: ['acme.Armed']
         });
-        expect(text).toContain('JustSaySo.Buzzwords will no longer report it.\n\n"synergy armed" is reported by acme.Armed.');
-        expect(text).toContain('nothing for it.\n');
+        expect(text).toContain('JustSaySo.Buzzwords no longer reports it (checked by linting the term again).\n\n"synergy armed" is still reported by acme.Armed.');
+        expect(text).toContain('nothing for\nit.\n');
+      });
+    });
+
+    describe('when a sequence rule reports the term, alone and beside a nonword rule', () => {
+      let p, alone, both, texts;
+
+      beforeEach(() => {
+        p = fakeProject();
+        fs.writeFileSync(path.join(p.root, 'styles', 'acme', 'Verbs.yml'), 'extends: sequence\nlevel: error\ntokens:\n  - pattern: navigate\n');
+        alone = addAllowTerm('navigate the menu', p.root, p.env);
+        both = addAllowTerm('navigate while armed', p.root, p.env);
+        texts = [formatAllow(alone), formatAllow(both)];
+      });
+
+      it('should keep nothing, name the part-of-speech reason, and give the generic reason for a mixed pair', () => {
+        expect({ written: alone.written, reasons: alone.unreachable.map((r) => r.reason), kept: fs.readFileSync(acceptPath(p.root), 'utf8').includes('navigate') }).toEqual({
+          written: false,
+          reasons: ['sequence'],
+          kept: false
+        });
+        expect(texts[0]).toContain('That rule matches by part of speech, and Vale ignores the project\nvocabulary (accept.txt) for it.');
+        expect(both.unreachable.map((r) => r.reason)).toEqual(['acme.Armed', 'acme.Verbs'].map((id) => (id === 'acme.Armed' ? 'nonword' : 'sequence')));
+        expect(texts[1]).toContain('Each of those rules is one for which Vale ignores the project\nvocabulary (accept.txt) for it.');
+        expect(texts[1]).toContain('       acme.Armed = NO\n       acme.Verbs = NO\n');
+      });
+    });
+
+    describe('when the rule that still reports is neither nonword nor sequence', () => {
+      let p, result, text;
+
+      beforeEach(() => {
+        p = fakeProject();
+        fs.writeFileSync(path.join(p.root, 'styles', 'acme', 'Verbs.yml'), 'extends: existence\nlevel: error\ntokens:\n  - navigate\n');
+        result = addAllowTerm('navigate the menu', p.root, p.env);
+        text = formatAllow(result);
+      });
+
+      it('should give the generic reason', () => {
+        expect(result.unreachable.map((r) => r.reason)).toEqual(['other']);
+        expect(text).toContain('That rule is one for which Vale ignores the project\nvocabulary (accept.txt) for it.');
+      });
+    });
+
+    describe('when the term ends in sentence punctuation', () => {
+      let p, result;
+
+      beforeEach(() => {
+        p = fakeProject();
+        result = addAllowTerm('pure synergy.', p.root, p.env);
+      });
+
+      it('should drop the punctuation and write the bare collocation', () => {
+        expect({ term: result.term, line: fs.readFileSync(acceptPath(p.root), 'utf8') }).toEqual({ term: 'pure synergy', line: 'pure synergy\n' });
       });
     });
 

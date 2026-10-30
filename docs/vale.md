@@ -20,18 +20,17 @@ Chat replies lint under the name `reply.reply`. Published text lints under `<sou
 
 The plugin ships three styles under [`styles/`](../styles/), and the JustSaySo package holds all three.
 
-- **JustSaySo** is generated from [`rules/manifest.json`](../rules/manifest.json) by `scripts/build.js`, and a test fails when the two drift. It holds the banned terms that only it reports: the buzzwords, the filler frames, the empty intensifiers, and the `it's not x, it's y` shape. The patterns treat a hyphen as a word character, so `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. The rules never set `nonword`, and a vocabulary entry exempts a term or a collocation from them.
+- **JustSaySo** is generated from [`rules/manifest.json`](../rules/manifest.json) by `scripts/build.js`, and a test fails when the two drift. It holds the banned list: the buzzwords, the filler frames, the empty intensifiers, and the `it's not x, it's y` shape. The patterns treat a hyphen as a word character, so `robust-websocket` never matches. A phrase matches with a space or a hyphen, and a curly quote matches its straight form. The rules never set `nonword`, and a vocabulary entry exempts a term or a collocation from them.
 - **ai-tells** (the [vale-ai-tells](https://github.com/tbhb/vale-ai-tells) repository) is a community package of 137 rules for the fingerprints of AI prose, every one declared at error level.
 - **STE** (the [vale-llm-slop](https://github.com/Syntaf/vale-llm-slop) repository) is 12 rules adapted from ASD-STE100: sentence length, passive voice, noun clusters, dropped articles, and the rest.
 
-[`rules/packages.json`](../rules/packages.json) pins each package at a release with its checksum and records the plugin's setting for every rule it does not leave at the declared level: 14 rules off and 6 at suggestion, chosen rule by rule. `scripts/vendor-packages.js` downloads the pinned zips and unpacks the styles unchanged, with the licences in [`styles/LICENSES.md`](../styles/LICENSES.md). A banned term that a bundled rule already reports is marked `checkedBy` in the manifest: it stays in the rules text and leaves the generated style, so one word raises one alert.
+[`rules/packages.json`](../rules/packages.json) pins each package at a release with its checksum and records the plugin's setting for every rule it does not leave at the declared level: 14 rules off and 6 at suggestion, chosen rule by rule. `scripts/vendor-packages.js` downloads the pinned zips and unpacks the styles unchanged, with the licences in [`styles/LICENSES.md`](../styles/LICENSES.md). Several banned terms are also in an ai-tells list, so Vale reports them twice. The plugin folds alerts whose spans overlap on one line into one and keeps the JustSaySo alert, before any hook or record reads them.
 
 The build renders the style sections of the fallback config from the same file, between two marker lines:
 
 ```ini
 [*]
 BasedOnStyles = JustSaySo
-ai-tells.OverusedVocabulary = YES
 ai-tells.ShipOveruse = NO
 
 [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
@@ -39,7 +38,7 @@ BasedOnStyles = JustSaySo, ai-tells, STE
 STE.PassiveVoice = suggestion
 ```
 
-JustSaySo, ai-tells, and STE run on prose formats, chat replies, and published fragments. Code files keep JustSaySo alone under `[*]`, plus the bundled rules that report banned terms, and a code comment is checked for the banned list and nothing wider. A `NO` under `[*]` turns a rule off everywhere. A level line enables the rule wherever it sits, and that keeps the level lines in the prose section.
+JustSaySo, ai-tells, and STE run on prose formats, chat replies, and published fragments. Code files keep JustSaySo alone under `[*]`, and a code comment is checked for the banned list and nothing wider. A `NO` under `[*]` turns a rule off everywhere. A level line enables the rule wherever it sits, and that keeps the level lines in the prose section.
 
 ## Sections
 

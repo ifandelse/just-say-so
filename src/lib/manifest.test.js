@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  checkedTerms,
   loadManifest,
   loadExtra,
   renderRules,
@@ -372,24 +371,20 @@ describe('manifest', () => {
       expect(named).toEqual(generated);
     });
   });
-  describe('when the manifest marks terms as checked by a bundled rule', () => {
-    let pairs, unlisted, named, missing;
+  describe('when the Vale rule ids the manifest names are checked against styles/', () => {
+    let missing;
 
     beforeEach(() => {
       const manifest = JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
-      pairs = checkedTerms(manifest);
-      unlisted = pairs.filter((p) => !p.vale.includes(p.checkedBy)).map((p) => p.term);
       const stylesDir = path.join(ROOT, 'styles');
-      const exists = (id) => {
+      missing = valeIds(manifest).filter((id) => {
         const [style, ...rest] = id.split('.');
-        return fs.existsSync(path.join(stylesDir, style, `${rest.join('/')}.yml`));
-      };
-      named = valeIds(manifest);
-      missing = named.filter((id) => !exists(id));
+        return !fs.existsSync(path.join(stylesDir, style, `${rest.join('/')}.yml`));
+      });
     });
 
-    it('should name each checking rule in the bullet\'s vale list and name only rules that exist under styles/', () => {
-      expect({ terms: pairs.length > 0, unlisted, missing }).toEqual({ terms: true, unlisted: [], missing: [] });
+    it('should name only rules that exist under styles/', () => {
+      expect(missing).toEqual([]);
     });
   });
 

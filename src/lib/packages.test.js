@@ -15,11 +15,7 @@ import {
   styleEntries,
   vendoredRuleIds
 } from './packages.js';
-import { checkedTerms, shippedManifestPath } from './manifest.js';
 
-function readManifest() {
-  return JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
-}
 
 /*
  * Branches:
@@ -78,17 +74,15 @@ describe('packages', () => {
     let block;
 
     beforeEach(() => {
-      block = renderValeSections(SMALL, { codeRules: ['acme.Zed', 'acme.Words', 'acme.Words'] });
+      block = renderValeSections(SMALL);
     });
 
-    it('should render the markers, JustSaySo with the code rules and the NO lines under [*], and the prose section with the levels', () => {
+    it('should render the markers, JustSaySo with the NO lines under [*], and the prose section with the levels', () => {
       expect(block).toBe(
         [
           MARK_BEGIN,
           '[*]',
           'BasedOnStyles = JustSaySo',
-          'acme.Words = YES',
-          'acme.Zed = YES',
           'STE.Alpha = NO',
           '',
           `[${PROSE_GLOB}]`,
@@ -207,7 +201,7 @@ describe('packages', () => {
       const ids = new Set(packages.packages.flatMap((p) => vendoredRuleIds(stylesDir, p.name)));
       unknownSettings = Object.keys(packages.rules).filter((id) => !ids.has(id));
       counts = packages.packages.map((p) => [p.name, vendoredRuleIds(stylesDir, p.name).length, p.ruleCount]);
-      block = renderValeSections(packages, { codeRules: checkedTerms(readManifest()).map((t) => t.checkedBy) });
+      block = renderValeSections(packages);
       fallback = fs.readFileSync(path.join(ROOT, 'vale', 'fallback.ini'), 'utf8');
       repoIni = fs.readFileSync(path.join(ROOT, '.vale.ini'), 'utf8');
     });

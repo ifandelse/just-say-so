@@ -10,7 +10,7 @@ import path from 'node:path';
 import { loadConfig, configFiles, findLegacyKeys, publishOn } from './config.js';
 import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, lintText, REPLY_NAME } from './vale.js';
 import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
-import { listStyleRules, listNonwordRules } from './style-inventory.js';
+import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
 import { loadExtra, extraFile, mergeExtra, readManifest, DEFAULT_EXTRA } from './manifest.js';
@@ -227,21 +227,19 @@ export function doctorReport(cwd, env = process.env) {
   }
   const inventory = listStyleRules(resolved.Paths ?? []);
   const anyJustSaySo = [...inventory.keys()].some((id) => id.startsWith('JustSaySo.'));
+  if (!anyJustSaySo) warnings.push('The JustSaySo style is not installed under any styles path this config reads.');
 
-  // An accept entry does nothing against a nonword rule. Lint each entry
-  // on its own; one that a nonword rule still reports is a dead entry.
+  // An accept entry that a rule still reports is dead for that rule: the
+  // rule ignores the vocabulary (nonword and sequence rules do, verified
+  // on 3.24). Lint each entry on its own, with the entry in force.
   const accepted = acceptFile ? (readText(acceptFile) ?? '').split('\n').map((l) => l.trim()).filter(Boolean) : [];
-  if (accepted.length > 0) {
-    const nonword = listNonwordRules(resolved.Paths ?? []);
-    for (const entry of accepted) {
-      const alerts = lintText(`${entry}\n`, { name: REPLY_NAME, configPath, env }) ?? [];
-      const dead = [...new Set(alerts.map((a) => a.Check).filter((id) => nonword.has(id)))];
-      if (dead.length > 0) {
-        warnings.push(`The vocabulary entry "${entry}" has no effect on ${dead.join(', ')}: Vale ignores accept.txt for a rule that sets nonword. Reword the text, or turn the rule off with ${dead[0]} = NO.`);
-      }
+  for (const entry of accepted) {
+    const alerts = lintText(`${entry}\n`, { name: REPLY_NAME, configPath, env }) ?? [];
+    const dead = [...new Set(alerts.map((a) => a.Check))];
+    if (dead.length > 0) {
+      warnings.push(`The vocabulary entry "${entry}" has no effect on ${dead.join(', ')}, which still reports it: Vale ignores accept.txt for that rule. Reword the text, or turn the rule off with ${dead[0]} = NO.`);
     }
   }
-  if (!anyJustSaySo) warnings.push('The JustSaySo style is not installed under any styles path this config reads.');
 
   for (const [label, name] of TARGETS) {
     const t = targetSummary(name, resolved, inventory, order);

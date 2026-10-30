@@ -30,8 +30,8 @@ Start a new session. Ask the agent to write a short rollout note as a Markdown f
 
 ```
 just-say-so: Vale reports 2 error(s), 0 warning(s), 0 suggestion(s) in notes.md (whole file — this write created or replaced it):
-  - L3 error ai-tells.OverusedVocabularyVerbs: AI vocabulary (verb form): 'leverage'. Replace with a direct verb. ["leverage"]
-  - L3 error ai-tells.OverusedVocabulary: AI vocabulary: 'streamline'. Replace with a more specific or common word. ["streamline"]
+  - L3 error JustSaySo.Leverage: Banned buzzword: 'leverage'. Use a concrete verb: use, apply, rely on. ["leverage"]
+  - L3 error JustSaySo.Buzzwords: Banned buzzword: 'streamline'. Use a precise domain term or delete it. ["streamline"]
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```
 
@@ -43,7 +43,7 @@ You do not see that message. The agent does, and in most cases it edits the file
 /just-say-so:doctor
 ```
 
-The `targets` line reads `files warn (show suggestion) · publish block, artifact · reply warn`, and the `files .md` target shows `JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on`. The doctor prints no warnings.
+The `targets` line reads `files warn (show suggestion) · publish block, artifact · reply warn`, and the `files .md` target shows `JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on`. The doctor prints no warnings.
 
 ## Next
 

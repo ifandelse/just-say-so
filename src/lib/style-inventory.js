@@ -65,21 +65,3 @@ export function listStyleRules(stylesDirs) {
   return rules;
 }
 
-/**
- * The rules whose file sets `nonword: true`, as a Set of "Style.Rule".
- * Vale ignores the vocabulary (accept.txt) for these, so an accepted
- * term never exempts a match of theirs.
- */
-export function listNonwordRules(stylesDirs) {
-  const out = new Set();
-  for (const [id, file] of listStyleFiles(stylesDirs)) {
-    let text = '';
-    try {
-      text = fs.readFileSync(file, 'utf8');
-    } catch {
-      // an unreadable rule file is not known to be nonword
-    }
-    if (/^nonword:\s*true\s*$/m.test(text)) out.add(id);
-  }
-  return out;
-}

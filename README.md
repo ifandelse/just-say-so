@@ -19,8 +19,8 @@ The agent writes a file. The plugin runs Vale on the file it just wrote and hand
 ```
 just-say-so: Vale reports 5 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
   - L3 error JustSaySo.FillerFrames: Banned filler frame: 'It's important to note'. Delete it and state the point directly. ["It's important to note"]
-  - L3 error ai-tells.OverusedVocabularyVerbs: AI vocabulary (verb form): 'leverage'. Replace with a direct verb. ["leverage"]
-  - L3 error ai-tells.OverusedVocabulary: AI vocabulary: 'streamline'. Replace with a more specific or common word. ["streamline"]
+  - L3 error JustSaySo.Leverage: Banned buzzword: 'leverage'. Use a concrete verb: use, apply, rely on. ["leverage"]
+  - L3 error JustSaySo.Buzzwords: Banned buzzword: 'streamline'. Use a precise domain term or delete it. ["streamline"]
   - L3 suggestion JustSaySo.Intensifiers: Empty intensifier: 'very'. Replace it with a measurement or a concrete consequence. ["very"]
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```
@@ -60,9 +60,9 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
-  files .md    doc.md               JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 

@@ -91,7 +91,26 @@ function parseAlerts(stdout, cwd) {
     if (!Array.isArray(list)) continue;
     for (const a of list) alerts.push({ ...a, file: path.resolve(cwd, file) });
   }
-  return alerts;
+  return foldOverlaps(alerts);
+}
+
+/**
+ * Two rules that flag overlapping spans on one line (JustSaySo and
+ * ai-tells both ban the same verb) report one problem, not two. Keep one
+ * alert per overlapping group: the JustSaySo alert when the group has
+ * one, because its message is the manifest's, otherwise the first.
+ * Every consumer reads folded alerts, so the agent sees one line and
+ * the records count one alert.
+ */
+export function foldOverlaps(alerts) {
+  const kept = [];
+  for (const a of alerts) {
+    const [s, e] = Array.isArray(a.Span) ? a.Span : [null, null];
+    const i = kept.findIndex((k) => k.file === a.file && k.Line === a.Line && s !== null && Array.isArray(k.Span) && s <= k.Span[1] && k.Span[0] <= e);
+    if (i === -1) kept.push(a);
+    else if (!String(kept[i].Check).startsWith('JustSaySo.') && String(a.Check).startsWith('JustSaySo.')) kept[i] = a;
+  }
+  return kept;
 }
 
 /**

@@ -371,4 +371,35 @@ describe('manifest', () => {
       expect(named).toEqual(generated);
     });
   });
+  describe('when the Vale rule ids the manifest names are checked against styles/', () => {
+    let missing;
+
+    beforeEach(() => {
+      const manifest = JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
+      const stylesDir = path.join(ROOT, 'styles');
+      missing = valeIds(manifest).filter((id) => {
+        const [style, ...rest] = id.split('.');
+        return !fs.existsSync(path.join(stylesDir, style, `${rest.join('/')}.yml`));
+      });
+    });
+
+    it('should name only rules that exist under styles/', () => {
+      expect(missing).toEqual([]);
+    });
+  });
+
+  describe('when a bullet names more than four Vale rules', () => {
+    let text;
+
+    beforeEach(() => {
+      text = renderRules(
+        { title: 'T', intro: 'i', sections: [{ title: 's', rules: [{ id: 'a', full: 'A.', vale: ['x.1', 'x.2', 'x.3', 'x.4', 'x.5'] }] }] },
+        'full'
+      );
+    });
+
+    it('should give the count and the first three names', () => {
+      expect(text).toContain('- A. Checked by 5 Vale rules, among them x.1, x.2, x.3.');
+    });
+  });
 });

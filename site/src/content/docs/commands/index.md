@@ -1,6 +1,6 @@
 ---
 title: "Commands"
-description: "The ten skills, in the order you meet them, and the shape every command page follows."
+description: "All ten skills, in the order you meet them, and the headings every command page shares."
 sidebar:
   label: Overview
   order: 0

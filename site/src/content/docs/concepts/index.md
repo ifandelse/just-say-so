@@ -6,4 +6,4 @@ sidebar:
   order: 0
 ---
 
-These pages explain. They carry no steps and no settings tables; those are in the [guides](/guides/) and the [configuration](/configuration/) pages. Read them when a behaviour surprises you and you want the reason.
+These pages explain. The steps are in the [guides](/guides/) and the settings tables are in the [configuration](/configuration/) pages. Read these pages when a behaviour surprises you and you want the reason.

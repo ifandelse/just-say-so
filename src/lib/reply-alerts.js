@@ -31,7 +31,7 @@ function elide(message, match) {
 }
 
 // Two styles that flag the same span (ai-tells and JustSaySo both ban
-// "leverage") are one problem, not two. Keep the JustSaySo alert when one
+// the same verb) are one problem, not two. Keep the JustSaySo alert when one
 // is in the group, otherwise the first.
 export function dedupeOverlaps(alerts) {
   const groups = new Map();

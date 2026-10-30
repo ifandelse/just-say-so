@@ -7,7 +7,7 @@ sidebar:
 
 ## What it does
 
-Manages the package cache. With no arguments it reports the cache against the registry: which packages are cached, their dates and rule counts, which registry entries are missing. `--refresh` downloads every writing-rule package in the Vale registry, or the ones named, reads each rule's id, level, what it extends, message, link, and a sample of its tokens, and writes one JSON file per package. `--prune` removes cached packages the registry no longer lists. Nothing else ever downloads an archive.
+Manages the package cache. With no arguments it reports the cache against the registry: which packages are cached, their dates and rule counts, which registry entries are missing. `--refresh` downloads every writing-rule package in the Vale registry, or the ones named, reads each rule's id, level, what it extends, message, link, and a sample of its tokens, and writes one JSON file per package. `--prune` removes cached packages the registry no longer lists. `--refresh` is the only path that downloads an archive.
 
 ## Synopsis
 
@@ -26,7 +26,7 @@ Manages the package cache. With no arguments it reports the cache against the re
 
 ## What it reads and writes
 
-Reads the registry list. Writes `packages/<Name>.json` files under the state directory. An archive is read in memory; only its `.yml` entries are looked at, and nothing from it is written out or run. A failed download keeps the package's previous file.
+Reads the registry list. Writes `packages/<Name>.json` files under the state directory. The script reads an archive in memory, looks only at its `.yml` entries, and does not write out or run anything from it. A failed download keeps the package's previous file.
 
 ## What it prints
 

@@ -4,7 +4,7 @@
 
 // Every occurrence of `needle` in `content`, as inclusive 1-based line
 // ranges. A repeated needle yields the union of candidate ranges: extra
-// facts framed as advice cost little, a silent miss defeats the check.
+// facts framed as advice do no harm, a silent miss defeats the check.
 export function findRanges(content, needle) {
   const ranges = [];
   if (!needle) return ranges;

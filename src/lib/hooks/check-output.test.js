@@ -26,15 +26,15 @@ import { makeSandbox, writeTranscript } from '../../../test/helpers/sandbox.js';
  *   pending rewrite: record completed with the reply and its alerts, pending
  *     cleared, even with both checks off · warn mode still counts the rewrite ·
  *     block mode keeps the record open through a blocked reply and closes it on
- *     the reply that passes · stand-down closes it with the reply that stood
- *   stand-down: stop_hook_active + identical keys → systemMessage, no block ·
+ *     the reply that passes · waiver closes it with the reply that was waived
+ *   waiver: stop_hook_active + identical keys → systemMessage, no block ·
  *     different keys → block again · clean pass clears lastStopBlock
- *   waiver: stand-down waives gate alerts → next turn passes, record pruned ·
+ *   waiver: waiver waives gate alerts → next turn passes, record pruned ·
  *     second instance of a waived alert blocks on the new line · the waived
  *     line moved → first instance of the key is the waived one · reply-only
- *     stand-down waives nothing and uses its own message · deleted file →
+ *     waiver waives nothing and uses its own message · deleted file →
  *     record and waiver pruned
- *   events: a reply event per Stop with outcome pass | block | standdown, alerts
+ *   events: a reply event per Stop with outcome pass | block | waived, alerts
  *     at every level, sinceReminder, rewriteOf when a record closed · checks
  *     off still lint for the log · vale broken → alerts null · model read from
  *     the transcript once and cached · events off → no file and no lint ·
@@ -267,7 +267,7 @@ describe('check-output.run', () => {
     });
   });
 
-  describe('when a restate record is open and block mode stands down', () => {
+  describe('when a restate record is open and block mode waives', () => {
     let output, pending, rewriteText, events;
 
     beforeEach(() => {
@@ -288,11 +288,11 @@ describe('check-output.run', () => {
       events = replyEvents(sandbox.env).map(({ outcome, rewriteOf }) => ({ outcome, rewriteOf }));
     });
 
-    it('should log the stand-down with the record it closed', () => {
-      expect(events).toEqual([{ outcome: 'standdown', rewriteOf: 'R4' }]);
+    it('should log the waiver with the record it closed', () => {
+      expect(events).toEqual([{ outcome: 'waived', rewriteOf: 'R4' }]);
     });
 
-    it('should stand down and close the record with the reply that stood', () => {
+    it('should waive and close the record with the reply that was waived', () => {
       expect({ systemMessage: output.systemMessage, pending, rewriteText }).toEqual({
         systemMessage: expect.stringContaining('not blocking again'),
         pending: null,
@@ -546,13 +546,13 @@ describe('check-output.run', () => {
       expect(first.decision).toBe('block');
     });
 
-    it('should stand down with a system message instead of blocking again', () => {
+    it('should waive with a system message instead of blocking again', () => {
       expect(output.decision).toBeUndefined();
       expect(output.systemMessage).toContain('not blocking again');
     });
   });
 
-  describe('when a new turn follows a stand-down', () => {
+  describe('when a new turn follows a waiver', () => {
     let standDown, nextTurn, state, sandbox, file;
 
     beforeEach(() => {
@@ -639,7 +639,7 @@ describe('check-output.run', () => {
     });
   });
 
-  describe('when a reply-only stand-down happens', () => {
+  describe('when a reply-only waiver happens', () => {
     let output, state, sandbox;
 
     beforeEach(() => {
@@ -653,7 +653,7 @@ describe('check-output.run', () => {
       state = readSession(SESSION, sandbox.env);
     });
 
-    it('should stand down with the reply message and waive nothing', () => {
+    it('should waive with the reply message and waive nothing', () => {
       expect({ message: output.systemMessage, waived: state.waived }).toEqual({
         message: expect.stringContaining('remain in the reply'),
         waived: {}

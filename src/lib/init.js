@@ -61,8 +61,9 @@ function hooksDir(root) {
 const FRESH_INI = (url) =>
   [
     '# Vale config for this project. just-say-so wrote the first version;',
-    '# edit freely. The JustSaySo package supplies the [formats] mapping and',
-    '# the [*.reply] and [*.publish] sections; add your own rules below.',
+    '# edit freely. The JustSaySo package supplies the [formats] mapping, the',
+    '# prose and reply sections with the bundled styles, and the settings',
+    '# the plugin ships for their rules; add your own rules below.',
     'StylesPath = styles',
     'MinAlertLevel = suggestion',
     `Vocab = ${DEFAULT_VOCAB}`,

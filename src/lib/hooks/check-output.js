@@ -7,7 +7,7 @@
 // file's old errors never enter it. A rewrite that leaves the alert set
 // unchanged stands the gate down instead of burning the harness's block
 // budget, and waives those alerts for the rest of the session: the
-// stop_hook_active flag that drives the stand-down is per turn, so without
+// stop_hook_active flag that drives the waiver is per turn, so without
 // the waiver every later turn would block once more on the same lines. Reply "warn" records per-rule counts in session state and returns
 // nothing: the next rules injection reports them, so the engineer never
 // sees a rewrite of a reply they already read. A third job runs regardless
@@ -15,7 +15,7 @@
 // record, the reply that ends the turn is the rewrite, and it goes into
 // that record. A blocked reply is not the rewrite, so the record stays
 // open through block cycles and closes on the reply the gate lets stand,
-// stand-down included. A fourth job: every Stop appends a reply event to
+// waiver included. A fourth job: every Stop appends a reply event to
 // the events log with the alerts at all levels, so the log lints a reply
 // even when both checks are off (events.mode "on").
 // Returns the hook output object, or null for silence.
@@ -226,9 +226,9 @@ export function run(input, env = process.env) {
         state.waived = waived;
         stateChanged = true;
       }
-      logReply('standdown', finishRewrite());
+      logReply('waived', finishRewrite());
       if (stateChanged) writeSession(sessionId, state, env);
-      return { systemMessage: gateRemaining.length > 0 ? messages.stopGateStandDown : messages.outputStandDown };
+      return { systemMessage: gateRemaining.length > 0 ? messages.stopGateWaived : messages.outputWaived };
     }
     state.lastStopBlock = keys;
     logReply('block');

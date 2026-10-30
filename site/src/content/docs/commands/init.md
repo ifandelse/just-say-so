@@ -48,7 +48,7 @@ just-say-so init: no plugin settings given, so the defaults apply (files warn, p
 just-say-so init: commit gate: add this to .pre-commit-config.yaml (the file does not exist yet) and run pre-commit install:
 just-say-so init:     repos:
 just-say-so init:       - repo: https://github.com/ifandelse/just-say-so
-just-say-so init:         rev: v0.18.1
+just-say-so init:         rev: v0.19.0
 just-say-so init:         hooks:
 just-say-so init:           - id: vale-staged
 ```

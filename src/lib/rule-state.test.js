@@ -480,7 +480,7 @@ describe('rule-state', () => {
       });
 
       it('should keep every bullet and name nothing, because an unselected style is neither on nor off', () => {
-        expect(text.split('\n').filter((l) => l.startsWith('- ')).length).toBe(19);
+        expect(text.split('\n').filter((l) => l.startsWith('- ')).length).toBe(21);
         expect(text).not.toContain('also enforces');
       });
     });
@@ -489,13 +489,13 @@ describe('rule-state', () => {
       let text;
 
       beforeEach(() => {
-        const dir = stylesDir({ 'JustSaySo.Buzzwords': 'error', 'ai-tells.EmDashUsage': 'error', 'ai-tells.MicDrop': 'error' });
-        valeSays(resolvedWith({ GBaseStyles: ['JustSaySo'], GChecks: { 'ai-tells.EmDashUsage': true }, Paths: [dir] }));
+        const dir = stylesDir({ 'JustSaySo.Buzzwords': 'error', 'acme.Loud': 'error', 'acme.Soft': 'error' });
+        valeSays(resolvedWith({ GBaseStyles: ['JustSaySo'], GChecks: { 'acme.Loud': true }, Paths: [dir] }));
         text = contextRules(DEFAULTS, os.tmpdir(), {});
       });
 
       it('should name only that rule in the trailer', () => {
-        expect(text).toMatch(/also enforces these Vale rules at error level: ai-tells\.EmDashUsage\.\n$/);
+        expect(text).toMatch(/also enforces these Vale rules at error level: acme\.Loud\.\n$/);
       });
     });
 

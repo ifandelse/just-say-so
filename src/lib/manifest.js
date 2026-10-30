@@ -188,6 +188,16 @@ function ruleText(rule, kind) {
   return String(text ?? '').replace('{terms}', termsText(rule.style));
 }
 
+// The "Checked by" trailer of a bullet. A short list is named in full; a
+// long one, which the bundled packages make common, gives the count and
+// the first few names so the text stays readable.
+const CHECKED_NAMED = 4;
+function checkedBy(ids) {
+  if (ids.length === 0) return '';
+  if (ids.length <= CHECKED_NAMED) return ` Checked by ${ids.join(', ')}.`;
+  return ` Checked by ${ids.length} Vale rules, among them ${ids.slice(0, CHECKED_NAMED - 1).join(', ')}.`;
+}
+
 /**
  * Render the rules text. kind "full" renders every section with its
  * title and note, and names the Vale rules that check a bullet after it.
@@ -214,7 +224,7 @@ export function renderRules(manifest, kind, { drop = new Set(), append = null } 
     if (section.note) lines.push(section.note, '');
     for (const rule of section.rules ?? []) {
       if (drop.has(rule.id)) continue;
-      const checked = (rule.vale ?? []).length > 0 ? ` Checked by ${rule.vale.join(', ')}.` : '';
+      const checked = checkedBy(rule.vale ?? []);
       lines.push(section.prose ? ruleText(rule, 'full') + checked : `- ${ruleText(rule, 'full')}${checked}`);
     }
   }

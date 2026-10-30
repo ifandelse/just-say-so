@@ -20,13 +20,13 @@ Install `vale` if it is not on your PATH: `brew install vale`, or another instal
 
 ## Set the project up with the defaults
 
-In the project, run `/just-say-so:init`. When the skill asks which targets to check, answer that the defaults are fine. It writes a `.vale.ini` that loads the JustSaySo package, runs `vale sync`, and prints the doctor report. It writes no `.just-say-so.json`, because the defaults need none.
+In the project, run `/just-say-so:init`. At the prompt for which targets to check, answer that the defaults are fine. It writes a `.vale.ini` that loads the JustSaySo package, runs `vale sync`, and prints the doctor report. It writes no `.just-say-so.json`, because the defaults need none.
 
-The defaults: written files on `warn`, replies on `warn`, publishing on `block` with the Artifact page checked and the `gh` and MCP sources off.
+The defaults are written files on `warn`, replies on `warn`, and publishing on `block` with the Artifact page checked and the `gh` and MCP sources off.
 
 ## Write a file
 
-Start a new session. Ask the agent to write a short rollout note as a Markdown file, and ask it to open with a sentence that uses the words `leverage` and `streamline`. When the write lands, the agent gets this:
+Start a new session. Ask the agent to write a short rollout note as a Markdown file, and ask it to open with a sentence that uses the words `leverage` and `streamline`. After the write, the agent gets this:
 
 ```
 just-say-so: Vale reports 2 error(s), 0 warning(s), 0 suggestion(s) in notes.md (whole file — this write created or replaced it):
@@ -35,7 +35,7 @@ just-say-so: Vale reports 2 error(s), 0 warning(s), 0 suggestion(s) in notes.md 
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```
 
-You do not see that message. The agent does, and in most cases it edits the file before the turn ends. Open the file and read the sentence it wrote instead. In `warn` mode the write stands and the turn can end with an error still in the file; chapter 4 changes that.
+You do not see that message. The agent does, and in most cases it edits the file before the turn ends. Open the file and read the sentence it wrote instead. In `warn` mode the write stands and the turn can end with an error still in the file. Chapter 4 changes that.
 
 ## Check
 
@@ -43,8 +43,8 @@ You do not see that message. The agent does, and in most cases it edits the file
 /just-say-so:doctor
 ```
 
-The `targets` line reads `files warn (show suggestion) · publish block, artifact · reply warn`, and the `files .md` target shows `JustSaySo 6 of 6 rules on`. No warnings.
+The `targets` line reads `files warn (show suggestion) · publish block, artifact · reply warn`, and the `files .md` target shows `JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on`. The doctor prints no warnings.
 
 ## Next
 
-[What the agent sees](/tutorial/2-what-the-agent-sees/): the rules in the agent's context, and the report that follows a reply.
+Chapter 2, [What the agent sees](/tutorial/2-what-the-agent-sees/), covers the rules in the agent's context and the report that follows a reply.

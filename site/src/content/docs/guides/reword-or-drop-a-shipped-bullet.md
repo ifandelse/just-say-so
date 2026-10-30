@@ -11,7 +11,7 @@ sidebar:
 
 ## Steps
 
-1. Find the bullet's id in [rules/manifest.json](https://github.com/ifandelse/just-say-so/blob/main/rules/manifest.json). The ids are short slugs such as `define-on-first-use` and `headings-and-lists`.
+1. Find the bullet's id in [`rules/manifest.json`](https://github.com/ifandelse/just-say-so/blob/main/rules/manifest.json). The ids are short slugs such as `define-on-first-use` and `headings-and-lists`.
 
 2. In `.just-say-so-rules.json` in the project root, add a bullet with that id. To reword:
 
@@ -25,6 +25,6 @@ sidebar:
 
 3. Confirm with the doctor: the `extra rules` line counts `replaced 1` or `dropped 1`. A drop that matches no id is a warning.
 
-## What a replacement carries
+## What a replacement contains
 
-A replaced bullet takes your `full`, `short`, and `vale` values whole. Keep the `vale` list from the manifest if the bullet should stay tied to its Vale rules; an empty list makes it a judgment bullet. Giving a `short` text to a bullet that had none adds it to the condensed reminder.
+A replaced bullet takes your `full`, `short`, and `vale` values whole. Copy the `vale` list from the manifest when the bullet should remain backed by its Vale rules. An empty list makes it a judgment bullet. Giving a `short` text to a bullet that had none adds it to the condensed reminder.

@@ -41,19 +41,43 @@ if (args[0] === 'ls-config') {
   process.exit(0);
 }
 const target = args[args.length - 1];
+if (process.env.JSS_FAKE_LINT_FAIL) process.exit(2);
 let text;
 try { text = fs.readFileSync(target, 'utf8'); } catch { process.exit(2); }
+// The vocabulary in force: accept.txt under the config's StylesPath and
+// Vocab. The word rule (JustSaySo.Buzzwords) honours an entry that holds
+// the matched term; the nonword rule (acme.Armed) and the sequence rule
+// (acme.Verbs) ignore it, the way real Vale does.
+let accepted = [];
+const configArg = args.find((a) => a.startsWith('--config='));
+if (configArg) {
+  const path = require('node:path');
+  const configFile = configArg.slice('--config='.length);
+  try {
+    const ini = fs.readFileSync(configFile, 'utf8');
+    const stylesPath = (/^StylesPath\\s*=\\s*(.+)$/m.exec(ini) || [])[1];
+    const vocab = (/^Vocab\\s*=\\s*(.+)$/m.exec(ini) || [])[1];
+    if (stylesPath && vocab) {
+      accepted = fs.readFileSync(path.resolve(path.dirname(configFile), stylesPath.trim(), 'config', 'vocabularies', vocab.trim(), 'accept.txt'), 'utf8').split('\\n').filter(Boolean);
+    }
+  } catch {}
+}
 const alerts = [];
 text.split('\\n').forEach((line, i) => {
-  for (const term of ['leverage', 'synergy']) {
+  for (const [term, check, message, honours] of [
+    ['leverage', 'JustSaySo.Buzzwords', "Banned buzzword: 'leverage'.", true],
+    ['synergy', 'JustSaySo.Buzzwords', "Banned buzzword: 'synergy'.", true],
+    ['armed', 'acme.Armed', "Enforcement metaphor: 'armed'. Say what the check refuses.", false],
+    ['navigate', 'acme.Verbs', "AI vocabulary (verb form): 'navigate'. Replace with a direct verb.", false]
+  ]) {
     const at = line.toLowerCase().indexOf(term);
-    if (at !== -1) {
-      alerts.push({
-        Check: 'JustSaySo.Buzzwords', Severity: 'error', Line: i + 1,
-        Span: [at + 1, at + term.length], Match: line.substr(at, term.length),
-        Message: "Banned buzzword: '" + term + "'."
-      });
-    }
+    if (at === -1) continue;
+    if (honours && accepted.some((e) => line.includes(e) && e.toLowerCase().includes(term))) continue;
+    alerts.push({
+      Check: check, Severity: 'error', Line: i + 1,
+      Span: [at + 1, at + term.length], Match: line.substr(at, term.length),
+      Message: message
+    });
   }
 });
 process.stdout.write(JSON.stringify(alerts.length ? { [target]: alerts } : {}));

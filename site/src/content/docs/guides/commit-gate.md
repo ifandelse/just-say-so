@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-**Goal.** A commit with an error-level alert on an added line is refused, for everyone who commits, with or without the agent.
+**Goal.** The gate refuses a commit that adds a line with an error-level alert. It applies to everyone who commits, agent or not.
 
 **Precondition.** `vale` on the committer's PATH. When it is missing, the gate prints a notice and exits 0, so adding the gate never blocks a commit on a machine without Vale.
 
@@ -24,12 +24,12 @@ The pre-commit framework, pinned at a tag:
 ```yaml
 repos:
   - repo: https://github.com/ifandelse/just-say-so
-    rev: v0.18.1
+    rev: v0.19.0
     hooks:
       - id: vale-staged
 ```
 
-Husky or a plain hook, with the repo as a dev dependency from a tag, then `node_modules/.bin/just-say-so-staged` in the hook. Do not point a hook at the Claude plugin cache; its path is machine-specific and version-suffixed.
+Husky or a plain hook, with the repo as a dev dependency from a tag, then `node_modules/.bin/just-say-so-staged` in the hook. Do not point a hook at the Claude plugin cache. Its path is machine-specific and version-suffixed.
 
 ## Skipping once
 

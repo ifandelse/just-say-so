@@ -24,7 +24,7 @@ The pre-commit framework, pinned at a tag:
 ```yaml
 repos:
   - repo: https://github.com/ifandelse/just-say-so
-    rev: v0.18.1
+    rev: v0.19.0
     hooks:
       - id: vale-staged
 ```

@@ -15,7 +15,7 @@ A week or so of sessions in the project, with tags on the rejections you made. A
 /just-say-so:summary --since 30d
 ```
 
-Read three sections. `Rejection rate` is rejections per 100 turns, counted only from rejections that join to a logged turn. `Rules on rejected replies` says which Vale rules matched on the replies you rejected, and `rejected and clean` counts the ones Vale passed, which are the misses only a bullet can cover. `What the tags point at` places each recurring tag in one situation: uncovered, judgment, fired and still shipped, silent, or not enough evidence. [Records and the summary](/reference/records/) defines every number.
+Read three sections. `Rejection rate` is rejections per 100 turns, counted only from rejections that join to a logged turn. `Rules on rejected replies` says which Vale rules matched on the replies you rejected, and `rejected and clean` counts the ones Vale passed, which are the misses only a bullet can cover. `What the tags point at` places each recurring tag in one situation: uncovered, judgment, matched and still shipped, silent, or not enough evidence. [Records and the summary](/reference/records/) defines every number.
 
 ## Fill the package cache
 

@@ -15,10 +15,13 @@ export const MARK_END = '# --- end generated ---';
 // The style the manifest generates, always first in every list.
 export const OWN_STYLE = 'JustSaySo';
 
-// The sections the hooks lint under. [*] carries the rule settings;
-// the two named targets restate the style list, because a section that
-// sets BasedOnStyles starts from that list alone.
-const SECTIONS = ['*', '*.reply', '*.publish'];
+// Where the bundled styles apply: prose formats, chat replies, and
+// published fragments. Code files keep JustSaySo alone under [*], plus
+// the bundled rules that stand in for banned terms (`codeRules`), so a
+// comment is checked for the banned list and nothing wider. A project's
+// own [*.md] section restates the list and so drops the bundle for that
+// format, the same way it always dropped JustSaySo.
+export const PROSE_GLOB = '{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}';
 
 export function shippedPackagesPath() {
   return path.join(PKG_ROOT, 'rules', 'packages.json');
@@ -50,16 +53,16 @@ export function ruleSettingLines(packages) {
   return out.sort();
 }
 
-/** The generated block: markers, the three sections, the settings under [*]. */
-export function renderValeSections(packages) {
-  const styles = `BasedOnStyles = ${styleNames(packages).join(', ')}`;
-  const lines = [MARK_BEGIN];
-  for (const section of SECTIONS) {
-    lines.push(`[${section}]`, styles);
-    if (section === '*') lines.push(...ruleSettingLines(packages));
-    lines.push('');
-  }
-  lines.push(MARK_END);
+/**
+ * The generated block: markers, [*] with JustSaySo, the per-rule YES lines
+ * for `codeRules`, and the settings, then the prose section with every
+ * bundled style. Settings under [*] reach every section, which the
+ * resolver in rule-state.js models and the real-Vale tests check.
+ */
+export function renderValeSections(packages, { codeRules = [] } = {}) {
+  const lines = [MARK_BEGIN, '[*]', `BasedOnStyles = ${OWN_STYLE}`];
+  for (const id of [...new Set(codeRules)].sort()) lines.push(`${id} = YES`);
+  lines.push(...ruleSettingLines(packages), '', `[${PROSE_GLOB}]`, `BasedOnStyles = ${styleNames(packages).join(', ')}`, '', MARK_END);
   return lines.join('\n');
 }
 

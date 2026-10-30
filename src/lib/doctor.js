@@ -219,7 +219,9 @@ export function doctorReport(cwd, env = process.env) {
   }
   const global = resolved.GBaseStyles ?? [];
   for (const [g, list] of Object.entries(resolved.SBaseStyles ?? {})) {
-    if (Array.isArray(list) && list.length > 0 && list.join(',') !== global.join(',')) {
+    // A list that keeps every [*] style and adds more is the shipped prose
+    // section; only a list that drops one is worth a warning.
+    if (Array.isArray(list) && list.length > 0 && global.some((style) => !list.includes(style))) {
       warnings.push(`Section [${g}] restates BasedOnStyles as "${list.join(', ')}", so the [*] styles (${global.join(', ') || 'none'}) do not reach it. Restate the whole list there, or use Style = NO lines instead.`);
     }
   }

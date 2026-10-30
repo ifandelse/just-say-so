@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   MARK_BEGIN,
   MARK_END,
+  PROSE_GLOB,
   readPackages,
   styleNames,
   ruleSettingLines,
@@ -14,6 +15,11 @@ import {
   styleEntries,
   vendoredRuleIds
 } from './packages.js';
+import { checkedTerms, shippedManifestPath } from './manifest.js';
+
+function readManifest() {
+  return JSON.parse(fs.readFileSync(shippedManifestPath(), 'utf8'));
+}
 
 /*
  * Branches:
@@ -72,22 +78,21 @@ describe('packages', () => {
     let block;
 
     beforeEach(() => {
-      block = renderValeSections(SMALL);
+      block = renderValeSections(SMALL, { codeRules: ['acme.Zed', 'acme.Words', 'acme.Words'] });
     });
 
-    it('should render the markers, the three sections, and the settings under [*] only', () => {
+    it('should render the markers, JustSaySo with the code rules and settings under [*], and the prose section', () => {
       expect(block).toBe(
         [
           MARK_BEGIN,
           '[*]',
-          'BasedOnStyles = JustSaySo, acme, STE',
+          'BasedOnStyles = JustSaySo',
+          'acme.Words = YES',
+          'acme.Zed = YES',
           'STE.Alpha = NO',
           'acme.Zed = suggestion',
           '',
-          '[*.reply]',
-          'BasedOnStyles = JustSaySo, acme, STE',
-          '',
-          '[*.publish]',
+          `[${PROSE_GLOB}]`,
           'BasedOnStyles = JustSaySo, acme, STE',
           '',
           MARK_END
@@ -202,7 +207,7 @@ describe('packages', () => {
       const ids = new Set(packages.packages.flatMap((p) => vendoredRuleIds(stylesDir, p.name)));
       unknownSettings = Object.keys(packages.rules).filter((id) => !ids.has(id));
       counts = packages.packages.map((p) => [p.name, vendoredRuleIds(stylesDir, p.name).length, p.ruleCount]);
-      block = renderValeSections(packages);
+      block = renderValeSections(packages, { codeRules: checkedTerms(readManifest()).map((t) => t.checkedBy) });
       fallback = fs.readFileSync(path.join(ROOT, 'vale', 'fallback.ini'), 'utf8');
       repoIni = fs.readFileSync(path.join(ROOT, '.vale.ini'), 'utf8');
     });

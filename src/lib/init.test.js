@@ -86,7 +86,7 @@ describe('init', () => {
         `commit gate: wrote ${path.join(root, '.git', 'hooks', 'pre-commit')}`,
         `commit gate: the gate comes from the dev dependency; run: npm install --save-dev github:ifandelse/just-say-so#v${pluginVersion()}`
       ]);
-      expect(fs.readFileSync(path.join(root, '.vale.ini'), 'utf8')).toContain(`Packages = ${URL}\n\n[*]\nBasedOnStyles = JustSaySo, ai-tells, STE\n`);
+      expect(fs.readFileSync(path.join(root, '.vale.ini'), 'utf8')).toContain(`Packages = ${URL}\n\n[*]\nBasedOnStyles = JustSaySo\n`);
       expect(JSON.parse(fs.readFileSync(path.join(root, '.just-say-so.json'), 'utf8'))).toEqual({
         publish: { gh: true, mcp: ['mcp__x__*'] },
         reply: { mode: 'block' }

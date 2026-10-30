@@ -5,7 +5,7 @@ sidebar:
   order: 4
 ---
 
-The `rules` section controls when the rules text reaches the model, which rendering goes out, and where the text comes from.
+The `rules` section controls when the plugin injects the rules text, which rendering goes out, and where the text comes from.
 
 ```jsonc
 "rules": {
@@ -21,11 +21,11 @@ The `rules` section controls when the rules text reaches the model, which render
 
 ## onContextStart
 
-The context starts that inject the rules: any of `startup`, `resume`, `clear`, and `compact`. The default is all four, so the rules are present at the start of every context. Trim the list when something else carries the rules at startup, a `CLAUDE.md` say; `["compact"]` then covers the one start nothing else does.
+The context starts that inject the rules: any of `startup`, `resume`, `clear`, and `compact`. The default is all four, so the rules are present at the start of every context. Trim the list when something else, a `CLAUDE.md` say, supplies the rules at startup. `["compact"]` then covers the one start nothing else does.
 
 ## contextStartText
 
-Which rendering a context start and a subagent start inject. `full`, the default, is every bullet with its examples and the Vale rules that check it, about 600 words. `condensed` is the short texts, about 330 words. The prompt after a violation always carries the condensed form with the report. Three shipped bullets have no short text, so they reach the model only through the full text.
+Which rendering a context start and a subagent start inject. `full`, the default, is every bullet with its examples and the Vale rules that check it, about 600 words. `condensed` is the short texts, about 330 words. The prompt after a violation always uses the condensed form with the report. Shipped bullets with no short text, three at present, go out only in the full text.
 
 ## onSubagentStart
 
@@ -37,7 +37,7 @@ Which rendering a context start and a subagent start inject. `full`, the default
 
 ## manifest
 
-A path to a rules manifest of your own, replacing the shipped one. Relative paths resolve against the project. A path that does not exist or is not JSON falls back to the shipped rules; session start says so once and the doctor warns. See [the rules manifest and the extra file](/configuration/manifest-and-extra/).
+A path to a rules manifest of your own, replacing the shipped one. Relative paths resolve against the project. A path that does not exist or is not JSON falls back to the shipped rules. Session start says so once, and the doctor warns. See [the rules manifest and the extra file](/configuration/manifest-and-extra/).
 
 ## extra
 

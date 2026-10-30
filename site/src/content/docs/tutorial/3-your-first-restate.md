@@ -11,7 +11,7 @@ You have seen the rules go out and a report come back. The next miss is one Vale
 
 ## Reject a reply
 
-Ask the agent to explain some part of your project. When the reply uses a term it never defined, or ends a paragraph with a flourish, or buries the answer in the third paragraph, reject it:
+Ask the agent to explain some part of your project. When the reply uses a term it never defined, or ends a paragraph with a flourish, or puts the answer in the third paragraph, reject it:
 
 ```
 /just-say-so:restate #undefined-term it used "pin" three times and never said what a pin is
@@ -21,13 +21,13 @@ The model rewrites the reply under the rules. It keeps every fact, number, path,
 
 ## What was recorded
 
-The plugin read the rejected reply from the transcript, so the record holds what the model wrote and not what it remembers writing. It saved one line to `rejections.jsonl` in your state directory, which for an installed plugin is `$CLAUDE_PLUGIN_DATA/state` and otherwise `~/.local/state/just-say-so/` unless `JUST_SAY_SO_STATE_DIR` or `XDG_STATE_HOME` moves it, with the rejected reply, your reason as typed, the tag `undefined-term`, the prompt that produced the reply, and the Vale alerts on the rejected text at every level. When the rewrite landed, it joined the record with its own alerts.
+The plugin read the rejected reply from the transcript. The record holds what the model wrote and not what it remembers writing. It saved one line to `rejections.jsonl` in your state directory, which for an installed plugin is `$CLAUDE_PLUGIN_DATA/state` and otherwise `~/.local/state/just-say-so/` unless `JUST_SAY_SO_STATE_DIR` or `XDG_STATE_HOME` moves it, with the rejected reply, your reason as typed, the tag `undefined-term`, the prompt that produced the reply, and the Vale alerts on the rejected text at every level. After the rewrite, the plugin added it to the record with its own alerts.
 
-Nothing was written into the project. Nothing leaves your machine.
+The plugin wrote no file into the project and sends no record off your machine.
 
 ## Why the tag matters
 
-A tag is any `#word` you type. There is no list. The summary counts tags, and when a tag is the id of a bullet in the rules file, the summary knows whether that bullet is a judgment bullet or a Vale-backed one and whether its rules fired. A tag that matches no bullet is the to-do list: a bullet or a rule still to write. Pick a few tags and reuse them; three rejections with one tag in one project is what advice needs.
+A tag is any `#word` you type. There is no list. The summary counts tags, and when a tag is the id of a bullet in the rules file, the summary knows whether that bullet is a judgment bullet or a Vale-backed one and whether its rules matched. A tag that matches no bullet is the to-do list: a bullet or a rule still to write. Pick a few tags and reuse them. Advice needs three rejections with one tag in one project.
 
 ## Check
 

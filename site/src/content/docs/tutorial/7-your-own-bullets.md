@@ -11,7 +11,7 @@ sidebar:
 
 ## Reword a shipped bullet
 
-Open [the rules](/reference/the-rules/) and pick a bullet whose wording you would change. Its id is in `rules/manifest.json`; `define-on-first-use` is the one about terms. Add a bullet with that id to your file:
+Open [the rules](/reference/the-rules/) and pick a bullet whose wording you would change. Its id is in `rules/manifest.json`. The id `define-on-first-use` is the one about terms. Add a bullet with that id to your file:
 
 ```json
 { "id": "define-on-first-use", "full": "Define every term the reader may not know in the sentence that first uses it, then use it freely.", "short": "Define a term on first use.", "vale": [] }

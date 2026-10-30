@@ -34,7 +34,9 @@ Open a project and run:
 /just-say-so:init
 ```
 
-The skill asks which targets you want checked beyond the defaults, then runs the setup. It writes a `.vale.ini` that loads the JustSaySo rules when the project has none, runs `vale sync`, writes `.just-say-so.json` for any target you named, wires a commit hook for the repo's hook tooling, and ends with the doctor report. Add `--dry-run` to see the steps without writing anything.
+The skill prompts you for the targets you want checked beyond the defaults, then runs the setup. It writes a `.vale.ini` that loads the JustSaySo package when the project has none, runs `vale sync`, writes `.just-say-so.json` for any target you named, wires a commit hook for the repo's hook tooling, and ends with the doctor report. Add `--dry-run` to see the steps without writing anything.
+
+The package brings three styles: JustSaySo, generated from the rules text, and two community packages the plugin bundles, ai-tells and STE, with the settings the plugin chose for their rules. [What is just-say-so](/start/what-is-just-say-so/#where-the-two-kinds-of-rule-come-from) says where each comes from.
 
 ## 3. Check the setup
 
@@ -46,10 +48,10 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · levels: 5 error, 1 suggestion
-               sections: [*] [*.reply]
-  files .md    doc.md               JustSaySo 6 of 6 rules on · levels: 5 error, 1 suggestion
-               sections: [*]
+  reply        reply.reply          JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+               sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
+  files .md    doc.md               JustSaySo 4 of 4 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 128 error, 4 warning, 7 suggestion
+               sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 
 Each warning names its fix. Read them before going on.
@@ -62,11 +64,11 @@ Start a new session in the project. The rules text goes out at every context sta
 /just-say-so:rules
 ```
 
-That loads the full text into the conversation, as the manifest renders it. The hooks inject the same text with one difference: a bullet backed by Vale rules your project turned off is left out. On a fresh setup nothing is turned off, so the two match. It opens with "Lead with the answer, decision, result, or required action."
+That loads the full text into the conversation, as the manifest renders it. The hooks inject the same text with one adjustment: they leave out a bullet whose Vale rules your project turned off. On a fresh setup nothing is turned off, so the two match. It opens with "Lead with the answer, decision, result, or required action."
 
 ## 5. Write a file and read the check
 
-Ask the agent to write a short Markdown file. Ask for something a buzzword fits, a rollout note say. When the write lands, the agent gets a report of every alert on the lines it added, and in the default `warn` mode it is told to fix the errors before finishing. You see the fixed file. To see the report itself, ask the agent what the check said.
+Ask the agent to write a short Markdown file that includes buzzwords such as `robust` or `seamless`. When the write is done, the agent gets a report of every alert on the lines it added, and in the default `warn` mode it is told to fix the errors before finishing. You see the fixed file. To see the report, ask the agent what the check said.
 
 ## 6. Reject a reply
 
@@ -76,7 +78,7 @@ Ask a question, and when the reply is bad in a way you noticed, reject it:
 /just-say-so:restate #undefined-term what is a "pin"? the term was never defined
 ```
 
-The model rewrites the reply under the rules. The plugin saves the rejected reply as the model wrote it, your reason, the tag, and the rewrite, as one line in a file under your state directory. Nothing leaves your machine. A tag is any `#word` you type.
+The model rewrites the reply under the rules. The plugin saves the rejected reply as the model wrote it, your reason, the tag, and the rewrite, as one line in a file under your state directory. The file stays on your machine. A tag is any `#word` you type.
 
 ## 7. Read the summary
 
@@ -84,7 +86,7 @@ The model rewrites the reply under the rules. The plugin saves the rejected repl
 /just-say-so:summary
 ```
 
-It prints facts with their counts: turns, rejections per 100 turns, the rules that fired, the tags and what each points at. After one session most lines read zero. The numbers mean something after a week.
+It prints facts with their counts: turns, rejections per 100 turns, the rules that matched, the tags and what each points at. After one session most lines read zero. The numbers mean something after a week.
 
 ## What you have now
 

@@ -1,13 +1,28 @@
 ---
 title: "/just-say-so:summary"
-description: "What the plugin has recorded, as facts with their counts: turns, rejections per 100 turns, the rules that fire, the tags, and what each recurring tag points at."
+description: "The plugin's records as facts with their counts: turns, rejections per 100 turns, the rules that match, the tags, and what each recurring tag points at."
 sidebar:
   order: 7
 ---
 
 ## What it does
 
-Reads the two state files and prints facts with their counts. The window and its sessions; volume; rejections per 100 turns, overall, per project, and per week once the window spans a month; rejections in each distance bucket from the last rules injection; the rules with an error on final replies; the rules on rejected replies; rewrites; the reasons you typed; the tags, each with what covers it; what each recurring tag points at; allows; sessions per setting. It ends with observations and what the data does not establish. It recommends nothing; [advise](/commands/advise/) does.
+Reads the two state files and prints facts with their counts:
+
+- the window and its sessions
+- volume
+- rejections per 100 turns, overall, per project, and per week once the window spans a month
+- rejections in each distance bucket from the last rules injection
+- the rules with an error on final replies
+- the rules on rejected replies
+- rewrites
+- the reasons you typed
+- the tags, each with what covers it
+- what each recurring tag points at
+- allows
+- sessions per setting
+
+It ends with observations and what the data does not establish. It recommends nothing. Recommendations come from [advise](/commands/advise/).
 
 ## Synopsis
 

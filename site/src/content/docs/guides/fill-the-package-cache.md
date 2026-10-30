@@ -17,10 +17,10 @@ sidebar:
    /just-say-so:packages --refresh
    ```
 
-   It downloads the 25 writing-rule packages, reads each rule's id, level, message, and a sample of its tokens, and writes one file per package under `packages/` in the state directory. Nothing else downloads an archive, and the archives are never run or written out.
+   It downloads the 25 writing-rule packages, reads each rule's id, level, message, and a sample of its tokens, and writes one file per package under `packages/` in the state directory. The refresh is the only step that downloads an archive. The script reads the archives in memory and does not run or write them out.
 
 2. Run `/just-say-so:advise`. Its first line now reports the cache size and date instead of saying it is empty.
 
-## Keeping it fresh
+## Refreshing the cache
 
-The cache is as old as the last refresh. Advise says so when the oldest package is over 30 days old. `/just-say-so:packages` alone reports the cache against the registry; `--refresh Name` refreshes one package; `--prune` removes packages the registry dropped.
+The cache is as old as the last refresh. Advise says so when the oldest package is over 30 days old. `/just-say-so:packages` alone reports the cache against the registry. `--refresh Name` refreshes one package. `--prune` removes packages the registry dropped.

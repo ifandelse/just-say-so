@@ -123,7 +123,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
 
   // Join each rejection to the turn it rejected: the latest turn before
   // the restate, in the same session, at the record's prompt index minus
-  // one. Chronology does the work that the index cannot: compaction and
+  // one. Chronology disambiguates where the index cannot: compaction and
   // /clear reuse indexes, so a later turn at the same index is never a
   // stand-in, and the search runs over the whole log so a window that
   // opens after the rejected turn still finds it. A rejection counts in

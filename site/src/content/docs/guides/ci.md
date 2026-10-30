@@ -30,4 +30,4 @@ sidebar:
 
 ## Pinning the plugin
 
-`anthropics/claude-code-action` installs plugins from a marketplace URL or a directory path, and neither carries a tag. To pin, vendor the plugin: copy `.claude-plugin/`, `hooks/`, `rules/`, `skills/`, and `src/` from a tagged release into the repository and point `plugin_marketplaces` at that directory. The copy needs no install step. [The commit gate, CI, and pinning](/reference/commit-gate/) has the full note.
+`anthropics/claude-code-action` installs plugins from a marketplace URL or a directory path, and neither one has a tag. To pin, vendor the plugin: copy `.claude-plugin/`, `hooks/`, `rules/`, `skills/`, and `src/` from a tagged release into the repository and point `plugin_marketplaces` at that directory. The copy needs no install step. [The commit gate, CI, and pinning](/reference/commit-gate/) has the full note.

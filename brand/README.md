@@ -10,7 +10,7 @@ The mark, the lockup, and their exports, for the README, the docs site, and anyw
 | `mark-dark.svg` | The mark in the dark-background blue. |
 | `mark-white.svg`, `mark-black.svg` | One-colour marks for photographs, print, and badges. |
 | `icon.svg`, `icon-dark.svg` | The mark centred in a 128 by 128 box with padding, for favicons and app icons. |
-| `lockup.svg` | The mark and the name, for light backgrounds. The name is outlined, so the file needs no font. |
+| `lockup.svg` | The mark and the name, for light backgrounds. The name is outlined and the file needs no font. |
 | `lockup-dark.svg` | The lockup for dark backgrounds. |
 | `lockup-white.svg`, `lockup-black.svg` | One-colour lockups. |
 | `og-image.svg` | The lockup centred on white at 1200 by 630, for link previews. |
@@ -25,11 +25,11 @@ The mark, the lockup, and their exports, for the README, the docs site, and anyw
 | Name on light backgrounds | `#111111` |
 | Name on dark backgrounds | `#f2f2f6` |
 
-The blue keeps the saturation and lightness of Vale's green, `hsl(92 62% 40%)` and `hsl(92 60% 58%)`, with the hue moved to 217, so the two marks carry the same weight side by side.
+The blue keeps the saturation and lightness of Vale's green, `hsl(92 62% 40%)` and `hsl(92 60% 58%)`, with the hue moved to 217. Side by side, the just-say-so mark and the Vale mark then have the same visual weight.
 
 ## The mark
 
-Four pieces: three parallelograms (the crossbar, the stem, the hook) and one trapezoid (top right). Two slants and nothing else: every leaning side runs down-left at 1 in 2, and every cut, with the hook's sides, runs down-right at 1 in 2, which is 63.4 degrees on the right and 116.6 on the left. Every piece has the same stroke thickness, 24 units, measured across the piece. Every joint has the same perpendicular gap, 6 units. The stem's lowest vertex sits on the hook's baseline.
+The mark is three parallelograms (the crossbar, the stem, the hook) and one trapezoid (top right). The sides use only two slants. Each leaning side runs down-left at 1 in 2, and each cut, with the hook's sides, runs down-right at 1 in 2, which is 63.4 degrees on the right and 116.6 on the left. The stroke thickness is 24 units on all four pieces, measured across the piece. The perpendicular gap at each joint is 6 units. The stem's lowest vertex sits on the hook's baseline.
 
 ```
 crossbar  M36 0 78 0 66 24 24 24Z
@@ -42,7 +42,7 @@ Keep the gaps when scaling. Below about 16 pixels the gaps close and the mark re
 
 ## The name
 
-Space Grotesk, weight 700, letter-spacing −0.02em, the name as `just-say-so` with the dashes. In the lockup the mark stands 1.02em tall, centred on the em box, with a gap of 0.42em before the name. The lockup files carry the name as outlines; a page that sets the name as live text should load Space Grotesk 700 and use the same spacing.
+Space Grotesk, weight 700, letter-spacing −0.02em, the name as `just-say-so` with the dashes. In the lockup the mark stands 1.02em tall, centred on the em box, with a gap of 0.42em before the name. The lockup files contain the name as outlines. A page that sets the name as live text should load Space Grotesk 700 and use the same spacing.
 
 Space Grotesk is by Florian Karsten, under the SIL Open Font License 1.1. The outlines in the lockups are derived from it; the licence permits that, and a copy of the licence is at `OFL-SpaceGrotesk.txt`.
 

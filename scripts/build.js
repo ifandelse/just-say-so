@@ -24,7 +24,7 @@ for (const [name, content] of Object.entries(files)) {
 fs.writeFileSync(path.join(root, 'rules', 'full.md'), renderRules(manifest, 'full'));
 fs.writeFileSync(path.join(root, 'rules', 'condensed.md'), renderRules(manifest, 'condensed'));
 
-// The bundled rules that stand in for banned terms run on code comments too.
+// The bundled rules that cover the manifest's banned terms run on code comments too.
 const block = renderValeSections(readPackages(), { codeRules: checkedTerms(manifest).map((t) => t.checkedBy) });
 const configs = [path.join(root, 'vale', 'fallback.ini'), path.join(root, '.vale.ini')];
 for (const file of configs) {

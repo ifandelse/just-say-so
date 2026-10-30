@@ -1,11 +1,11 @@
 ---
 name: packages
-description: Report or fill the package cache — the rule facts of every writing-rule package in the Vale registry, downloaded on request so /just-say-so:advise can match your tags against rules you have not installed.
+description: Report or fill the package cache, the rule facts of every writing-rule package in the Vale registry, downloaded on request so /just-say-so:advise can match your tags against rules you have not installed.
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/src/cli/packages.js" *)
 ---
 
-The user wants the package cache reported, filled, or pruned. Arguments given, if any: $ARGUMENTS (`--refresh` downloads every style package in the Vale registry; `--refresh Name Other` downloads only those; `--prune` removes cached packages the registry no longer lists; `--json` passes through).
+The user wants the package cache reported, filled, or pruned. Arguments given, if any: $ARGUMENTS (`--refresh` downloads every style package in the Vale registry, `--refresh Name Other` downloads only those, `--prune` removes cached packages the registry no longer lists, and `--json` passes through).
 
 Run:
 

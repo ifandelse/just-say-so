@@ -1,6 +1,6 @@
 ---
 title: "Run just-say-so in a single-prompt job"
-description: "Settings for a run that submits one prompt and ends, where there is no next prompt to carry a report."
+description: "Settings for a run that submits one prompt and ends, where there is no next prompt to deliver a report."
 sidebar:
   order: 10
 ---
@@ -25,4 +25,4 @@ sidebar:
 
 ## Why these settings
 
-`reply.mode: "warn"` delivers nothing in a single-prompt run: its report rides the next prompt, and there is none. `block` makes the model rewrite before the turn ends, which is right here and wrong in an interactive session. `onContextStart: ["startup"]` injects the rules once, which is all one prompt needs. `files.mode: "block"` holds the turn until written files are clean, which is where CI output lands.
+`reply.mode: "warn"` delivers nothing in a single-prompt run: its report rides the next prompt, and there is none. `block` makes the model rewrite before the turn ends, which is right here and wrong in an interactive session. `onContextStart: ["startup"]` injects the rules once, which is all one prompt needs. `files.mode: "block"` holds the turn until written files are clean, and files are where CI output goes.

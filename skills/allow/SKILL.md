@@ -1,6 +1,6 @@
 ---
 name: allow
-description: Permit a term the checker flagged — appends it to the project's Vale vocabulary (accept.txt) when the rules that report it honour the vocabulary, adds the Vocab key to .vale.ini when it lacks one, and explains the way out when a rule ignores the vocabulary.
+description: Permit a term the checker flagged. Appends it to the project's Vale vocabulary (accept.txt) when the rules that report it honour the vocabulary, adds the Vocab key to .vale.ini when it lacks one, and explains the way out when a rule ignores the vocabulary.
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/src/cli/allow.js" *)
 ---

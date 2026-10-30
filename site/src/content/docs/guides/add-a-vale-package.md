@@ -5,22 +5,22 @@ sidebar:
   order: 5
 ---
 
-**Goal.** The project runs a Vale package beside the shipped rules, and the reminder describes its rules instead of naming them.
+**Goal.** The project runs a Vale package beside the bundled styles, and the reminder describes its rules instead of naming them.
 
 **Precondition.** The project has a `.vale.ini` with `StylesPath`.
 
 ## Steps
 
-1. Add the package to `Packages` and its style to `BasedOnStyles` in `.vale.ini`:
+1. Add the package to `Packages`, and add its style to `BasedOnStyles` in a section for the formats you want, restating the bundled styles:
 
    ```ini
-   Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.18.1/JustSaySo.zip, ai-tells
+   Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip, Google
 
-   [*]
-   BasedOnStyles = JustSaySo, ai-tells
+   [*.md]
+   BasedOnStyles = JustSaySo, ai-tells, STE, Google
    ```
 
-   A bare name resolves through the Vale registry; a release URL pins a version.
+   A bare name resolves through the Vale registry, and a release URL pins a version. A `BasedOnStyles` line in a section starts from its own list, so a section that leaves out ai-tells and STE drops them for that format.
 
 2. Run `vale sync`.
 
@@ -30,4 +30,4 @@ sidebar:
 
 ## Choosing a package
 
-`/just-say-so:advise` lists the registry packages a project does not have, with their descriptions, and after `/just-say-so:packages --refresh` it can match your rejection tags against their rules. Vale's own [package explorer](https://vale.sh/explorer) is the browsable list.
+`/just-say-so:advise` lists the registry packages a project does not have, with their descriptions, and after `/just-say-so:packages --refresh` it can match your rejection tags against their rules. Vale's own [package explorer](https://vale.sh/explorer) is the browsable list. ai-tells and STE are already bundled, so adding them again only moves the pin.

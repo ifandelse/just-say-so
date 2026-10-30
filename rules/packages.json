@@ -1,0 +1,47 @@
+{
+  "$comment": "The Vale packages the plugin bundles beside JustSaySo, and the settings it ships for their rules. scripts/vendor-packages.js downloads each pinned release, checks its SHA-256, and unpacks the style into styles/<name>/; the copies are committed and never edited. `rules` maps a rule id to NO or to a level; every other rule runs at the level its file declares. scripts/build.js renders the [*], [*.reply], and [*.publish] sections of vale/fallback.ini and .vale.ini from this file, and a test fails when they drift. The choices were made rule by rule on 2026-10-30; the review is in docs/reports.",
+  "packages": [
+    {
+      "name": "ai-tells",
+      "tag": "v1.37.0",
+      "homepage": "https://github.com/tbhb/vale-ai-tells",
+      "url": "https://github.com/tbhb/vale-ai-tells/releases/download/v1.37.0/ai-tells.zip",
+      "sha256": "f8d1e981abbfbac1aa092d1623a1ac9bc935f0b15e8071e7a072915abddf0570",
+      "license": "MIT",
+      "licenseUrl": "https://raw.githubusercontent.com/tbhb/vale-ai-tells/v1.37.0/LICENSE",
+      "ruleCount": 137
+    },
+    {
+      "name": "STE",
+      "tag": "v0.1.0",
+      "homepage": "https://github.com/Syntaf/vale-llm-slop",
+      "url": "https://github.com/Syntaf/vale-llm-slop/releases/download/v0.1.0/STE.zip",
+      "sha256": "6ea7ce48d205038ab47edbb0b286b324e7b7362ca99768142801dbe4e02166ac",
+      "license": "MIT",
+      "licenseUrl": "https://raw.githubusercontent.com/Syntaf/vale-llm-slop/v0.1.0/LICENSE",
+      "ruleCount": 12
+    }
+  ],
+  "rules": {
+    "ai-tells.AnthropomorphicAdjectives": "NO",
+    "ai-tells.BareHolds": "NO",
+    "ai-tells.BareNames": "NO",
+    "ai-tells.ColonUsage": "NO",
+    "ai-tells.EvasionMetaphors": "suggestion",
+    "ai-tells.ExplainerHeadings": "NO",
+    "ai-tells.HouseStyle": "NO",
+    "ai-tells.NamedAdjective": "NO",
+    "ai-tells.NegatedObject": "suggestion",
+    "ai-tells.RhetoricalDevices": "suggestion",
+    "ai-tells.RhetoricalSelfAnswer": "suggestion",
+    "ai-tells.ShipOveruse": "NO",
+    "ai-tells.VerbTricolon": "NO",
+    "STE.Contractions": "NO",
+    "STE.Dictionary": "NO",
+    "STE.Gerunds": "NO",
+    "STE.Modals": "NO",
+    "STE.PassiveVoice": "suggestion",
+    "STE.ProcedureLength": "NO",
+    "STE.SentenceLength": "suggestion"
+  }
+}

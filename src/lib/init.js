@@ -12,6 +12,7 @@ import { findValeConfig } from './vale.js';
 import { readKey, setKey, withPackage, packageUrl } from './vale-ini.js';
 import { DEFAULT_VOCAB } from './allow.js';
 import { pluginVersion } from './version.js';
+import { readPackages, styleNames } from './packages.js';
 
 const MODES = new Set(['off', 'warn', 'block']);
 const HOOKS = new Set(['auto', 'pre-commit', 'husky', 'git', 'none']);
@@ -61,15 +62,16 @@ function hooksDir(root) {
 const FRESH_INI = (url) =>
   [
     '# Vale config for this project. just-say-so wrote the first version;',
-    '# edit freely. The JustSaySo package supplies the [formats] mapping and',
-    '# the [*.reply] and [*.publish] sections; add your own rules below.',
+    '# edit freely. The JustSaySo package supplies the [formats] mapping, the',
+    '# [*.reply] and [*.publish] sections, the bundled styles, and the',
+    '# settings the plugin ships for their rules; add your own below.',
     'StylesPath = styles',
     'MinAlertLevel = suggestion',
     `Vocab = ${DEFAULT_VOCAB}`,
     `Packages = ${url}`,
     '',
     '[*]',
-    'BasedOnStyles = JustSaySo',
+    `BasedOnStyles = ${styleNames(readPackages()).join(', ')}`,
     ''
   ].join('\n');
 

@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addAllowTerm, vocabTarget, DEFAULT_VOCAB } from './allow.js';
+import { addAllowTerm, vocabTarget, formatAllow, reportingRules, DEFAULT_VOCAB } from './allow.js';
+import { makeSandbox, withFakeVale } from '../../test/helpers/sandbox.js';
 import { eventsFile, readEvents } from './events.js';
 
 /*
@@ -143,6 +144,9 @@ describe('allow', () => {
           term: 'robust regression',
           file: acceptPath(root),
           added: true,
+          written: true,
+          honoured: null,
+          unreachable: null,
           configFile: path.join(root, '.vale.ini'),
           configChanged: false
         });
@@ -159,7 +163,8 @@ describe('allow', () => {
             v: expect.any(String),
             term: 'robust regression',
             file: acceptPath(root),
-            added: true
+            added: true,
+            unreachable: null
           }
         ]);
       });
@@ -264,6 +269,139 @@ describe('allow', () => {
 
       it('should throw before touching anything', () => {
         expect(thrown.message).toBe('no term given');
+      });
+    });
+  });
+  describe('reportingRules and the nonword gap', () => {
+    // A fake vale that flags "synergy" (JustSaySo.Buzzwords, a word rule) and
+    // "armed" (acme.Armed, a nonword rule), with ls-config pointing at a
+    // styles directory that declares both.
+    function fakeProject() {
+      const sandbox = withFakeVale(makeSandbox());
+      const root = fs.realpathSync(sandbox.work);
+      const styles = path.join(root, 'styles');
+      fs.mkdirSync(path.join(styles, 'JustSaySo'), { recursive: true });
+      fs.mkdirSync(path.join(styles, 'acme'), { recursive: true });
+      fs.writeFileSync(path.join(styles, 'JustSaySo', 'Buzzwords.yml'), 'extends: existence\nlevel: error\n');
+      fs.writeFileSync(path.join(styles, 'acme', 'Armed.yml'), 'extends: existence\nlevel: error\nnonword: true\n');
+      fs.writeFileSync(path.join(root, '.vale.ini'), 'StylesPath = styles\nVocab = Team\n[*]\nBasedOnStyles = JustSaySo, acme\n');
+      const lsConfig = path.join(root, 'ls-config.json');
+      fs.writeFileSync(lsConfig, JSON.stringify({ Formats: {}, GBaseStyles: ['JustSaySo', 'acme'], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [styles], ConfigFiles: [] }));
+      return { root, env: { ...sandbox.env, JUST_SAY_SO_CONFIG: path.join(root, 'none.json'), JSS_FAKE_LS_CONFIG: lsConfig } };
+    }
+
+    describe('when only a word rule reports the term', () => {
+      let p, result, text;
+
+      beforeEach(() => {
+        p = fakeProject();
+        result = addAllowTerm('synergy', p.root, p.env);
+        text = formatAllow(result);
+      });
+
+      it('should write the entry and name the rule it silences', () => {
+        expect({ written: result.written, added: result.added, honoured: result.honoured, unreachable: result.unreachable }).toEqual({
+          written: true,
+          added: true,
+          honoured: ['JustSaySo.Buzzwords'],
+          unreachable: []
+        });
+        expect(text).toBe(`just-say-so: added "synergy" to the Vale vocabulary (${acceptPath(p.root)})\njust-say-so: JustSaySo.Buzzwords will no longer report it.\n`);
+      });
+    });
+
+    describe('when only a nonword rule reports the term', () => {
+      let p, result, text;
+
+      beforeEach(() => {
+        p = fakeProject();
+        result = addAllowTerm('stays armed', p.root, p.env);
+        text = formatAllow(result);
+      });
+
+      it('should write nothing and explain the two ways out', () => {
+        expect({ written: result.written, added: result.added, honoured: result.honoured, exists: fs.existsSync(acceptPath(p.root)) }).toEqual({
+          written: false,
+          added: false,
+          honoured: [],
+          exists: false
+        });
+        expect(result.unreachable).toEqual([{ id: 'acme.Armed', message: "Enforcement metaphor: 'armed'. Say what the check refuses.", nonword: true }]);
+        expect(text).toContain('"stays armed" is reported by acme.Armed.\n\nThat rule matches text across word boundaries');
+        expect(text).toContain('nothing for it, so nothing was written.');
+        expect(text).toContain("  1. Rewrite the phrase.\n     acme.Armed: Enforcement metaphor: 'armed'. Say what the check refuses.");
+        expect(text).toContain('       acme.Armed = NO\n');
+      });
+    });
+
+    describe('when a word rule and a nonword rule both report the term', () => {
+      let p, result, text;
+
+      beforeEach(() => {
+        p = fakeProject();
+        result = addAllowTerm('synergy armed', p.root, p.env);
+        text = formatAllow(result);
+      });
+
+      it('should write the entry for the word rule and explain the other', () => {
+        expect({ written: result.written, honoured: result.honoured, unreachable: result.unreachable.map((r) => r.id) }).toEqual({
+          written: true,
+          honoured: ['JustSaySo.Buzzwords'],
+          unreachable: ['acme.Armed']
+        });
+        expect(text).toContain('JustSaySo.Buzzwords will no longer report it.\n\n"synergy armed" is reported by acme.Armed.');
+        expect(text).toContain('nothing for it.\n');
+      });
+    });
+
+    describe('when no active rule reports the term, and when it is already accepted', () => {
+      let p, first, second, texts;
+
+      beforeEach(() => {
+        p = fakeProject();
+        first = addAllowTerm('idempotent', p.root, p.env);
+        second = addAllowTerm('idempotent', p.root, p.env);
+        texts = [formatAllow(first), formatAllow(second)];
+      });
+
+      it('should write it once and say that nothing reports it yet', () => {
+        expect([first.added, second.added, first.honoured]).toEqual([true, false, []]);
+        expect(texts[0]).toContain('no active rule reports the term on its own');
+        expect(texts[1]).toMatch(/^just-say-so: "idempotent" is already in the Vale vocabulary/);
+      });
+    });
+
+    describe('when vale cannot lint here, and when the ini gained its keys', () => {
+      let p, result, text, rules;
+
+      beforeEach(() => {
+        p = fakeProject();
+        fs.writeFileSync(path.join(p.root, '.vale.ini'), '[*]\nBasedOnStyles = JustSaySo\n');
+        const env = { ...p.env, PATH: '' };
+        rules = reportingRules('synergy', p.root, env);
+        result = addAllowTerm('synergy', p.root, env);
+        text = formatAllow(result);
+      });
+
+      it('should report null, write the entry, and say the reach is unknown', () => {
+        expect({ rules, written: result.written, honoured: result.honoured, configChanged: result.configChanged }).toEqual({ rules: null, written: true, honoured: null, configChanged: true });
+        expect(text).toContain(`just-say-so: added StylesPath/Vocab to ${path.join(p.root, '.vale.ini')}\njust-say-so: vale could not lint the term here`);
+      });
+    });
+
+    describe('when ls-config works but the lint itself fails', () => {
+      let p, rules;
+
+      beforeEach(() => {
+        p = fakeProject();
+        // The fake exits 2 when it cannot read the target; a config that names
+        // a directory as the target does that.
+        const dir = path.join(p.root, 'styles');
+        rules = reportingRules('synergy', dir, { ...p.env, JSS_FAKE_LINT_FAIL: '1' });
+      });
+
+      it('should report null', () => {
+        expect(rules).toBeNull();
       });
     });
   });

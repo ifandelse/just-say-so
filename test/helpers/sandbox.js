@@ -41,17 +41,18 @@ if (args[0] === 'ls-config') {
   process.exit(0);
 }
 const target = args[args.length - 1];
+if (process.env.JSS_FAKE_LINT_FAIL) process.exit(2);
 let text;
 try { text = fs.readFileSync(target, 'utf8'); } catch { process.exit(2); }
 const alerts = [];
 text.split('\\n').forEach((line, i) => {
-  for (const term of ['leverage', 'synergy']) {
+  for (const [term, check, message] of [['leverage', 'JustSaySo.Buzzwords', "Banned buzzword: 'leverage'."], ['synergy', 'JustSaySo.Buzzwords', "Banned buzzword: 'synergy'."], ['armed', 'acme.Armed', "Enforcement metaphor: 'armed'. Say what the check refuses."]]) {
     const at = line.toLowerCase().indexOf(term);
     if (at !== -1) {
       alerts.push({
-        Check: 'JustSaySo.Buzzwords', Severity: 'error', Line: i + 1,
+        Check: check, Severity: 'error', Line: i + 1,
         Span: [at + 1, at + term.length], Match: line.substr(at, term.length),
-        Message: "Banned buzzword: '" + term + "'."
+        Message: message
       });
     }
   }

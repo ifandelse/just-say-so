@@ -8,15 +8,17 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, configFiles, findLegacyKeys, publishOn } from './config.js';
-import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, REPLY_NAME } from './vale.js';
+import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, lintText, REPLY_NAME } from './vale.js';
 import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
-import { listStyleRules } from './style-inventory.js';
+import { listStyleRules, listNonwordRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
 import { readKey, justSaySoTag, packagesOf } from './vale-ini.js';
 import { loadExtra, extraFile, mergeExtra, readManifest, DEFAULT_EXTRA } from './manifest.js';
 import { readHookErrors, hookErrorsFile } from './io.js';
 import { pluginVersion } from './version.js';
 import { readCache } from './package-cache.js';
+import { readPackages, vendoredRuleIds } from './packages.js';
+import { PKG_ROOT } from './version.js';
 
 // The names the hooks lint under, one per target, plus the three file kinds
 // a project writes most.
@@ -167,9 +169,25 @@ export function doctorReport(cwd, env = process.env) {
   if (tag && stylesDir && !fs.existsSync(path.join(stylesDir, 'JustSaySo'))) {
     warnings.push('The JustSaySo package is listed but its style is not under StylesPath. Run vale sync.');
   }
+  // The bundled packages, and whether a project's synced copy matches
+  // the plugin's: a count that differs means the Packages URL points at
+  // another plugin version, or sync has not run since an update.
+  const bundled = readPackages();
+  facts.push(`bundled styles: ${bundled.packages.map((p) => `${p.name} ${p.tag}`).join(', ')} (rules/packages.json)`);
+  const ownStyles = path.join(PKG_ROOT, 'styles');
+  if (stylesDir && path.resolve(stylesDir) !== ownStyles) {
+    for (const p of bundled.packages) {
+      const synced = vendoredRuleIds(stylesDir, p.name).length;
+      if (synced > 0 && synced !== p.ruleCount) {
+        warnings.push(`The synced copy of ${p.name} under ${stylesDir} has ${synced} rules and the plugin bundles ${p.ruleCount} (${p.tag}). Update the Packages URL and run vale sync.`);
+      }
+    }
+  }
   const vocab = readKey(ini, 'Vocab');
+  let acceptFile = null;
   if (vocab && stylesDir) {
     const accept = path.join(stylesDir, 'config', 'vocabularies', vocab, 'accept.txt');
+    acceptFile = accept;
     const n = countFileLines(accept);
     facts.push(`vocabulary: ${vocab} (${n === null ? 'no accept.txt' : `${n} accepted`})`);
     if (!fs.existsSync(path.dirname(accept))) {
@@ -207,6 +225,20 @@ export function doctorReport(cwd, env = process.env) {
   }
   const inventory = listStyleRules(resolved.Paths ?? []);
   const anyJustSaySo = [...inventory.keys()].some((id) => id.startsWith('JustSaySo.'));
+
+  // An accept entry does nothing against a nonword rule. Lint each entry
+  // on its own; one that a nonword rule still reports is a dead entry.
+  const accepted = acceptFile ? (readText(acceptFile) ?? '').split('\n').map((l) => l.trim()).filter(Boolean) : [];
+  if (accepted.length > 0) {
+    const nonword = listNonwordRules(resolved.Paths ?? []);
+    for (const entry of accepted) {
+      const alerts = lintText(`${entry}\n`, { name: REPLY_NAME, configPath, env }) ?? [];
+      const dead = [...new Set(alerts.map((a) => a.Check).filter((id) => nonword.has(id)))];
+      if (dead.length > 0) {
+        warnings.push(`The vocabulary entry "${entry}" has no effect on ${dead.join(', ')}: Vale ignores accept.txt for a rule that sets nonword. Reword the text, or turn the rule off with ${dead[0]} = NO.`);
+      }
+    }
+  }
   if (!anyJustSaySo) warnings.push('The JustSaySo style is not installed under any styles path this config reads.');
 
   for (const [label, name] of TARGETS) {

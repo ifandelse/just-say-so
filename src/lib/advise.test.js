@@ -70,7 +70,7 @@ describe('advise', () => {
         situations: [
           situation('(none)', 'lost', 'uncovered'),
           situation('/p/a', 'plain', 'uncovered', { reasons: ['no vale here'] }),
-          situation('/p/b', 'end-with-fact', 'fired-shipped', { rules: ['ai-tells.MicDrop', 'ai-tells.Gone'], linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 2, modes: { warn: 2 }, levels: ['error'], reasons: ['ends with a mic drop closer'] }),
+          situation('/p/b', 'end-with-fact', 'matched-shipped', { rules: ['ai-tells.MicDrop', 'ai-tells.Gone'], linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 2, modes: { warn: 2 }, levels: ['error'], reasons: ['ends with a mic drop closer'] }),
           situation('/p/b', 'zzz', 'uncovered', { reasons: ['qqq'] }),
           situation('/p/b', null, 'untagged-clean', { count: 1, reasons: [null] })
         ]
@@ -89,7 +89,7 @@ describe('advise', () => {
       expect(b.tags).toEqual([
         {
           tag: 'end-with-fact',
-          kind: 'fired-shipped',
+          kind: 'matched-shipped',
           reasons: ['ends with a mic drop closer'],
           named: [
             { id: 'ai-tells.MicDrop', installed: true, enabled: true, level: 'error' },
@@ -103,7 +103,7 @@ describe('advise', () => {
         { tag: 'zzz', kind: 'uncovered', reasons: ['qqq'], named: [], candidates: [] }
       ]);
       expect(b.notInstalled).toEqual([{ name: 'Voices', description: 'Voices.', homepage: 'h', cached: false }]);
-      expect(b.situations.map((s) => s.kind)).toEqual(['fired-shipped', 'uncovered', 'untagged-clean']);
+      expect(b.situations.map((s) => s.kind)).toEqual(['matched-shipped', 'uncovered', 'untagged-clean']);
     });
 
     it('should render the inputs as text', () => {

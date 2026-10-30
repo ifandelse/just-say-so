@@ -61,7 +61,7 @@ Run `/clear` to reset the counter (this also re-injects the rules — that's sce
 
 **6. Two-prompt reminder.** Removed in 0.9.0. Send two trivial prompts. Ground truth: transcript grep count grows by one on the second; state file `promptCount` is even.
 
-**7. Block mode: the Stop gate.** Repeat the scenario-2 request. Expect: the write LANDS (block no longer rejects writes), the model gets the alert facts, and when it tries to end the turn, the Stop hook blocks with the outstanding errors until the model fixes the file. Ground truth: final file contains no banned terms; the transcript shows the `decision: "block"` reason naming the file. If the model "fixes" without fixing, the second block repeats; if the alert set is unchanged after a rewrite, the gate reports once (`not blocking again`) and lets the turn end — note which path you saw. **7a (0.5.2, issue #2).** After the stand-down, send two more prompts. Expect: neither turn blocks on the same alert, and the state file holds the file under `waived`. Then ask the model to add a second banned word to the same file. Expect: the gate blocks on the new instance only.
+**7. Block mode: the Stop gate.** Repeat the scenario-2 request. Expect: the write LANDS (block no longer rejects writes), the model gets the alert facts, and when it tries to end the turn, the Stop hook blocks with the outstanding errors until the model fixes the file. Ground truth: final file contains no banned terms; the transcript shows the `decision: "block"` reason naming the file. If the model "fixes" without fixing, the second block repeats; if the alert set is unchanged after a rewrite, the gate reports once (`not blocking again`) and lets the turn end — note which path you saw. **7a (0.5.2, issue #2).** After the waiver, send two more prompts. Expect: neither turn blocks on the same alert, and the state file holds the file under `waived`. Then ask the model to add a second banned word to the same file. Expect: the gate blocks on the new instance only.
 
 **8. Edit scope.** With `notes.md` containing banned words (recreate by hand so the session never wrote them), ask the model to append one clean sentence. Expect: no feedback and no gate — alerts outside the lines the edit added are filtered, and the gate only tracks errors this session's edits produced.
 
@@ -123,7 +123,7 @@ Defaults in `.just-say-so.json` (remove `events` overrides). The log is `events.
 
 **17b. Allow.** Run `/just-say-so:allow "robust regression"`. Expect: an `allow` line with `method`, `list` (null on the vocabulary route), and `added: true`. `session` is null unless the harness exported `CLAUDE_SESSION_ID` to the command.
 
-**17c. Block cycles.** Set `reply.mode` to `block`, request the banned sentence. Expect: one `reply` line with `outcome: "block"` per blocked attempt, then a final `pass` or `standdown` line for the same `promptIndex`.
+**17c. Block cycles.** Set `reply.mode` to `block`, request the banned sentence. Expect: one `reply` line with `outcome: "block"` per blocked attempt, then a final `pass` or `waived` line for the same `promptIndex`.
 
 **17d. Checks off.** Set `reply.mode` and `files.mode` to `off`. Send the banned sentence. Expect: no injection, no block, but the `reply` line still carries the alerts (the log lints on its own). Set `events.mode` to `off` and repeat. Expect: no new lines, and no `vale` process in the Stop hook's timing.
 

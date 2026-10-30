@@ -17,7 +17,7 @@ The `reply` target is each finished chat reply. The plugin lints the reply at th
 | --- | --- |
 | `off` | Replies are not linted, except for the events log, which lints them with counts only. |
 | `warn` | The default. The error-level alerts are kept as per-rule counts. Nothing interrupts you. On your next prompt the rules go out with a report of what broke, and the model is told to apply it without revising or mentioning earlier replies. |
-| `block` | The model must rewrite the reply before the turn ends. When a rewrite keeps the same alerts, the gate stands down and lets the turn end. |
+| `block` | The model must rewrite the reply before the turn ends. When a rewrite keeps the same alerts, the gate waives and lets the turn end. |
 
 ## Leave it at warn in interactive sessions
 

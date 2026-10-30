@@ -2,7 +2,7 @@
 // assert whole. Nothing here reads a file; the CLI feeds the records in.
 //
 // Definitions the numbers rest on. A turn is a reply event whose outcome
-// is pass or standdown; a block line is an attempt and is counted apart.
+// is pass or waived; a block line is an attempt and is counted apart.
 // The prompt counter resets on compaction and /clear, so no count ever
 // comes from a prompt index. A rejection is a record in rejections.jsonl,
 // which exists even when the events log is off; restate events are a
@@ -18,7 +18,9 @@
 // snapshots included.
 import { tagsIn } from './rejections.js';
 
-const FINAL = new Set(['pass', 'standdown']);
+// 'standdown' is the name records carried before 0.19.0.
+const FINAL = new Set(['pass', 'waived', 'standdown']);
+const WAIVED = new Set(['waived', 'standdown']);
 const BUCKETS = [
   ['0', (n) => n === 0],
   ['1-2', (n) => n >= 1 && n <= 2],
@@ -347,7 +349,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
         firedAtShip: 0,
         ambiguousAtShip: 0,
         cleanAtShip: 0,
-        stoodDown: 0,
+        waived: 0,
         modes: new Map(),
         levels: new Set(),
         reasons: []
@@ -374,10 +376,10 @@ export function summarize(events, rejections, { since = null, until = null, proj
             const mode = modeOf(r.turn);
             bump(row.modes, mode);
             for (const a of hits) row.levels.add(a.severity);
-            // A stand-down is the reply gate's own escape only when that
+            // A waiver is the reply gate's own escape only when that
             // gate was blocking: reply mode block and an error-level hit.
-            // The file gate stands down too, under any reply mode.
-            if (r.turn.outcome === 'standdown' && mode === 'block' && hits.some((a) => a.severity === 'error')) row.stoodDown++;
+            // The file gate waives too, under any reply mode.
+            if (WAIVED.has(r.turn.outcome) && mode === 'block' && hits.some((a) => a.severity === 'error')) row.waived++;
           } else if (r.turn.alerts.length > 0) row.ambiguousAtShip++;
           else row.cleanAtShip++;
         }
@@ -418,7 +420,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
       firedAtShip: row.firedAtShip,
       ambiguousAtShip: row.ambiguousAtShip,
       cleanAtShip: row.cleanAtShip,
-      stoodDown: row.stoodDown,
+      waived: row.waived,
       modes: Object.fromEntries(sortedEntries(row.modes)),
       levels: [...row.levels].sort(),
       reasons: row.reasons
@@ -427,13 +429,13 @@ export function summarize(events, rejections, { since = null, until = null, proj
     if (row.covers === 'none') kind = 'uncovered';
     else if (row.covers === 'judgment') kind = 'judgment';
     else if (row.linted < SITUATION_MIN || row.joinedLinted === 0) kind = 'insufficient';
-    // A stood-down turn is the block gate's own escape: the rules fired,
+    // A waived turn is the block gate's own escape: the rules matched,
     // the rewrite kept the same alerts, and the gate let the turn end.
     // Blocking was in force, so that is not missing enforcement.
-    else if (row.firedAtShip > 0 && row.stoodDown === row.firedAtShip) kind = 'stood-down';
-    else if (row.firedAtShip > 0) kind = 'fired-shipped';
+    else if (row.firedAtShip > 0 && row.waived === row.firedAtShip) kind = 'waived';
+    else if (row.firedAtShip > 0) kind = 'matched-shipped';
     else if (row.fired / row.linted < SILENT_SHARE) kind = 'silent';
-    // Restate-time detects; no ship-time fire. Only an event with no
+    // Restate-time detects; no ship-time match. Only an event with no
     // alerts at all shows the rule did not fire then; all-ambiguous
     // events show nothing.
     else if (row.cleanAtShip > 0) kind = 'detects-now';
@@ -441,7 +443,7 @@ export function summarize(events, rejections, { since = null, until = null, proj
     situations.push({ kind, ...base });
   }
   for (const [proj, list] of untaggedClean) {
-    situations.push({ kind: 'untagged-clean', project: proj, tag: null, count: list.length, rules: [], short: false, linted: list.length, fired: 0, joinedLinted: 0, firedAtShip: 0, ambiguousAtShip: 0, cleanAtShip: 0, stoodDown: 0, modes: {}, levels: [], reasons: list });
+    situations.push({ kind: 'untagged-clean', project: proj, tag: null, count: list.length, rules: [], short: false, linted: list.length, fired: 0, joinedLinted: 0, firedAtShip: 0, ambiguousAtShip: 0, cleanAtShip: 0, waived: 0, modes: {}, levels: [], reasons: list });
   }
   situations.sort((a, b) => a.project.localeCompare(b.project) || b.count - a.count || String(a.tag).localeCompare(String(b.tag)));
 
@@ -510,14 +512,14 @@ export function formatSituation(x) {
       const amb = x.joinedLinted > 0 && x.ambiguousAtShip === x.joinedLinted ? ` Every ship-time event carries other alerts and none names these rules; an overlapping alert folds to one, so that shows nothing either way.` : '';
       return `${head} · backed by ${rules} · ${x.linted} linted at restate-time, ${x.joinedLinted} joined replies linted at ship-time: not enough linted evidence to judge the rules.${amb}`;
     }
-    case 'fired-shipped': {
+    case 'matched-shipped': {
       const modes = Object.entries(x.modes).map(([m, n]) => `${m} ${n}`).join(', ');
-      const stood = x.stoodDown ? ` ${x.stoodDown} of those were the reply gate standing down after a rewrite kept the alerts.` : '';
-      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}) and the reply still went out.${stood} Points at enforcement: reply.mode = block, or the rule at error level.`;
+      const stood = x.waived ? ` ${x.waived} of those were the reply gate waiving the alerts after a rewrite kept them.` : '';
+      return `${head} · backed by ${rules} · matched at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}) and the reply still went out.${stood} Points at enforcement: reply.mode = block, or the rule at error level.`;
     }
-    case 'stood-down': {
+    case 'waived': {
       const modes = Object.entries(x.modes).map(([m, n]) => `${m} ${n}`).join(', ');
-      return `${head} · backed by ${rules} · fired at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies and every one was the reply gate standing down: reply mode block, an error-level hit, and a rewrite that kept the same alerts, so the gate let the turn end (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.`;
+      return `${head} · backed by ${rules} · matched at ship-time on ${x.firedAtShip} of ${x.joinedLinted} joined replies and every one was the reply gate waiving: reply mode block, an error-level hit, and a rewrite that kept the same alerts, so the gate let the turn end (reply mode ${modes || 'unknown'}; levels ${x.levels.join(', ') || '?'}). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.`;
     }
     case 'silent': {
       const amb = x.ambiguousAtShip ? ` (${x.ambiguousAtShip} ship-time events carry other alerts, which can hide an overlapping one)` : '';
@@ -525,7 +527,7 @@ export function formatSituation(x) {
     }
     case 'detects-now': {
       const amb = x.ambiguousAtShip ? ` and ${x.ambiguousAtShip} more carry other alerts, which can hide an overlapping one` : '';
-      return `${head} · backed by ${rules} · the rules catch ${x.fired} of ${x.linted} rejected replies at restate-time; at ship-time ${x.cleanAtShip} joined events carry no alert at all${amb}. Where the event is empty the rules did not fire then: off, or below the level the event records. Points at checking the rule is on at error level now.`;
+      return `${head} · backed by ${rules} · the rules catch ${x.fired} of ${x.linted} rejected replies at restate-time; at ship-time ${x.cleanAtShip} joined events carry no alert at all${amb}. Where the event is empty the rules did not match then: off, or below the level the event records. Points at checking the rule is on at error level now.`;
     }
     case 'untagged-clean':
       return `${head} rejections with no tag that Vale passed clean. Points at tagging them: ${x.reasons.map((r) => r ?? '(no reason)').join(' | ')}`;
@@ -590,7 +592,7 @@ export function formatSummary(s) {
   for (const t of s.tags) {
     const where = repeated.has(t.tag) && t.projects.length ? ` (in ${t.projects.join(', ')})` : '';
     if (t.covers === 'judgment') L.push(`  ${t.tag}: ${t.count}${where} · covered by a judgment bullet; no Vale rule can check it`);
-    else if (t.covers === 'vale') L.push(`  ${t.tag}: ${t.count}${where} · covered by a bullet backed by ${t.rules.join(', ')}; those rules fired on ${t.fired} of ${t.linted} linted rejected replies`);
+    else if (t.covers === 'vale') L.push(`  ${t.tag}: ${t.count}${where} · covered by a bullet backed by ${t.rules.join(', ')}; those rules matched on ${t.fired} of ${t.linted} linted rejected replies`);
     else L.push(`  ${t.tag}: ${t.count}${where} · no bullet covers it yet`);
   }
   const uncovered = s.tags.filter((t) => t.covers === 'none');

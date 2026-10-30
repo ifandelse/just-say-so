@@ -17,7 +17,7 @@ Show the output verbatim in a code block, the package cache line included. If it
 
 Then write the advice. One recommendation per situation, in this shape: the project and tag, the counts it rests on copied from the output, what to change, and the change itself ready to paste. The change is one of:
 
-- A `.vale.ini` line for the project's config: a per-rule level such as `ai-tells.MicDrop = error`, a rule turned on with `= YES`, or `reply.mode = block` in `.just-say-so.json` when the situation is "fired at ship-time and the reply still went out".
+- A `.vale.ini` line for the project's config: a per-rule level such as `ai-tells.MicDrop = error`, a rule turned on with `= YES`, or `reply.mode = block` in `.just-say-so.json` when the situation is "matched at ship-time and the reply still went out".
 - A `rules.extra` bullet in the shape `/just-say-so:draft` produces, with `id` equal to the tag, a `full` text, a `short` text, and `vale` listing the rule ids it is backed by, or an empty list for a judgment bullet.
 - A package to install: the `Packages = Name` line, `vale sync`, and the `BasedOnStyles` line for the reply section written as the project's current list plus the new style, never a replacement.
 
@@ -28,7 +28,7 @@ Rules for the writing:
 - An installed rule that is off, or sits below error, is advised as "turn on" or "raise", not as "tune".
 - A package suggestion from a description alone is a category hint; say so, and name `/just-say-so:packages --refresh` when the cache is empty.
 - For "not enough linted evidence", say what is missing and recommend nothing else.
-- For a stood-down situation, blocking and the level were already in force; recommend a change to the rule's terms or message, or a bullet the model can act on, never a setting.
+- For a waived situation, blocking and the level were already in force; recommend a change to the rule's terms or message, or a bullet the model can act on, never a setting.
 - Use the typed reasons printed per tag as the complaint to match against: a candidate counts when its message checks what those reasons describe.
 - Follow the communication rules in force: lead with the change, one idea per sentence, no banned terms. Do not write any file.
 

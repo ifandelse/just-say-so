@@ -81,7 +81,7 @@ describe('packages', () => {
       block = renderValeSections(SMALL, { codeRules: ['acme.Zed', 'acme.Words', 'acme.Words'] });
     });
 
-    it('should render the markers, JustSaySo with the code rules and settings under [*], and the prose section', () => {
+    it('should render the markers, JustSaySo with the code rules and the NO lines under [*], and the prose section with the levels', () => {
       expect(block).toBe(
         [
           MARK_BEGIN,
@@ -90,10 +90,10 @@ describe('packages', () => {
           'acme.Words = YES',
           'acme.Zed = YES',
           'STE.Alpha = NO',
-          'acme.Zed = suggestion',
           '',
           `[${PROSE_GLOB}]`,
           'BasedOnStyles = JustSaySo, acme, STE',
+          'acme.Zed = suggestion',
           '',
           MARK_END
         ].join('\n')

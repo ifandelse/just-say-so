@@ -133,6 +133,27 @@ describe('check-output.run', () => {
     });
   });
 
+  describe('when a suggestion and an error share one span in block mode', () => {
+    let output;
+
+    beforeEach(() => {
+      const sandbox = makeSandbox({ reply: { mode: 'block' } });
+      respond({
+        'reply.reply': [
+          errorAlert({ Check: 'JustSaySo.Intensifiers', Severity: 'suggestion', Span: [7, 13], Match: 'crucial' }),
+          errorAlert({ Check: 'ai-tells.OverusedVocabulary', Severity: 'error', Span: [7, 13], Match: 'crucial' })
+        ]
+      });
+      output = run({ session_id: SESSION, cwd: sandbox.work, last_assistant_message: 'It is crucial to validate the input.' }, sandbox.env);
+    });
+
+    it('should keep the error through the fold and block the reply', () => {
+      expect(output.decision).toBe('block');
+      expect(output.reason).toContain('ai-tells.OverusedVocabulary');
+      expect(output.reason).not.toContain('JustSaySo.Intensifiers');
+    });
+  });
+
   describe('when the events path cannot be appended to in block mode', () => {
     let output;
 

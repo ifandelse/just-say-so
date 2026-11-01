@@ -62,19 +62,25 @@ if (configArg) {
     }
   } catch {}
 }
+// Real Vale refuses the whole config when an entry is not a valid
+// expression; an unbalanced parenthesis stands in for that here.
+if (accepted.some((e) => (e.match(/\\(/g) || []).length !== (e.match(/\\)/g) || []).length)) process.exit(2);
 const alerts = [];
 text.split('\\n').forEach((line, i) => {
-  for (const [term, check, message, honours] of [
+  for (const [term, check, message, honours, severity] of [
     ['leverage', 'JustSaySo.Buzzwords', "Banned buzzword: 'leverage'.", true],
     ['synergy', 'JustSaySo.Buzzwords', "Banned buzzword: 'synergy'.", true],
     ['armed', 'acme.Armed', "Enforcement metaphor: 'armed'. Say what the check refuses.", false],
-    ['navigate', 'acme.Verbs', "AI vocabulary (verb form): 'navigate'. Replace with a direct verb.", false]
+    ['navigate', 'acme.Verbs', "AI vocabulary (verb form): 'navigate'. Replace with a direct verb.", false],
+    // One span, two rules at two levels: the fold must keep the error.
+    ['crucial', 'JustSaySo.Intensifiers', "Empty intensifier: 'crucial'.", true, 'suggestion'],
+    ['crucial', 'ai-tells.OverusedVocabulary', "AI vocabulary: 'crucial'.", true, 'error']
   ]) {
     const at = line.toLowerCase().indexOf(term);
     if (at === -1) continue;
     if (honours && accepted.some((e) => line.includes(e) && e.toLowerCase().includes(term))) continue;
     alerts.push({
-      Check: check, Severity: 'error', Line: i + 1,
+      Check: check, Severity: severity || 'error', Line: i + 1,
       Span: [at + 1, at + term.length], Match: line.substr(at, term.length),
       Message: message
     });

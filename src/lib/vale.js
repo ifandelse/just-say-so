@@ -95,20 +95,24 @@ function parseAlerts(stdout, cwd) {
 }
 
 /**
- * Two rules that flag overlapping spans on one line (JustSaySo and
- * ai-tells both ban the same verb) report one problem, not two. Keep one
- * alert per overlapping group: the JustSaySo alert when the group has
- * one, because its message is the manifest's, otherwise the first.
- * Every consumer reads folded alerts, so the agent sees one line and
- * the records count one alert.
+ * Two rules that flag the same span on one line (JustSaySo and ai-tells
+ * both ban the same verb) report one problem, not two. Keep one alert
+ * per identical span: the one with the strongest severity, so a
+ * suggestion never hides an error that would block, and the JustSaySo
+ * alert when the severities tie, because its message is the manifest's.
+ * Spans that differ stay apart, so a sentence-level alert and a word
+ * inside it both reach the reader. Every consumer reads folded alerts,
+ * so the agent sees one line and the records count one alert.
  */
 export function foldOverlaps(alerts) {
   const kept = [];
+  const rank = (a) => severityRank(a.Severity);
+  const own = (a) => String(a.Check).startsWith('JustSaySo.');
   for (const a of alerts) {
-    const [s, e] = Array.isArray(a.Span) ? a.Span : [null, null];
-    const i = kept.findIndex((k) => k.file === a.file && k.Line === a.Line && s !== null && Array.isArray(k.Span) && s <= k.Span[1] && k.Span[0] <= e);
+    const span = Array.isArray(a.Span) ? a.Span.join(':') : null;
+    const i = span === null ? -1 : kept.findIndex((k) => k.file === a.file && k.Line === a.Line && Array.isArray(k.Span) && k.Span.join(':') === span);
     if (i === -1) kept.push(a);
-    else if (!String(kept[i].Check).startsWith('JustSaySo.') && String(a.Check).startsWith('JustSaySo.')) kept[i] = a;
+    else if (rank(a) < rank(kept[i]) || (rank(a) === rank(kept[i]) && own(a) && !own(kept[i]))) kept[i] = a;
   }
   return kept;
 }

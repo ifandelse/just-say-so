@@ -21,7 +21,8 @@ import {
   formatAlerts,
   publishName,
   fieldFromLabel,
-  inspectValeConfig
+  inspectValeConfig,
+  foldOverlaps
 } from './vale.js';
 
 function tmp() {
@@ -521,6 +522,34 @@ describe('vale', () => {
 
       it('should return null both times', () => {
         expect([failed, garbage]).toEqual([null, null]);
+      });
+    });
+  });
+  describe('foldOverlaps', () => {
+    describe('when two rules flag one span at different levels, two tie, and two differ in span', () => {
+      let kept;
+
+      beforeEach(() => {
+        const at = (Check, Severity, Span, Line = 1) => ({ Check, Severity, Span, Line, Match: 'x', file: '/f' });
+        kept = foldOverlaps([
+          at('JustSaySo.Intensifiers', 'suggestion', [7, 13]),
+          at('ai-tells.OverusedVocabulary', 'error', [7, 13]),
+          at('ai-tells.OverusedVocabularyVerbs', 'error', [20, 27]),
+          at('JustSaySo.Leverage', 'error', [20, 27]),
+          at('ai-tells.MicDrop', 'error', [1, 30]),
+          at('acme.NoSpan', 'error', undefined),
+          at('acme.Other', 'error', [7, 13], 2)
+        ]);
+      });
+
+      it('should keep the strongest alert per identical span, JustSaySo on a tie, and every distinct span', () => {
+        expect(kept.map((a) => `${a.Line}:${a.Check}`)).toEqual([
+          '1:ai-tells.OverusedVocabulary',
+          '1:JustSaySo.Leverage',
+          '1:ai-tells.MicDrop',
+          '1:acme.NoSpan',
+          '2:acme.Other'
+        ]);
       });
     });
   });

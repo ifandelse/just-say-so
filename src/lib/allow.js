@@ -145,14 +145,24 @@ export function addAllowTerm(term, cwd, env = process.env) {
   let honoured = null;
   let unreachable = null;
   let written = true;
+  let verified = before !== null;
   if (before !== null) {
-    const after = lintTerm(cleaned, configPath, env) ?? new Map();
-    const files = listStyleFiles(resolved.Paths ?? []);
-    honoured = [...before.keys()].filter((id) => !after.has(id));
-    unreachable = [...after].map(([id, message]) => ({ id, message, reason: reasonFor(id, files.get(id)) }));
-    if (before.size > 0 && honoured.length === 0) {
+    const after = lintTerm(cleaned, configPath, env);
+    if (after === null) {
+      // Vale ran before the write and not after it, so the entry itself
+      // broke the config (an unbalanced parenthesis is an invalid
+      // expression). It goes back out, and the report says so.
+      verified = false;
       written = false;
       if (added) removeFromVocabulary(target.file, cleaned);
+    } else {
+      const files = listStyleFiles(resolved.Paths ?? []);
+      honoured = [...before.keys()].filter((id) => !after.has(id));
+      unreachable = [...after].map(([id, message]) => ({ id, message, reason: reasonFor(id, files.get(id)) }));
+      if (before.size > 0 && honoured.length === 0) {
+        written = false;
+        if (added) removeFromVocabulary(target.file, cleaned);
+      }
     }
   }
   const result = {
@@ -161,6 +171,7 @@ export function addAllowTerm(term, cwd, env = process.env) {
     added: written && added,
     present,
     written,
+    verified,
     honoured,
     unreachable,
     configFile: target.configFile,
@@ -193,6 +204,13 @@ const REASONS = {
 export function formatAllow(result) {
   const L = [];
   const quoted = `"${result.term}"`;
+  if (!result.verified && result.honoured === null && !result.written) {
+    L.push(
+      `just-say-so: vale linted the term before the entry was written and failed after it, so ${quoted} was removed from the vocabulary again.`,
+      'just-say-so: an entry is a regular expression; an unbalanced bracket or a stray backslash makes the whole config invalid. Fix the term and run the command again.'
+    );
+    return L.join('\n') + '\n';
+  }
   if (result.written) {
     L.push(
       result.added

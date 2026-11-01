@@ -146,6 +146,7 @@ describe('allow', () => {
           added: true,
           present: false,
           written: true,
+          verified: false,
           honoured: null,
           unreachable: null,
           configFile: path.join(root, '.vale.ini'),
@@ -392,6 +393,28 @@ describe('allow', () => {
       it('should give the generic reason', () => {
         expect(result.unreachable.map((r) => r.reason)).toEqual(['other']);
         expect(text).toContain('That rule is one for which Vale ignores the project\nvocabulary (accept.txt) for it.');
+      });
+    });
+
+    describe('when the entry itself makes the config invalid', () => {
+      let p, result, text;
+
+      beforeEach(() => {
+        p = fakeProject();
+        fs.mkdirSync(path.dirname(acceptPath(p.root)), { recursive: true });
+        fs.writeFileSync(acceptPath(p.root), 'TLS\n');
+        result = addAllowTerm('robust(', p.root, p.env);
+        text = formatAllow(result);
+      });
+
+      it('should remove the entry again and report that verification failed', () => {
+        expect({ verified: result.verified, written: result.written, added: result.added, file: fs.readFileSync(acceptPath(p.root), 'utf8') }).toEqual({
+          verified: false,
+          written: false,
+          added: false,
+          file: 'TLS\n'
+        });
+        expect(text).toContain('failed after it, so "robust(" was removed from the vocabulary again.');
       });
     });
 

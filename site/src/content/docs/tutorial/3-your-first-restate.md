@@ -35,7 +35,7 @@ A tag is any `#word` you type. There is no list. The summary counts tags, and wh
 /just-say-so:summary
 ```
 
-The `Tags` section reads `undefined-term: 1 · no bullet covers it yet`, and `Rejections given` shows your reason.
+The `Tags` section reads `undefined-term: 1 · no bullet covers it yet`, and `Reasons given` shows your reason.
 
 ## Next
 

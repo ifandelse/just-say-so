@@ -37,6 +37,8 @@ BasedOnStyles = JustSaySo, ai-tells, STE
 STE.PassiveVoice = suggestion
 ```
 
+The block above shows one line of each kind. The shipped file has 14 `NO` lines under `[*]` and 6 level lines under the prose section.
+
 JustSaySo, ai-tells, and STE run on prose formats, chat replies, and published text. Code files keep JustSaySo alone, and a code comment is checked for the banned list and nothing wider. The `NO` and level lines are the plugin's choices for the bundled rules, 14 off and 6 at suggestion out of 149. The reference page [The Vale engine](/reference/vale/) lists where the choices are recorded and how the build renders them.
 
 Run `vale sync` after adding the package. `/just-say-so:init` writes the line pinned at the plugin's version, and the doctor warns when the pin and the plugin disagree, or when a synced copy of a bundled style has a different rule count from the plugin's.

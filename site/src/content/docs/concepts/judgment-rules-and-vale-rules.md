@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-A Vale rule is a pattern. It can find a banned word, a filler frame, a sentence over twenty words, a paragraph over six sentences, a hedge stacked on a hedge. It cannot tell whether a reply led with the answer, whether a term was defined before it was used, or whether the last sentence of a paragraph is a fact or a flourish. Those are judgments.
+A Vale rule is a pattern. It can find a banned word, a filler frame, a sentence over twenty-five words, a paragraph over six sentences, a hedge stacked on a hedge. It cannot tell whether a reply led with the answer, whether a term was defined before it was used, or whether the last sentence of a paragraph is a fact or a flourish. Those are judgments.
 
 The plugin keeps both kinds in one list of bullets. A bullet with Vale rules behind it is enforced twice: the text tells the model, and the linter checks. A bullet with none, a **judgment rule**, is enforced once, by the model's reading of it. The `vale` field on each bullet is the line between the two, and it is why the field matters beyond documentation: the reminder drops a bullet when its rules are off, and the summary knows whether a rejection tagged with a bullet's id was something Vale could have caught.
 

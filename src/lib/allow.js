@@ -231,8 +231,8 @@ export function formatAllow(result) {
     const one = ids.length === 1;
     const kinds = new Set(result.unreachable.map((r) => r.reason));
     const reason = kinds.size === 1 ? REASONS[[...kinds][0]] : REASONS.other;
+    if (L.length > 0) L.push('');
     L.push(
-      '',
       `${quoted} is ${result.written ? 'still ' : ''}reported by ${ids.join(' and ')}.`,
       '',
       `${one ? 'That rule' : 'Each of those rules'} ${reason}`,

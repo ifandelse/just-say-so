@@ -7,7 +7,7 @@ sidebar:
 
 ## What it does
 
-Writes bullets for Vale rules the reminder can only name. When a project runs a style the shipped rules do not describe, ai-tells say, the reminder names its error-level rules at the end and nothing more. The script lists every such rule with its message, description, link, and a few of the tokens it looks for. The model groups the rules by theme and writes one bullet per theme, with a short text for the reminder, a full text, and the grouped rule ids, and prints the result as a fragment for your extra rules file.
+Writes bullets for Vale rules the reminder can only name. When a project runs a style the shipped rules do not describe, Google say, the reminder names its error-level rules at the end and nothing more. The script lists every such rule with its message, description, link, and a few of the tokens it looks for. The model groups the rules by theme and writes one bullet per theme, with a short text for the reminder, a full text, and the grouped rule ids, and prints the result as a fragment for your extra rules file.
 
 ## Synopsis
 

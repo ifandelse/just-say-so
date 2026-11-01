@@ -51,7 +51,7 @@ The report. It prints rule names, shipped terms, counts, project paths, and your
 ```
 Tags (what covers each: a judgment bullet, a Vale-backed bullet, or nothing yet)
   hedging: 3 · no bullet covers it yet
-  end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules fired on 0 of 3 linted rejected replies
+  end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules matched on 0 of 3 linted rejected replies
 
 What the tags point at (per project; a tag needs 3 rejections; ship-time means the reply event, restate-time means /restate linting the old reply)
   /Users/you/proj · #hedging: 3 · uncovered: no bullet has this id. Points at a judgment bullet, or a Vale rule.

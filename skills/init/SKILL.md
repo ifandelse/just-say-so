@@ -9,7 +9,7 @@ The user wants to set this project up for just-say-so. The arguments they gave, 
 
 Accepted arguments: `--files off|warn|block`, `--publish off|warn|block`, `--gh` (check gh commands), `--mcp <pattern>` (repeatable, such as `--mcp "mcp__atlassian__*"`), `--reply off|warn|block`, `--hook auto|pre-commit|husky|git|none`, `--dry-run`.
 
-If the user gave no arguments, ask one question before running anything: which targets they want checked beyond the defaults (files warn, reply warn, publishing off until a source is named), and whether the agent publishes through `gh` or an MCP tool. Turn the answer into arguments.
+If the user gave no arguments, ask one question before running anything: which targets they want checked beyond the defaults (files warn, reply warn, publishing on block for the Artifact page, with `gh` and MCP sources off until named), and whether the agent publishes through `gh` or an MCP tool. Turn the answer into arguments.
 
 Then run:
 

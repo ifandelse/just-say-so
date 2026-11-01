@@ -7,7 +7,7 @@ sidebar:
 
 **Goal.** One rule stops applying to chat replies, or to published text, while it still applies to written files.
 
-**Precondition.** The project's `.vale.ini` loads the JustSaySo package, which contains the `[*.reply]` and `[*.publish]` sections.
+**Precondition.** The project's `.vale.ini` loads the JustSaySo package, whose config maps `reply` and `publish` to Markdown, so a `[*.reply]` section of your own matches chat replies.
 
 ## Steps
 
@@ -15,7 +15,7 @@ sidebar:
 
    ```ini
    [*.reply]
-   ai-tells.ParagraphLength = NO
+   STE.ParagraphLength = NO
    ```
 
    For a level instead of off: `JustSaySo.Intensifiers = warning`.

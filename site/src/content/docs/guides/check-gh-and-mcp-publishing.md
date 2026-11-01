@@ -29,7 +29,7 @@ Each value lints as its own fragment, named `gh.<subcommand>.<field>.publish` or
 
 ```ini
 [gh.*.title.publish]
-ai-tells.SentenceLength = NO
+STE.SentenceLength = NO
 ```
 
 The known gaps are listed in [Checking published text](/reference/publish/).

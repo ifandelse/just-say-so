@@ -25,7 +25,7 @@ Reads the plugin config layers, the nearest `.vale.ini`, `vale ls-config`, the s
 
 ## What it prints
 
-The report. The script exits 1 when there are warnings, so a script can gate on it. Warnings cover: a missing or wrong `vale` binary, 0.8.x keys in a config file, no `.vale.ini` above the directory, the package pinned at a different tag than the plugin, a synced copy of a bundled style with a different rule count from the plugin's, packages listed but not synced, a `Vocab` that names a missing vocabulary, a vocabulary entry that only nonword rules report, the `reply` and `publish` formats not mapped, a leftover `chat.md` section, a section that drops a `[*]` style from `BasedOnStyles`, a path list naming files that no longer exist, the JustSaySo style installed but selected nowhere, a target in block mode with no error-level rule, an unreadable `rules.manifest` or extra file, a drop that matches no bullet, and hook failures in the last 7 days.
+The report. The script exits 1 when there are warnings, so a script can gate on it. Warnings cover: a missing or wrong `vale` binary, a config `vale ls-config` cannot read, 0.8.x keys in a config file, no `.vale.ini` above the directory, the JustSaySo style installed under no styles path the config reads, the package pinned at a different tag than the plugin, a synced copy of a bundled style with a different rule count from the plugin's, packages listed but not synced, a `Vocab` that names a missing vocabulary, a vocabulary entry that only nonword rules report, the `reply` and `publish` formats not mapped, a leftover `chat.md` section, a section that drops a `[*]` style from `BasedOnStyles`, a path list naming files that no longer exist, the JustSaySo style installed but selected nowhere, a target in block mode with no error-level rule, an unreadable `rules.manifest` or extra file, an extra bullet naming a Vale rule no installed style has, a drop that matches no bullet, and hook failures in the last 7 days.
 
 ## Example
 
@@ -46,7 +46,7 @@ Setup
   extra rules: none (.just-say-so-rules.json in the project root, or rules.extra, adds, replaces, or drops bullets)
 
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
+  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 
 No warnings.

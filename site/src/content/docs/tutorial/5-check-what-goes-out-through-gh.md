@@ -41,7 +41,7 @@ Ask the agent to post a comment whose body comes from a shell substitution, `--b
 
 ## Check
 
-The doctor's `targets` line reads `publish block, gh, artifact`, and the `publish` target shows `gh.pr.body.publish` with `JustSaySo 6 of 6 rules on`.
+The doctor's `targets` line reads `publish block, gh, artifact`, and the `publish` target shows `gh.pr.body.publish` with `JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on`.
 
 ## Next
 

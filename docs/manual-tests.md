@@ -2,7 +2,7 @@
 
 Live verification of the installed plugin. The unit suite proves the scripts produce correct JSON. These tests prove the harness delivers the JSON where we think it does.
 
-Run `scripts/verify-installed-plugin.sh` first: it replays the plugin-logic layer (28 checks, including the live-run fixes and the Vale engine paths) against the installed copy in seconds. The scenarios below then cover only what a script cannot: whether each hook runs, dialogs, and context arriving in transcripts. The checks need `vale` on PATH. The script says so and skips those scenarios without it.
+Run `scripts/verify-installed-plugin.sh` first: it replays the plugin-logic layer (30 checks, including the live-run fixes and the Vale engine paths) against the installed copy in seconds. The scenarios below then cover only what a script cannot: whether each hook runs, dialogs, and context arriving in transcripts. The checks need `vale` on PATH. The script says so and skips those scenarios without it.
 
 ## How to observe what happened
 
@@ -65,7 +65,7 @@ Run `/clear` to reset the counter (this also re-injects the rules, which is scen
 
 **8. Edit scope.** With `notes.md` containing banned words (recreate by hand so the session never wrote them), ask the model to append one clean sentence. Expect: no feedback and no gate. Alerts outside the lines the edit added are filtered, and the gate only tracks errors this session's edits produced.
 
-**9. The allow flow.** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt, because the skill pre-approves its own CLI call. If a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter. Note it. With no `.vale.ini` in the scratch repo, the term goes to `.just-say-so.json` → `bannedCheck.allowPhrases`. Then ask for a file containing `We fit a robust regression model.` and expect no alert. Ask for `a robust pipeline` and expect an alert.
+**9. The allow flow.** Run `/just-say-so:allow "robust regression"`. Expect: no permission prompt, because the skill pre-approves its own CLI call. If a prompt appears, `${CLAUDE_PLUGIN_ROOT}` did not expand in frontmatter. Note it. With no `.vale.ini` in the scratch repo, the command stops and says to add one. In a repo with one, the term goes to the vocabulary's `accept.txt`, and the output names the rules that stopped reporting it. Then ask for a file containing `We fit a robust regression model.` and expect no alert. Ask for `a robust pipeline` and expect an alert.
 
 **9b. The allow flow (vocabulary route).** Create a `.vale.ini` with `StylesPath = styles` and `Vocab = Test`, run `/just-say-so:allow "blast radius"`. Ground truth: `styles/config/vocabularies/Test/accept.txt` gains the line.
 
@@ -155,7 +155,7 @@ EOF
 
 ## Phase H: the rules manifest (0.10.0)
 
-**20. Config-adjusted reminder.** In the scratch repo's `.vale.ini`, set `JustSaySo.Intensifiers = NO` under `[*]` and add a style of your own with one error-level rule that no shipped bullet names. Start a session. Ground truth: the injected rules (transcript grep `## Communication rules — reminder`) have no "Empty intensifiers" bullet, and end with `This project also enforces these Vale rules at error level:` naming your rule. Remove the `NO` line, start again: the bullet is back.
+**20. Config-adjusted reminder.** In the scratch repo's `.vale.ini`, set `STE.ParagraphLength = NO` under `[*]` and add a style of your own with one error-level rule that no shipped bullet names. Start a session. Ground truth: the injected rules (transcript grep `## Communication rules — reminder`) have no "Give each paragraph one topic" bullet, and end with `This project also enforces these Vale rules at error level:` naming your rule. Remove the `NO` line, start again: the bullet is back.
 
 **20a. Extra rules.** Set `rules.extra` to a JSON file with one section and one rule that has a `short` text. Start a session. Expect the rule as the last bullet of the reminder, and in `/just-say-so:rules` under its own heading.
 
@@ -173,7 +173,7 @@ EOF
 
 ## Phase K: drafting bullets (0.13.0)
 
-**23. Draft.** In a scratch repo with ai-tells synced and two of its rules set to `error` in `[*]`, run `/just-say-so:draft`. Expect: the command output lists the two rules with their messages, the model prints one JSON fragment with bullets whose `vale` lists hold those exact ids, and nothing is written. Save the fragment, set `rules.extra`, start a session: the reminder includes the new bullets and the closing line no longer names those rules. Run `/just-say-so:doctor` with a misspelled id in the fragment: the warning names it.
+**23. Draft.** In a scratch repo with the Google package synced and selected for `[{*.md,*.reply}]`, run `/just-say-so:draft`. Expect: the command output lists Google's error-level rules with their messages, the model prints one JSON fragment with bullets whose `vale` lists hold those ids, and nothing is written. Save the fragment, set `rules.extra`, start a session: the reminder includes the new bullets and the closing line no longer names those rules. Run `/just-say-so:doctor` with a misspelled id in the fragment: the warning names it.
 
 ## Phase L: the summary (0.14.0)
 

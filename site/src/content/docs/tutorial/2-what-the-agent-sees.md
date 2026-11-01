@@ -17,9 +17,9 @@ Every context start injects the full rules text into the agent's context: a new 
 /just-say-so:rules
 ```
 
-The text that appears is the full rules text as the manifest renders it. It opens with "Lead with the answer, decision, result, or required action." and names the Vale rules behind the bullets that have any. [The rules](/reference/the-rules/) is the same text on this site.
+The text that appears is the full rules text as the manifest renders it. It opens with the Precision first section, whose first bullet is "Use the correct technical term when it is the most accurate word.", and names the Vale rules behind the bullets that have any. [The rules](/reference/the-rules/) is the same text on this site.
 
-The hooks inject that text after one adjustment. Before each injection the plugin reads your `.vale.ini`. It leaves out a bullet whose Vale rules you have turned off, and it names at the end the error-level rules in your other styles that no bullet describes. The `/rules` command does not make that adjustment. It prints the manifest's text. With the defaults the two are the same, because every rule is on and only the shipped style is installed. When they differ, the doctor's target lines show what the adjustment read: which rules are on and off for the reply target.
+The hooks inject that text after one adjustment. Before each injection the plugin reads your `.vale.ini`. It leaves out a bullet whose Vale rules you have turned off, and it names at the end the error-level rules in your other styles that no bullet describes. The `/rules` command does not make that adjustment. It prints the manifest's text. With the defaults the two are the same, because no shipped bullet depends on a rule the package turns off, and every bundled rule that is on has a bullet. When they differ, the doctor's target lines show what the adjustment read: which rules are on and off for the reply target.
 
 ## The condensed reminder
 

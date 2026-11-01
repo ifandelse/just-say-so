@@ -23,23 +23,23 @@ sidebar:
 
 ## Spelling and case
 
-An entry is a case-sensitive regular expression. `robust regression` does not cover `Robust regression` at the start of a sentence. Run the command once per spelling, or edit `accept.txt` and write `[Rr]obust regression`. Quote the whole collocation, not the bare word. The exemption then covers the one use and not every `robust`. The command drops a final period from the term, because Vale matches an entry against the words around the flagged term and an entry that ends in a period matches nothing. A rule that matches by part of speech, such as the verb rules in ai-tells, may report a word only inside a sentence, so quote the sentence when the flagged word is a verb.
+An entry is a case-sensitive regular expression. `robust regression` does not cover `Robust regression` at the start of a sentence. Run the command once per spelling, or edit `accept.txt` and write `[Rr]obust regression`. Quote the whole collocation, not the bare word. The exemption then covers the one use and not every `robust`. The command drops trailing punctuation from the term, because Vale matches an entry against the words around the flagged term and an entry that ends in a period matches nothing. A rule that matches by part of speech, such as the verb rules in ai-tells, may report a word only inside a sentence, so quote the sentence when the flagged word is a verb.
 
 ## When the vocabulary cannot help
 
-Vale ignores `accept.txt` for a rule that sets `nonword: true`. Most ai-tells rules do, because they match phrases across word boundaries. When every rule that reports your term is one of those, the command writes nothing, since the entry would change nothing, and prints the two ways out:
+Vale ignores `accept.txt` for a rule that sets `nonword: true`. Most ai-tells rules do, because they match phrases across word boundaries. When every rule that reports your term is one of those, the entry does not stay, since it would change nothing, and the command prints the two ways out:
 
 ```
 "stands down" is reported by ai-tells.EnforcementMetaphors.
 
 That rule matches text across word boundaries, and Vale ignores the project
-vocabulary (accept.txt) for rules written that way. An entry there changes
-nothing for it, so nothing was written.
+vocabulary (accept.txt) for it. An entry there changes nothing for
+it, so the entry was not kept.
 
 You have two ways out:
 
   1. Rewrite the phrase.
-     ai-tells.EnforcementMetaphors: AI enforcement metaphor: 'stands down'. Say what the check refuses or allows.
+     ai-tells.EnforcementMetaphors: AI enforcement metaphor: 'stands down'. Say what the check refuses or allows. Disable this rule for security or law-enforcement prose.
 
   2. Turn the rule off for this project. This is per rule, not per phrase:
      every match of the rule stops. Add under [*] in .vale.ini:

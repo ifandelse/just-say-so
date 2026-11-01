@@ -48,9 +48,9 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
+  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
-  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
+  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 
@@ -64,7 +64,7 @@ Start a new session in the project. The rules text goes out at every context sta
 /just-say-so:rules
 ```
 
-That loads the full text into the conversation, as the manifest renders it. The hooks inject the same text with one adjustment: they leave out a bullet whose Vale rules your project turned off. On a fresh setup nothing is turned off, so the two match. It opens with "Lead with the answer, decision, result, or required action."
+That loads the full text into the conversation, as the manifest renders it. The hooks inject the same text with one adjustment: they leave out a bullet whose Vale rules your project turned off. On a fresh setup the two match, because no shipped bullet depends on a rule the package turns off. It opens with the Precision first section, whose first bullet is "Use the correct technical term when it is the most accurate word."
 
 ## 5. Write a file and read the check
 

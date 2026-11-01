@@ -30,7 +30,7 @@ The report. The script exits 1 when there are warnings, so a script can gate on 
 ## Example
 
 ```
-just-say-so doctor — plugin 0.19.0
+just-say-so doctor — plugin 0.19.1
 
 Setup
   vale: 3.24.0 (errata-ai)
@@ -39,7 +39,7 @@ Setup
   rules: context start [startup, resume, clear, compact] as full text · subagents yes · on violation yes
   package cache: 25 packages, 1395 rules, fetched 2026-10-27T23:12:30.021Z
   vale config: /Users/you/proj/.vale.ini (nearest above cwd)
-  packages: https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip
+  packages: https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip
   bundled styles: ai-tells v1.37.0, STE v0.1.0 (rules/packages.json)
   vocabulary: Project (2 accepted)
   formats: reply = md, publish = md

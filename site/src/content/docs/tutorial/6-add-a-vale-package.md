@@ -16,7 +16,7 @@ Edit `.vale.ini`. Add `Google` to `Packages`, and add it to `BasedOnStyles` in a
 ```ini
 StylesPath = styles
 Vocab = Project
-Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip, Google
+Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip, Google
 
 [{*.md,*.reply}]
 BasedOnStyles = JustSaySo, ai-tells, STE, Google

@@ -22,7 +22,7 @@ The JustSaySo package holds those lines, so a project that loads the package nee
 ## The package
 
 ```ini
-Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip
+Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip
 ```
 
 The package is a complete Vale package with three styles. JustSaySo is the shipped banned-term bullets as Vale rules. ai-tells and STE are community packages the plugin bundles, pinned at a release and unchanged. The package's `.vale.ini` has the `[formats]` lines and two style sections:

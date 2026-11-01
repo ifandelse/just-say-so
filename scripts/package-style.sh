@@ -16,6 +16,9 @@ rm -rf JustSaySo.zip build/package
 mkdir -p build/package/JustSaySo/styles
 grep -v '^StylesPath' vale/fallback.ini > build/package/JustSaySo/.vale.ini
 cp -R styles/. build/package/JustSaySo/styles/
+# A vocabulary under styles/config would overwrite a project's own on vale
+# sync, so the package carries none.
+rm -rf build/package/JustSaySo/styles/config
 (cd build/package && zip -qr ../../JustSaySo.zip JustSaySo)
 rm -rf build/package
 echo "wrote JustSaySo.zip"

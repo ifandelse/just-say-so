@@ -217,4 +217,17 @@ describe('packages', () => {
       expect({ fallback: fallback.includes(block), repo: repoIni.includes(block) }).toEqual({ fallback: true, repo: true });
     });
   });
+  describe('when the styles directory is checked for a vocabulary', () => {
+    let present;
+
+    beforeEach(() => {
+      // A config/ directory under styles/ would ship in the package and
+      // overwrite a project's own vocabulary on vale sync.
+      present = fs.existsSync(path.join(ROOT, 'styles', 'config'));
+    });
+
+    it('should hold none', () => {
+      expect(present).toBe(false);
+    });
+  });
 });

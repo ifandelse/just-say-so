@@ -1,5 +1,9 @@
 # Upgrading
 
+## 0.19.1
+
+The 0.19.0 package zip carried a stray vocabulary, `styles/config/vocabularies/Project/accept.txt`, left behind by a test. A project that named `Vocab = Project` and ran `vale sync` on that zip had its own `accept.txt` replaced by the package's copy, which held one line. If you synced 0.19.0, check `styles/config/vocabularies/Project/accept.txt` and restore your entries from version control or from the `allow` events in the events log. The package now carries no vocabulary, the build refuses one, and the 0.19.0 asset was replaced.
+
 ## 0.19.0
 
 The JustSaySo package bundles two community styles beside JustSaySo: ai-tells v1.37.0 and STE v0.1.0, pinned by checksum and unchanged. After you update the `Packages` URL and run `vale sync`, Markdown and other prose formats, chat replies, and published text lint under 149 rules instead of six. The plugin's settings for them, 14 rules off and 6 at suggestion, come with the package. Code files keep the banned list and nothing wider. Turn a rule back on with a `= YES` line, or drop a bundled style for one format with a `BasedOnStyles` line in that format's section. [The Vale engine](vale.md) has both recipes. The doctor warns when a project's synced copy of a bundled style has a different rule count from the plugin's.

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeSandbox, withFakeVale } from '../helpers/sandbox.js';
 
 /*
  * Integration: the allow CLI's process contract — argv in, vocabulary file
@@ -17,8 +18,8 @@ const CLI = path.join(ROOT, 'src', 'cli', 'allow.js');
 // The CLI logs an allow event, so it gets a throwaway state directory and
 // an empty personal config, never the developer's own.
 function runCli(args, cwd) {
-  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-cli-state-'));
-  const env = { ...process.env, JUST_SAY_SO_STATE_DIR: state, JUST_SAY_SO_CONFIG: path.join(state, 'none.json') };
+  const sandbox = withFakeVale(makeSandbox());
+  const env = { ...process.env, ...sandbox.env, JUST_SAY_SO_CONFIG: path.join(sandbox.work, 'none.json') };
   return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env });
 }
 
@@ -36,7 +37,7 @@ describe('allow CLI', () => {
     it('should exit 0, report both writes, and create the vocabulary', () => {
       expect({ status: result.status, stdout: result.stdout }).toEqual({
         status: 0,
-        stdout: `just-say-so: added "robust regression" to the Vale vocabulary (${acceptFile})\njust-say-so: added StylesPath/Vocab to ${path.join(cwd, '.vale.ini')}\n`
+        stdout: `just-say-so: added "robust regression" to the Vale vocabulary (${acceptFile})\njust-say-so: added StylesPath/Vocab to ${path.join(cwd, '.vale.ini')}\njust-say-so: no active rule reports the term on its own, so nothing changes until one does.\n`
       });
       expect(fs.readFileSync(acceptFile, 'utf8')).toBe('robust regression\n');
     });

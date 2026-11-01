@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, configFiles, findLegacyKeys, publishOn } from './config.js';
-import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, REPLY_NAME } from './vale.js';
+import { findValeConfig, resolveValeConfig, shippedConfigPath, probeVale, lintText, REPLY_NAME } from './vale.js';
 import { lsConfig, sectionOrder, ruleStateFor } from './rule-state.js';
 import { listStyleRules } from './style-inventory.js';
 import { valeGlobToRegExp } from './glob.js';
@@ -17,6 +17,8 @@ import { loadExtra, extraFile, mergeExtra, readManifest, DEFAULT_EXTRA } from '.
 import { readHookErrors, hookErrorsFile } from './io.js';
 import { pluginVersion } from './version.js';
 import { readCache } from './package-cache.js';
+import { readPackages, vendoredRuleIds } from './packages.js';
+import { PKG_ROOT } from './version.js';
 
 // The names the hooks lint under, one per target, plus the three file kinds
 // a project writes most.
@@ -167,9 +169,25 @@ export function doctorReport(cwd, env = process.env) {
   if (tag && stylesDir && !fs.existsSync(path.join(stylesDir, 'JustSaySo'))) {
     warnings.push('The JustSaySo package is listed but its style is not under StylesPath. Run vale sync.');
   }
+  // The bundled packages, and whether a project's synced copy matches
+  // the plugin's: a count that differs means the Packages URL points at
+  // another plugin version, or sync has not run since an update.
+  const bundled = readPackages();
+  facts.push(`bundled styles: ${bundled.packages.map((p) => `${p.name} ${p.tag}`).join(', ')} (rules/packages.json)`);
+  const ownStyles = path.join(PKG_ROOT, 'styles');
+  if (stylesDir && path.resolve(stylesDir) !== ownStyles) {
+    for (const p of bundled.packages) {
+      const synced = vendoredRuleIds(stylesDir, p.name).length;
+      if (synced > 0 && synced !== p.ruleCount) {
+        warnings.push(`The synced copy of ${p.name} under ${stylesDir} has ${synced} rules and the plugin bundles ${p.ruleCount} (${p.tag}). Update the Packages URL and run vale sync.`);
+      }
+    }
+  }
   const vocab = readKey(ini, 'Vocab');
+  let acceptFile = null;
   if (vocab && stylesDir) {
     const accept = path.join(stylesDir, 'config', 'vocabularies', vocab, 'accept.txt');
+    acceptFile = accept;
     const n = countFileLines(accept);
     facts.push(`vocabulary: ${vocab} (${n === null ? 'no accept.txt' : `${n} accepted`})`);
     if (!fs.existsSync(path.dirname(accept))) {
@@ -201,13 +219,27 @@ export function doctorReport(cwd, env = process.env) {
   }
   const global = resolved.GBaseStyles ?? [];
   for (const [g, list] of Object.entries(resolved.SBaseStyles ?? {})) {
-    if (Array.isArray(list) && list.length > 0 && list.join(',') !== global.join(',')) {
+    // A list that keeps every [*] style and adds more is the shipped prose
+    // section; only a list that drops one is worth a warning.
+    if (Array.isArray(list) && list.length > 0 && global.some((style) => !list.includes(style))) {
       warnings.push(`Section [${g}] restates BasedOnStyles as "${list.join(', ')}", so the [*] styles (${global.join(', ') || 'none'}) do not reach it. Restate the whole list there, or use Style = NO lines instead.`);
     }
   }
   const inventory = listStyleRules(resolved.Paths ?? []);
   const anyJustSaySo = [...inventory.keys()].some((id) => id.startsWith('JustSaySo.'));
   if (!anyJustSaySo) warnings.push('The JustSaySo style is not installed under any styles path this config reads.');
+
+  // An accept entry that a rule still reports is dead for that rule: the
+  // rule ignores the vocabulary (nonword and sequence rules do, verified
+  // on 3.24). Lint each entry on its own, with the entry in force.
+  const accepted = acceptFile ? (readText(acceptFile) ?? '').split('\n').map((l) => l.trim()).filter(Boolean) : [];
+  for (const entry of accepted) {
+    const alerts = lintText(`${entry}\n`, { name: REPLY_NAME, configPath, env }) ?? [];
+    const dead = [...new Set(alerts.map((a) => a.Check))];
+    if (dead.length > 0) {
+      warnings.push(`The vocabulary entry "${entry}" has no effect on ${dead.join(', ')}, which still reports it: Vale ignores accept.txt for that rule. Reword the text, or turn the rule off with ${dead[0]} = NO.`);
+    }
+  }
 
   for (const [label, name] of TARGETS) {
     const t = targetSummary(name, resolved, inventory, order);

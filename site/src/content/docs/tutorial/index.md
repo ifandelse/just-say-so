@@ -8,7 +8,7 @@ sidebar:
 
 This tutorial walks one path. It starts with a fresh install and ends with a setup you have tuned from your own rejections, and it takes about two hours spread over a few sessions, because some chapters need the records a few days of use produce.
 
-Each chapter ends with a check: the line `/just-say-so:doctor` should show, or a file that should now exist. Do the chapters in order. Where a step could go two ways, the tutorial picks one; the [how-to guides](/guides/) cover the other way when you need it later.
+Each chapter ends with a check: the line `/just-say-so:doctor` should show, or a file that should now exist. Do the chapters in order. Where a step could go two ways, the tutorial picks one. The [how-to guides](/guides/) cover the other way when you need it later.
 
 1. [Install and the first file check](/tutorial/1-install-and-the-first-file-check/)
 2. [What the agent sees](/tutorial/2-what-the-agent-sees/)

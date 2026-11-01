@@ -21,12 +21,12 @@ Writes bullets for Vale rules the reminder can only name. When a project runs a 
 
 ## What it reads and writes
 
-Reads `vale ls-config` and the rule files under the styles path. Writes nothing; you save the fragment yourself.
+Reads `vale ls-config` and the rule files under the styles path. Writes nothing. You save the fragment yourself.
 
 ## What it prints
 
-A JSON fragment in the shape of `rules/manifest.json`, then three sentences on where to save it.
+A JSON fragment in the format of `rules/manifest.json`, then three sentences on where to save it.
 
 ## Example
 
-Save the output as `.just-say-so-rules.json` in the project root, where the plugin finds it with no setting. From then on the reminder carries your sentences instead of the rule names. The doctor warns when a pasted bullet names a rule no installed style has.
+Save the output as `.just-say-so-rules.json` in the project root, where the plugin finds it with no setting. From then on the reminder contains your sentences instead of the rule names. The doctor warns when a pasted bullet names a rule no installed style has.

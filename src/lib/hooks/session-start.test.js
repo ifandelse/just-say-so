@@ -100,7 +100,7 @@ describe('session-start.run', () => {
       expect(output).toEqual({
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
-          additionalContext: expect.stringMatching(/^## Communication rules\n[^]*### Precision first[^]*Checked by STE\.SentenceLength[^]*Recent replies broke these rules[^]*"synergy" \(2\)/)
+          additionalContext: expect.stringMatching(/^## Communication rules\n[^]*### Precision first[^]*STE\.SentenceLength[^]*Recent replies broke these rules[^]*"synergy" \(2\)/)
         }
       });
     });

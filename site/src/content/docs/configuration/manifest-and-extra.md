@@ -1,13 +1,13 @@
 ---
 title: "The rules manifest and the extra file"
-description: "The shape of the rules file, the extra file that adds, replaces, or drops bullets, and the manifest override."
+description: "The structure of the rules file, the extra file that adds, replaces, or drops bullets, and the manifest override."
 sidebar:
   order: 7
 ---
 
 The rules text is rendered from `rules/manifest.json`. That file ships with the plugin and is a build source: the full text, the condensed reminder, and the JustSaySo Vale style all come from it. Edit it and the next plugin update overwrites it, so your changes go in a file of your own.
 
-## The shape
+## The structure
 
 Sections of bullets. Each bullet has an `id`, a `full` text, an optional `short` text, and a `vale` list naming the Vale rules that check it. A bullet with an empty `vale` list is a judgment rule: the model follows it, and no linter checks it.
 
@@ -29,17 +29,17 @@ A bullet with a `short` text joins the condensed reminder. The `vale` list ties 
 
 ## The extra file
 
-Put a file named `.just-say-so-rules.json` in the project root, or in a directory above it, in the shape above. The plugin finds it with no setting; `rules.extra` names a different path when you want one.
+Put a file named `.just-say-so-rules.json` in the project root, or in a directory above it, in the format above. The plugin finds it with no setting. `rules.extra` names a different path when you want one.
 
 - A bullet with a new `id` is appended under the file's own section.
 - A bullet with the `id` of a shipped bullet replaces it in place, text, short, and Vale rules alike, and keeps its slot in the reminder while it has a short text.
 - `{ "id": "headings-and-lists", "drop": true }` removes a shipped bullet from the full text and the reminder.
 
-The doctor reports the file in force with its added, replaced, and dropped counts, and warns about a drop that matches no id or a bullet that names a Vale rule no installed style has. `/just-say-so:draft` writes bullets in this shape for the Vale rules your project enforces.
+The doctor reports the file in force with its added, replaced, and dropped counts, and warns about a drop that matches no id or a bullet that names a Vale rule no installed style has. `/just-say-so:draft` writes bullets in this format for the Vale rules your project enforces.
 
 ## The manifest override
 
-`rules.manifest` replaces the shipped rules outright with a manifest of your own. A full manifest is more than an extra file: it also carries the `title` the rules text opens with, the `intro` line under it, and `condensed`, the list of bullet ids in the order the reminder prints them. The renderer reads `condensed` to build the reminder; it does not infer the order from which bullets have a `short` text. An extra file needs none of those, because it merges into a manifest that has them.
+`rules.manifest` replaces the shipped rules outright with a manifest of your own. A full manifest is more than an extra file: it also contains the `title` the rules text opens with, the `intro` line under it, and `condensed`, the list of bullet ids in the order the reminder prints them. The renderer reads `condensed` to build the reminder. It does not infer the order from which bullets have a `short` text. An extra file needs none of those, because it merges into a manifest that has them.
 
 ```json
 {
@@ -58,8 +58,8 @@ The doctor reports the file in force with its added, replaced, and dropped count
 }
 ```
 
-A bullet left out of `condensed` appears in the full text only. You then get no new shipped bullets on upgrade. The generated JustSaySo style still carries the shipped terms; put your own terms in a Vale style of your own and set `JustSaySo = NO` in `.vale.ini` where you disagree. The extra file still merges on top.
+A bullet left out of `condensed` appears in the full text only. You then get no new shipped bullets on upgrade. The generated JustSaySo style still contains the shipped terms. Put your own terms in a Vale style of your own, and set `JustSaySo = NO` in `.vale.ini` where you disagree. The extra file still merges on top.
 
 ## Messages
 
-The sentences the hooks say, the violation report, the rewrite instruction, the confirmation prompt, live in `rules/messages.json`. `rules.messagesPath` names a JSON file that overrides any subset of them by key, for a different wording or another language. The per-term hints in the Vale messages come from the manifest; a full translation edits both.
+The sentences the hooks say, the violation report, the rewrite instruction, the confirmation prompt, live in `rules/messages.json`. `rules.messagesPath` names a JSON file that overrides any subset of them by key, for a different wording or another language. The per-term hints in the Vale messages come from the manifest. A full translation edits both files.

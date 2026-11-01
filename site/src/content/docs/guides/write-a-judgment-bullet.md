@@ -21,7 +21,7 @@ sidebar:
 
    Give it the same id as the tag you use when you reject replies for this. The summary then classifies those rejections as covered by this bullet.
 
-2. Write the `full` text as an instruction, not a description: "Do not open with a pleasantry," not "This rule flags pleasantries." Keep the `short` text under 20 words; it is the line in the reminder.
+2. Write the `full` text as an instruction such as "Do not open with a pleasantry," rather than a description such as "This rule flags pleasantries." Keep the `short` text under 20 words. It is the line in the reminder.
 
 3. Start a new session and run `/just-say-so:rules` to see it in place.
 

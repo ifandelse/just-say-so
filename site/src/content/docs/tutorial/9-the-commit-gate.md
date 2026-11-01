@@ -19,7 +19,7 @@ Every check so far runs inside a Claude Code session. A teammate commits by hand
 
 The gate is `node src/cli/check-staged.js` from the plugin, pinned at a tag. It lints the staged Markdown and HTML, only the lines the commit adds, under the nearest `.vale.ini`, and exits 1 on an error-level alert. A term you allowed in a session is allowed here too, because both read the same vocabulary.
 
-## See it fire
+## See it refuse a commit
 
 Stage a Markdown file with a buzzword on a new line and commit. The gate prints the alerts and refuses. Fix the line, or for one commit, `JUST_SAY_SO_PRECOMMIT=0 git commit`.
 

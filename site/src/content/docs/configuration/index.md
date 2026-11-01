@@ -10,9 +10,9 @@ just-say-so runs with no configuration. To change it, create one or both of thes
 1. `~/.config/just-say-so/just-say-so.json`, your personal defaults, applied in every project. Set `JUST_SAY_SO_CONFIG` to read this layer from a different path.
 2. `.just-say-so.json` in a project's root, settings for that one project. The plugin finds it by walking up from the working directory, so it also applies in a subdirectory.
 
-Both files use the same shape, and each sets only the fields you care about. When the same field appears in both, the project file wins over the personal file, and the personal file wins over the built-in defaults. Sections combine field by field.
+Both files use the same JSON structure, and each sets only the fields you care about. When the same field appears in both, the project file's value overrides the personal file's, and the personal file's value overrides the built-in default. Sections combine field by field.
 
-One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config file path, and that file's fields beat every other layer, project file included. The order is defaults, then personal, then project, then forced.
+One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config file path, and that file's fields override every other layer, project file included. The order is defaults, then personal, then project, then forced.
 
 ## The defaults
 
@@ -50,8 +50,8 @@ One more layer exists for pipelines: set `JUST_SAY_SO_FORCE_CONFIG` to a config 
 }
 ```
 
-Each top-level key has its own page: [files](/configuration/files/), [publish](/configuration/publish/), [reply](/configuration/reply/), [rules](/configuration/rules/), [vale and events](/configuration/vale-and-events/). Two more pages cover the files the plugin reads beside its own: [.vale.ini as the plugin reads it](/configuration/vale-ini/) and [the rules manifest and the extra file](/configuration/manifest-and-extra/).
+Each top-level key has its own page: [files](/configuration/files/), [publish](/configuration/publish/), [reply](/configuration/reply/), [rules](/configuration/rules/), [vale and events](/configuration/vale-and-events/). The files the plugin reads beside its own have pages of their own, [.vale.ini as the plugin reads it](/configuration/vale-ini/) and [the rules manifest and the extra file](/configuration/manifest-and-extra/).
 
 ## A guard on edits
 
-When the model edits `.just-say-so.json`, a `.vale.ini`, a vocabulary `accept.txt`, or the personal config through the file tools, a hook asks you to confirm first. Changes to the policy stay yours.
+When the model edits `.just-say-so.json`, a `.vale.ini`, a vocabulary `accept.txt`, or the personal config through the file tools, a hook asks you to confirm first. A change to the policy is yours to approve.

@@ -11,7 +11,7 @@ sidebar:
 "vale": { "config": null }
 ```
 
-An explicit path to the `.vale.ini` every check uses. The default, `null`, lets each check find its own: the nearest `.vale.ini` above the file being checked, the walk Vale itself does, and the shipped fallback when there is none. The fallback loads the JustSaySo style alone, so the plugin works in a project with no Vale setup. Set this when a project keeps its Vale config somewhere Vale's walk would not find, or when one config must cover files outside the project.
+An explicit path to the `.vale.ini` every check uses. The default, `null`, lets each check find its own: the nearest `.vale.ini` above the file being checked, the walk Vale itself does, and the shipped fallback when there is none. The fallback loads the JustSaySo style alone, which lets the plugin work in a project with no Vale setup. Set this when a project keeps its Vale config somewhere Vale's walk would not find, or when one config must cover files outside the project.
 
 ## events.mode
 

@@ -19,19 +19,18 @@ hero:
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-## Three pillars
+## What the plugin does
 
 <CardGrid>
-  <Card title="Proactive communication rules" icon="document">
-    "Lead with the answer" is an instruction the model follows, not a pattern a
-    linter like Vale can match. just-say-so injects those judgment rules at
-    every context start, into every subagent, and again after a reply broke a
-    rule.
-  </Card>
   <Card title="Linting of generated text" icon="approve-check">
     [Vale](https://vale.sh) is a prose linter. just-say-so runs Vale on the
     files the agent writes, on the text it publishes through MCP & CLI tools,
     and on each chat reply, under rules you control in `.vale.ini`.
+  </Card>
+  <Card title="Proactive communication rules" icon="document">
+    "Lead with the answer" is an instruction the model follows. No linter
+    pattern can match it. just-say-so injects those judgment rules at every
+    context start, into every subagent, and again after a reply broke a rule.
   </Card>
   <Card title="Guided self-improvement" icon="pencil">
     When an agent chat reply is bad, `/just-say-so:restate` has the model

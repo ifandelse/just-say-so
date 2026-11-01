@@ -7,7 +7,7 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *   window: since/until on both kinds (a rejection's time is its id) ·
  *     project filter · from/to · sessions, projects, versions ·
  *     flags for an empty events log and no rejections
- *   volume: turns are pass+standdown, block lines are attempts · linted vs
+ *   volume: turns are pass+waived, block lines are attempts · linted vs
  *     unlinted (alerts null) · withError · joined/unjoined (promptIndex-1
  *     in the same session) · restate cross-check · allows
  *   rejection rate: overall · per project · per week only past four weeks ·
@@ -26,17 +26,17 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *     per coverage with the projects named
  *   situations: per project, a tag at 3+ rejections lands in one kind, in
  *     order: uncovered · judgment (short text or not) · insufficient (under
- *     3 linted at restate-time, or no joined linted reply) · fired-shipped
- *     (ship-time alert from its rules, with modes and levels; stood-down
- *     turns counted) · stood-down (every ship-time fire was the reply gate
- *     standing down: block mode, an error-level hit; a stand-down under
+ *     3 linted at restate-time, or no joined linted reply) · matched-shipped
+ *     (ship-time alert from its rules, with modes and levels; waived
+ *     turns counted) · waived (every ship-time match was the reply gate
+ *     waiving: block mode, an error-level hit; a waiver under
  *     warn mode or a warning hit is the file gate's and stays
- *     fired-shipped) · a ship-time event that holds only other rules'
+ *     matched-shipped) · a ship-time event that holds only other rules'
  *     alerts is ambiguous, since overlapping alerts fold to one: it never
  *     proves silence, and all-ambiguous evidence is insufficient · silent
  *     (restate-time catch under half) · detects-now (restate-time catch at
  *     half or more, none at ship-time) · untagged-clean per project · the
- *     same tag in two projects below 3 each earns nothing · a stood-down
+ *     same tag in two projects below 3 each earns nothing · a waived
  *     block counts as shipped · formatSituation renders each kind
  *   observations: frequentNeverRejected at 20+ turns
  *   compaction: a counter reset mid-session changes no count · a mode
@@ -109,7 +109,7 @@ describe('summary', () => {
         session('s2', A, 10, 'block'),
         reply('s2', A, 11, 1, 0, 'block', [BUZZ]),
         reply('s2', A, 12, 1, 0, 'block', [BUZZ]),
-        reply('s2', A, 13, 1, 0, 'standdown', [BUZZ]),
+        reply('s2', A, 13, 1, 0, 'waived', [BUZZ]),
         reply('s2', A, 14, 2, 1, 'pass', [LEV]),
         session('s3', B, 20, 'warn'),
         reply('s3', B, 21, 1, 0, 'pass', [LEV]),
@@ -182,7 +182,7 @@ describe('summary', () => {
       expect(s.rewrites).toEqual({ total: 3, clean: 1, keptError: 1, unlinted: 1, surviving: [] });
       expect(s.reasons).toEqual({ given: [{ reason: 'too much jargon', count: 2, projects: ['/p/a', '/p/b'] }, { reason: 'flat', count: 1, projects: ['/p/b'] }], none: 1 });
       expect(s.situations).toEqual([
-        { kind: 'untagged-clean', project: '/p/b', tag: null, count: 1, rules: [], short: false, linted: 1, fired: 0, joinedLinted: 0, firedAtShip: 0, ambiguousAtShip: 0, cleanAtShip: 0, stoodDown: 0, modes: {}, levels: [], reasons: ['too much jargon'] }
+        { kind: 'untagged-clean', project: '/p/b', tag: null, count: 1, rules: [], short: false, linted: 1, fired: 0, joinedLinted: 0, firedAtShip: 0, ambiguousAtShip: 0, cleanAtShip: 0, waived: 0, modes: {}, levels: [], reasons: ['too much jargon'] }
       ]);
       expect(text).toContain('What the tags point at (per project; a tag needs 3 rejections');
       expect(text).toContain('/p/b · untagged and clean: 1 rejections with no tag that Vale passed clean. Points at tagging them: too much jargon');
@@ -454,7 +454,7 @@ describe('summary', () => {
         { tag: 'define-on-first-use', count: 1, fired: 0, linted: 0, covers: 'judgment', rules: [], projects: ['/p/a'] },
         { tag: 'flourish', count: 1, fired: 0, linted: 0, covers: 'none', rules: [], projects: ['/p/a'] }
       ]);
-      expect(text).toContain('end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules fired on 1 of 2 linted rejected replies');
+      expect(text).toContain('end-with-fact: 3 · covered by a bullet backed by ai-tells.MicDrop, ai-tells.PointVerdict; those rules matched on 1 of 2 linted rejected replies');
       expect(text).toContain('define-on-first-use: 1 · covered by a judgment bullet; no Vale rule can check it');
       expect(text).toContain('what the rules do not cover yet: undefined-term (2), flourish (1).');
     });
@@ -483,7 +483,7 @@ describe('summary', () => {
         { tag: 'one-idea', count: 1, fired: 0, linted: 1, covers: 'vale', rules: ['STE.SentenceLength'], projects: ['/p/b'] }
       ]);
       expect(text).toContain('domain-term: 1 (in /p/a) · no bullet covers it yet');
-      expect(text).toContain('domain-term: 1 (in /p/b) · covered by a bullet backed by Project.DomainTerm; those rules fired on 1 of 1 linted rejected replies');
+      expect(text).toContain('domain-term: 1 (in /p/b) · covered by a bullet backed by Project.DomainTerm; those rules matched on 1 of 1 linted rejected replies');
       expect(text).toContain('one-idea: 1 · covered by');
     });
   });
@@ -517,10 +517,10 @@ describe('summary', () => {
         rejections.push({ ...rejection(sid, proj, m + 0.5, idx + 1, 0, tag ? `#${tag} why` : 'no tag here', restateAlerts), tags: tag ? [tag] : [] });
         m += 1;
       };
-      // fact: fired at ship-time, reply shipped, one of them a stood-down block.
+      // fact: matched at ship-time, reply shipped, one of them a waived block.
       add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
       add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
-      add('s2', B, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')], { outcome: 'standdown' });
+      add('s2', B, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')], { outcome: 'waived' });
       add('s1', A, 'fact', [MIC], [rb('ai-tells.MicDrop', 'warning', 'x')]);
       // tune: linted, joined, never fires either way (three clean turns, then the overlap turns below).
       for (let i = 0; i < 3; i++) add('s1', A, 'tune', [], []);
@@ -530,10 +530,10 @@ describe('summary', () => {
       for (let i = 0; i < 3; i++) add('s1', A, 'thin', [], [], { join: false });
       // fold: restate-time catches, but every ship-time event only holds another rule's alert.
       for (let i = 0; i < 3; i++) add('s1', A, 'fold', [{ check: 'JustSaySo.Leverage', severity: 'error', n: 1 }], [rb('ai-tells.MicDrop', 'warning', 'x'), rb('JustSaySo.Leverage', 'error', 'leverage')]);
-      // gate: block mode in B, the rules fired at error, and every turn stood down.
-      for (let i = 0; i < 3; i++) add('s2', B, 'late', [{ check: 'JustSaySo.Buzzwords', severity: 'error', n: 1 }], [rb('JustSaySo.Buzzwords', 'error', 'synergy')], { outcome: 'standdown' });
-      // file-gate stand-down in A (warn mode, a warning-level hit): the reply gate never blocked.
-      for (let i = 0; i < 3; i++) add('s1', A, 'thin', [{ check: 'JustSaySo.Intensifiers', severity: 'warning', n: 1 }], [rb('JustSaySo.Intensifiers', 'warning', 'very')], { outcome: 'standdown' });
+      // gate: block mode in B, the rules matched at error, and every turn waived.
+      for (let i = 0; i < 3; i++) add('s2', B, 'late', [{ check: 'JustSaySo.Buzzwords', severity: 'error', n: 1 }], [rb('JustSaySo.Buzzwords', 'error', 'synergy')], { outcome: 'waived' });
+      // file-gate waiver in A (warn mode, a warning-level hit): the reply gate never blocked.
+      for (let i = 0; i < 3; i++) add('s1', A, 'thin', [{ check: 'JustSaySo.Intensifiers', severity: 'warning', n: 1 }], [rb('JustSaySo.Intensifiers', 'warning', 'very')], { outcome: 'waived' });
       // overlap on tune: another rule fires at both times, the tagged rule at neither; those ship-time events are ambiguous, not proof.
       for (let i = 0; i < 3; i++) add('s1', A, 'tune', [{ check: 'JustSaySo.Buzzwords', severity: 'error', n: 1 }], [rb('JustSaySo.Buzzwords', 'error', 'synergy')]);
       // uncovered, judgment with and without short, below threshold across projects.
@@ -553,24 +553,24 @@ describe('summary', () => {
     it('should land each tag in one kind by the evidence rules, per project', () => {
       const brief = s.situations.map((x) => [x.project, x.tag, x.kind, x.count]);
       expect(brief).toEqual([
-        ['/p/a', 'thin', 'fired-shipped', 6],
+        ['/p/a', 'thin', 'matched-shipped', 6],
         ['/p/a', 'tune', 'silent', 6],
-        ['/p/a', 'fact', 'fired-shipped', 3],
+        ['/p/a', 'fact', 'matched-shipped', 3],
         ['/p/a', 'fold', 'insufficient', 3],
         ['/p/a', 'late', 'detects-now', 3],
         ['/p/a', 'nope', 'uncovered', 3],
         ['/p/a', 'plain', 'judgment', 3],
-        ['/p/b', 'late', 'stood-down', 3],
+        ['/p/b', 'late', 'waived', 3],
         ['/p/b', 'terse', 'judgment', 3],
         ['/p/b', null, 'untagged-clean', 2]
       ]);
       expect(s.situations.find((x) => x.tag === 'fact')).toEqual({
-        kind: 'fired-shipped', project: '/p/a', tag: 'fact', count: 3, rules: ['ai-tells.MicDrop'], short: false,
-        linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 3, ambiguousAtShip: 0, cleanAtShip: 0, stoodDown: 0, modes: { warn: 3 }, levels: ['warning'], reasons: ['#fact why', '#fact why', '#fact why']
+        kind: 'matched-shipped', project: '/p/a', tag: 'fact', count: 3, rules: ['ai-tells.MicDrop'], short: false,
+        linted: 3, fired: 3, joinedLinted: 3, firedAtShip: 3, ambiguousAtShip: 0, cleanAtShip: 0, waived: 0, modes: { warn: 3 }, levels: ['warning'], reasons: ['#fact why', '#fact why', '#fact why']
       });
-      expect(s.situations.find((x) => x.project === '/p/b' && x.tag === 'late')).toMatchObject({ kind: 'stood-down', firedAtShip: 3, stoodDown: 3, modes: { block: 3 }, levels: ['error'] });
-      // A stand-down under warn mode with a warning-level hit is the file gate's, not the reply gate's.
-      expect(s.situations.find((x) => x.project === '/p/a' && x.tag === 'thin')).toMatchObject({ kind: 'fired-shipped', linted: 6, joinedLinted: 3, firedAtShip: 3, stoodDown: 0, modes: { warn: 3 }, levels: ['warning'] });
+      expect(s.situations.find((x) => x.project === '/p/b' && x.tag === 'late')).toMatchObject({ kind: 'waived', firedAtShip: 3, waived: 3, modes: { block: 3 }, levels: ['error'] });
+      // A waiver under warn mode with a warning-level hit is the file gate's, not the reply gate's.
+      expect(s.situations.find((x) => x.project === '/p/a' && x.tag === 'thin')).toMatchObject({ kind: 'matched-shipped', linted: 6, joinedLinted: 3, firedAtShip: 3, waived: 0, modes: { warn: 3 }, levels: ['warning'] });
       // The tagged rule is absent from every ship-time event, but each event holds another rule's alert: ambiguous, so no diagnosis.
       expect(s.situations.find((x) => x.tag === 'fold')).toMatchObject({ kind: 'insufficient', fired: 3, linted: 3, joinedLinted: 3, firedAtShip: 0, ambiguousAtShip: 3, cleanAtShip: 0 });
       // Silent, with the overlap turns counted as ambiguous rather than as proof of silence.
@@ -579,16 +579,16 @@ describe('summary', () => {
     });
 
     it('should render each kind with its counts', () => {
-      expect(text).toContain('/p/a · #fact: 3 · backed by ai-tells.MicDrop · fired at ship-time on 3 of 3 joined replies (reply mode warn 3; levels warning) and the reply still went out. Points at enforcement');
-      expect(text).toContain('/p/a · #late: 3 · backed by JustSaySo.Buzzwords · the rules catch 3 of 3 rejected replies at restate-time; at ship-time 3 joined events carry no alert at all. Where the event is empty the rules did not fire then');
+      expect(text).toContain('/p/a · #fact: 3 · backed by ai-tells.MicDrop · matched at ship-time on 3 of 3 joined replies (reply mode warn 3; levels warning) and the reply still went out. Points at enforcement');
+      expect(text).toContain('/p/a · #late: 3 · backed by JustSaySo.Buzzwords · the rules catch 3 of 3 rejected replies at restate-time; at ship-time 3 joined events carry no alert at all. Where the event is empty the rules did not match then');
       expect(text).toContain('/p/a · #nope: 3 · uncovered: no bullet has this id.');
       expect(text).toContain('/p/a · #plain: 3 · judgment bullet without a short text, so it is not in the condensed reminder.');
-      expect(text).toContain('/p/a · #thin: 6 · backed by JustSaySo.Intensifiers · fired at ship-time on 3 of 3 joined replies (reply mode warn 3; levels warning) and the reply still went out. Points at enforcement');
+      expect(text).toContain('/p/a · #thin: 6 · backed by JustSaySo.Intensifiers · matched at ship-time on 3 of 3 joined replies (reply mode warn 3; levels warning) and the reply still went out. Points at enforcement');
       expect(text).toContain('/p/a · #fold: 3 · backed by ai-tells.MicDrop · 3 linted at restate-time, 3 joined replies linted at ship-time: not enough linted evidence to judge the rules. Every ship-time event carries other alerts and none names these rules; an overlapping alert folds to one, so that shows nothing either way.');
       expect(text).toContain('/p/a · #tune: 6 · backed by JustSaySo.Leverage · the rules caught 0 of 6 linted rejected replies at restate-time and none at ship-time (3 ship-time events carry other alerts, which can hide an overlapping one). Points at a Vale tune');
       expect(text).toContain('/p/b · untagged and clean: 2 rejections with no tag that Vale passed clean. Points at tagging them: no tag here | no tag here');
       expect(text).toContain('/p/b · #terse: 3 · judgment bullet with a short text.');
-      expect(text).toContain('/p/b · #late: 3 · backed by JustSaySo.Buzzwords · fired at ship-time on 3 of 3 joined replies and every one was the reply gate standing down: reply mode block, an error-level hit, and a rewrite that kept the same alerts, so the gate let the turn end (reply mode block 3; levels error). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.');
+      expect(text).toContain('/p/b · #late: 3 · backed by JustSaySo.Buzzwords · matched at ship-time on 3 of 3 joined replies and every one was the reply gate waiving: reply mode block, an error-level hit, and a rewrite that kept the same alerts, so the gate let the turn end (reply mode block 3; levels error). Blocking and the level were in force. Points at the rule itself, its terms or its message, or a bullet the model can act on; not at a setting.');
       expect(text.split('What the tags point at')[1]).not.toContain('#split');
     });
   });

@@ -17,9 +17,9 @@ Every context start injects the full rules text into the agent's context: a new 
 /just-say-so:rules
 ```
 
-The text that appears is the full rules text as the manifest renders it. It opens with "Lead with the answer, decision, result, or required action." and names the Vale rules behind each bullet that has them. [The rules](/reference/the-rules/) is the same text on this site.
+The text that appears is the full rules text as the manifest renders it. It opens with "Lead with the answer, decision, result, or required action." and names the Vale rules behind the bullets that have any. [The rules](/reference/the-rules/) is the same text on this site.
 
-What the hooks inject is that text after one adjustment. Before each injection the plugin reads your `.vale.ini`: a bullet whose Vale rules you have turned off is left out, and error-level rules in your other styles that no bullet describes are named at the end. The `/rules` command does not make that adjustment; it prints the manifest's text. With the defaults the two are the same, because every rule is on and only the shipped style is installed. When they differ, the doctor's target lines show what the adjustment read: which rules are on and off for the reply target.
+The hooks inject that text after one adjustment. Before each injection the plugin reads your `.vale.ini`. It leaves out a bullet whose Vale rules you have turned off, and it names at the end the error-level rules in your other styles that no bullet describes. The `/rules` command does not make that adjustment. It prints the manifest's text. With the defaults the two are the same, because every rule is on and only the shipped style is installed. When they differ, the doctor's target lines show what the adjustment read: which rules are on and off for the reply target.
 
 ## The condensed reminder
 
@@ -31,7 +31,7 @@ The bullets also have a short form, the condensed reminder, about half the lengt
 
 ## Break a rule and read the report
 
-Ask a question and, in your prompt, ask the agent to use the words `robust` and `seamless` in its answer. The reply goes out as written; nothing interrupts you. On your next prompt, whatever you type, the reminder goes out with this after it:
+Ask a question and, in your prompt, ask the agent to use the words `robust` and `seamless` in its answer. The reply goes out as written. You see no interruption. On your next prompt, whatever you type, the reminder goes out with this after it:
 
 ```
 Recent replies broke these rules (rule, count, and the matched term when it is a fixed one):
@@ -40,7 +40,7 @@ Recent replies broke these rules (rule, count, and the matched term when it is a
 Apply the rules to your next replies. Do not revise, repeat, or mention earlier replies, and do not acknowledge this note.
 ```
 
-The model applies it and says nothing about it. That is `reply.mode: "warn"`, the default, and the tutorial keeps it. The `block` mode makes the model rewrite the reply before the turn ends, and you then read the original and the rewrite both, which is why [the configuration page](/configuration/reply/) reserves `block` for single-prompt runs.
+The model applies it and says nothing about it. That is `reply.mode: "warn"`, the default, and the tutorial keeps it. The `block` mode makes the model rewrite the reply before the turn ends, and you then read the original and the rewrite both. For that reason [the configuration page](/configuration/reply/) reserves `block` for single-prompt runs.
 
 ## Check
 

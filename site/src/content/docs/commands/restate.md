@@ -7,7 +7,7 @@ sidebar:
 
 ## What it does
 
-Rejects the previous reply. The model rewrites it under the condensed rules, keeping every fact, number, path, and code block and changing only the prose. The plugin records the rejected reply as the model wrote it, read from the transcript rather than from memory, with your reason, the tags in it, the prompt that produced the reply, the model id, and the distance from the last rules injection. When the rewrite lands, it joins the same record. Restate exists to capture where the plugin failed you, so the records can show what to change.
+Rejects the previous reply. The model rewrites it under the condensed rules. It keeps every fact, number, path, and code block and changes only the prose. The plugin records the rejected reply as the model wrote it, read from the transcript rather than from memory, with your reason, the tags in it, the prompt that produced the reply, the model id, and the distance from the last rules injection. After the rewrite, the plugin adds it to the same record. Restate exists to capture where the plugin failed you, so the records can show what to change.
 
 ## Synopsis
 
@@ -17,15 +17,15 @@ Rejects the previous reply. The model rewrites it under the condensed rules, kee
 
 ## Arguments
 
-Free text. Any `#word` in it is a tag: lowercased, with anything outside letters, digits, and hyphens turned into a hyphen. The reason is stored as typed, hash words included. Tags are whatever you choose; there is no list. A tag that matches a bullet's `id` in the rules file ties the rejection to that bullet in the summary.
+Free text. Any `#word` in it is a tag: lowercased, with anything outside letters, digits, and hyphens turned into a hyphen. The reason is stored as typed, hash words included. Tags are whatever you choose. There is no list. A tag that matches a bullet's `id` in the rules file ties the rejection to that bullet in the summary.
 
 ## What it reads and writes
 
-Reads the transcript for the previous reply. Appends one JSON line to `rejections.jsonl` in the state directory, and logs a `restate` event. Nothing is written into the project, and nothing leaves your machine.
+Reads the transcript for the previous reply. Appends one JSON line to `rejections.jsonl` in the state directory, and logs a `restate` event. The plugin writes no file into the project and sends no record off your machine.
 
 ## What it prints
 
-The rewrite, and nothing else. No apology, no explanation of the change.
+Only the rewrite. The model neither apologises nor explains the change.
 
 ## Example
 

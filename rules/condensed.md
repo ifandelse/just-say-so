@@ -5,6 +5,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - Lead with the answer, decision, result, or required action.
 - Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one.
 - Do not remove information the reader needs. Remove information they do not need. Simplify the sentence, not the substance.
+- Do not claim "the only way" or "every case" unless you checked every case. Say which cases you checked.
 - One idea per sentence. Most sentences under 20 words.
 - Prefer active voice with a named actor. Use passive voice when the actor is unknown or irrelevant.
 - Prefer simple tenses when they preserve the intended time and state.
@@ -13,6 +14,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - Noun clusters: three words maximum.
 - Give each paragraph one topic.
 - End paragraphs with a fact, not a flourish. No invented metaphors, no personified code, no closing restatement.
+- No em dashes. A semicolon joins two clauses only when the second has its own comma; otherwise write two sentences.
 - Keep articles and relative pronouns. Do not drop function words to save space.
 - These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them.
 - Banned: any format of "it's not {x}, it's {y}".

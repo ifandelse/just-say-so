@@ -1,6 +1,6 @@
 ---
 title: "files"
-description: "The written-file target: mode and the alert levels the agent sees at edit time."
+description: "The mode of the written-file target and the alert levels the agent sees at edit time."
 sidebar:
   order: 1
 ---
@@ -17,7 +17,7 @@ The `files` target is every file the agent writes through the file tools. After 
 | --- | --- |
 | `off` | No file checks. |
 | `warn` | The default. The agent gets the alerts and is told to fix the errors before finishing. The turn can still end with errors in the file. |
-| `block` | Adds a gate at the end of the turn. The edit-time check records the error-level alerts on the lines each edit added; the gate re-lints those files and holds the turn while any recorded alert remains. An error on a line the agent did not touch is not recorded and does not hold the turn. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. |
+| `block` | Adds a gate at the end of the turn. The edit-time check records the error-level alerts on the lines each edit added. The gate re-lints those files and holds the turn while any recorded alert remains. The check skips an error on a line the agent did not touch, and that error never holds the turn. When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. |
 
 ## show
 
@@ -25,4 +25,4 @@ The lowest alert level passed to the agent at edit time: `error`, `warning`, or 
 
 ## What counts as a written file
 
-Any path the `Write`, `Edit`, `MultiEdit`, or `NotebookEdit` tools touch. Which of those files Vale checks, and under which rules, is `.vale.ini`'s decision; a section with an empty `BasedOnStyles` exempts its paths. Files the agent writes through a shell command never pass this check; the [commit gate](/reference/commit-gate/) catches the lines those add, at commit time.
+Any path the `Write`, `Edit`, `MultiEdit`, or `NotebookEdit` tools touch. Which of those files Vale checks, and under which rules, is `.vale.ini`'s decision. A section with an empty `BasedOnStyles` exempts its paths. Files the agent writes through a shell command never pass this check; the [commit gate](/reference/commit-gate/) catches the lines those add, at commit time.

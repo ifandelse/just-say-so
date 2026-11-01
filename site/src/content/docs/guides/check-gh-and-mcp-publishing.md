@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-**Goal.** A `gh pr comment`, a `gh issue create`, or an MCP call that posts a page is checked with the text in hand, and denied when the text carries an error.
+**Goal.** A `gh pr comment`, a `gh issue create`, or an MCP call that posts a page is checked with the text in hand, and denied when the text contains an error.
 
 **Precondition.** Claude Code 2.1.85 or newer for the `gh` command filter. Older versions work; the hook then runs on every Bash command, with the same results.
 

@@ -1,6 +1,6 @@
 ---
 title: "4. Block errors in files, keep replies on warn"
-description: "Hold the turn while a written file carries an error, allow a domain term, and leave replies alone."
+description: "Hold the turn while a written file contains an error, allow a domain term, and leave replies alone."
 sidebar:
   order: 4
 ---
@@ -17,13 +17,13 @@ Create `.just-say-so.json` in the project root:
 { "files": { "mode": "block" } }
 ```
 
-That is the whole file. Every other setting keeps its default. The reply target stays on `warn`, which this chapter leaves alone on purpose: blocking replies prints the original and the rewrite both in the console.
+That is the whole file. The other settings keep their defaults. The reply target stays on `warn`, which this chapter leaves alone on purpose: blocking replies prints the original and the rewrite both in the console.
 
-If you want this in every project, put the same JSON in `~/.config/just-say-so/just-say-so.json` instead. A project file wins over the personal one when both set a field.
+If you want this in every project, put the same JSON in `~/.config/just-say-so/just-say-so.json` instead. When both set a field, the project file overrides the personal one.
 
 ## See the gate
 
-Start a new session and ask for another file with a buzzword in it. The agent gets the same alerts as before, and the edit-time check records the error-level ones that sit on lines the edit added. Now, at the end of the turn, a gate re-lints those files. While any recorded error is still there, the turn is held and the agent is told to fix it. The turn ends when they are gone. An error on a line the agent never touched, in a file it opened to edit a different paragraph, was never recorded and does not hold the turn. The [commit gate](/tutorial/9-the-commit-gate/) works the same way on the lines a commit adds, so prose that was already in a file stays outside both gates until someone edits it.
+Start a new session and ask for another file with a buzzword in it. The agent gets the same alerts as before, and the edit-time check records the error-level ones that sit on lines the edit added. Now, at the end of the turn, a gate re-lints those files. The gate holds the turn and tells the agent to fix the recorded errors. The turn ends when they are gone. An error on a line the agent never touched, in a file it opened to edit a different paragraph, is not in the record, and the gate ignores it. The [commit gate](/tutorial/9-the-commit-gate/) works the same way on the lines a commit adds, so prose that was already in a file stays outside both gates until someone edits it.
 
 When a rewrite leaves the same alerts, the gate reports once, lets the turn end, and waives those alerts for the rest of the session. A stuck term never loops.
 

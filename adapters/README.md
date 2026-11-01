@@ -12,7 +12,7 @@ An adapter maps the harness's events onto six functions in `src/lib/` and transl
 | Each prompt | `run(input, env)` in `hooks/remind.js` | `session_id`, `cwd`, `prompt`, and a transcript the `transcript.js` readers understand for `restate` | the rules plus the report when counts wait, else nothing |
 | After a file write | `run(input, env)` in `hooks/check-vale.js` | `tool_name`, `tool_input` with `file_path` and the edit's `content` or `new_string` | the edit-scoped alerts, and the error record for the Stop gate |
 | Before a publish | `run(input, env)` in `hooks/pre-gate.js` | `tool_name` and `tool_input`: a `command` for gh, the arguments for MCP, a `file_path` for an artifact | a deny, an ask, or advisory context |
-| End of turn | `run(input, env)` in `hooks/check-output.js` | `last_assistant_message`, or a transcript path, plus `stop_hook_active` | a block with the alerts, a stand-down, or nothing |
+| End of turn | `run(input, env)` in `hooks/check-output.js` | `last_assistant_message`, or a transcript path, plus `stop_hook_active` | a block with the alerts, a waiver, or nothing |
 | Commands | `src/cli/*.js` | a command surface that can run `node` | text |
 
 The lint targets are a contract too: a reply lints as `reply.reply`, a published field as `<source>.<tool>.<field>.publish`, and an artifact page as `artifact.<file>`. Keep those names and a project's `.vale.ini` works unchanged under every harness.

@@ -116,6 +116,7 @@ describe('doctor', () => {
         'package cache: empty (/just-say-so:packages --refresh fills it, for advice on packages you do not have)',
         expect.stringMatching(/^vale config: .*\.vale\.ini \(nearest above cwd\)$/),
         expect.stringMatching(/^packages: https:\/\/github\.com\/ifandelse\/just-say-so\/releases\/download\/v[\d.]+\/JustSaySo\.zip$/),
+        'bundled styles: ai-tells v1.37.0, STE v0.1.0 (rules/packages.json)',
         'vocabulary: Project (2 accepted)',
         'formats: reply = md, publish = md',
         'extra rules: none (.just-say-so-rules.json in the project root, or rules.extra, adds, replaces, or drops bullets)'
@@ -302,6 +303,57 @@ describe('doctor', () => {
   describe('TARGETS', () => {
     it('should name one lint target per plugin target and the three file kinds', () => {
       expect(TARGETS.map(([label]) => label)).toEqual(['reply', 'publish', 'artifact', 'files .md', 'files .html', 'files .js']);
+    });
+  });
+  describe('when an accept entry is one a nonword rule still reports, and a synced bundled style is out of step', () => {
+    let report;
+
+    beforeEach(() => {
+      const work = tmpdir();
+      const styles = path.join(work, 'styles');
+      stylesWith(styles, { 'JustSaySo.Buzzwords': 'error', 'acme.Armed': 'error', 'ai-tells.One': 'error', 'ai-tells.Two': 'error' });
+      fs.writeFileSync(path.join(styles, 'acme', 'Armed.yml'), 'extends: existence\nlevel: error\nnonword: true\n');
+      fs.mkdirSync(path.join(styles, 'config', 'vocabularies', 'Project'), { recursive: true });
+      fs.writeFileSync(path.join(styles, 'config', 'vocabularies', 'Project', 'accept.txt'), 'stays armed\nTLS\n');
+      const ini = path.join(work, '.vale.ini');
+      fs.writeFileSync(ini, 'StylesPath = styles\nVocab = Project\n[*]\nBasedOnStyles = JustSaySo, acme\n');
+      const resolved = {
+        Formats: { reply: 'md', publish: 'md' },
+        GBaseStyles: ['JustSaySo', 'acme'],
+        GChecks: {},
+        SBaseStyles: {},
+        SChecks: {},
+        RuleToLevel: {},
+        SLevels: {},
+        Paths: [styles],
+        ConfigFiles: [ini]
+      };
+      let lints = 0;
+      mockSpawnSync.mockImplementation((_cmd, args) => {
+        if (args[0] === 'ls-dirs') return { status: 0, stdout: '' };
+        if (args[0] === '--version') return { status: 0, stdout: 'vale version 3.24.0\n' };
+        if (args[0] === 'ls-config') return { status: 0, stdout: JSON.stringify(resolved) };
+        // The lints of the accept entries, in file order: "stays armed" is
+        // still reported, TLS is not.
+        const target = args[args.length - 1];
+        if (lints++ > 0) return { status: 0, stdout: '{}' };
+        return {
+          status: 1,
+          stdout: JSON.stringify({ [target]: [{ Check: 'acme.Armed', Severity: 'error', Line: 1, Span: [7, 11], Match: 'armed', Message: 'x' }] })
+        };
+      });
+      const env = { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), JUST_SAY_SO_STATE_DIR: path.join(work, 'state') };
+      report = doctorReport(work, env);
+    });
+
+    it('should warn about the dead entry and the out-of-step copy', () => {
+      expect(report.warnings).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^The synced copy of ai-tells under .* has 2 rules and the plugin bundles 137 \(v1\.37\.0\)\. Update the Packages URL and run vale sync\.$/),
+          'The vocabulary entry "stays armed" has no effect on acme.Armed, which still reports it: Vale ignores accept.txt for that rule. Reword the text, or turn the rule off with acme.Armed = NO.'
+        ])
+      );
+      expect(report.warnings.filter((w) => w.includes('vocabulary entry'))).toHaveLength(1);
     });
   });
 });

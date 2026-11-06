@@ -2,7 +2,7 @@
 
 ## 0.19.1
 
-The 0.19.0 package zip carried a stray vocabulary, `styles/config/vocabularies/Project/accept.txt`, left behind by a test. A project that named `Vocab = Project` and ran `vale sync` on that zip had its own `accept.txt` replaced by the package's copy, which held one line. If you synced 0.19.0, check `styles/config/vocabularies/Project/accept.txt` and restore your entries from version control or from the `allow` events in the events log. The package now carries no vocabulary, the build refuses one, and the 0.19.0 asset was replaced.
+The 0.19.0 package zip carried a stray vocabulary, `styles/config/vocabularies/Project/accept.txt`, left behind by a test. A project that named `Vocab = Project` and ran `vale sync` on that zip had its own `accept.txt` replaced by the package's copy, which held one line. If you synced 0.19.0, check `styles/config/vocabularies/Project/accept.txt` and restore your entries from version control or from the `allow` events in the events log. The package now holds no vocabulary, the build refuses one, and the 0.19.0 asset was replaced.
 
 ## 0.19.0
 
@@ -10,7 +10,7 @@ The JustSaySo package bundles two community styles beside JustSaySo: ai-tells v1
 
 Several banned terms are also in an ai-tells list. The plugin folds alerts that share an identical span on one line into one and keeps the strongest severity, with the JustSaySo alert on a tie, so the agent and the records see one alert per problem. Every bundled rule that is on is named by a bullet, so the context-start trailer is empty under the shipped config. Punctuation and Claims you can check are new bullets, and the condensed reminder gained both. The summary situation `fired-shipped` is now `matched-shipped`, and `stood-down` is `waived`. The reply event records `waived` where it recorded `standdown`, and the summary reads both. The messages `stopGateStandDown` and `outputStandDown` are now `stopGateWaived` and `outputWaived`. A `rules.messagesPath` file that overrides the old keys overrides nothing until renamed.
 
-`/just-say-so:allow` now lints the term before and after it writes the entry, and names the rules that still report it, with the reason: Vale ignores `accept.txt` for a rule that sets `nonword`, which 94 of the bundled rules do, and for a rule that matches by part of speech. An entry that silenced no rule is removed again, and the command explains the two ways out instead. An entry that breaks the config, such as an unbalanced parenthesis, is removed too. The doctor lints each existing entry and warns about the ones a rule still reports.
+`/just-say-so:allow` now lints the term before and after it writes the entry, and names the rules that still report it, with the reason: Vale ignores `accept.txt` for a rule that sets `nonword`, which 94 of the bundled rules do, and for a rule that matches by part of speech. An entry that a rule reported before the write and none stopped after it is removed again, and the command explains the two ways out instead. When the first lint reports no rule, the command keeps the entry. An entry that breaks the config, such as an unbalanced parenthesis, is removed too. The doctor lints each existing entry and warns about the ones a rule still reports.
 
 ## 0.18.1
 

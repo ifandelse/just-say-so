@@ -480,7 +480,7 @@ describe('rule-state', () => {
       });
 
       it('should keep every bullet and name nothing, because an unselected style is neither on nor off', () => {
-        expect(text.split('\n').filter((l) => l.startsWith('- ')).length).toBe(21);
+        expect(text.split('\n').filter((l) => l.startsWith('- ')).length).toBe(22);
         expect(text).not.toContain('also enforces');
       });
     });

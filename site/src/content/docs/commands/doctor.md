@@ -30,7 +30,7 @@ The report. The script exits 1 when there are warnings, so a script can gate on 
 ## Example
 
 ```
-just-say-so doctor — plugin 0.19.1
+just-say-so doctor — plugin 0.20.0
 
 Setup
   vale: 3.24.0 (errata-ai)
@@ -39,14 +39,14 @@ Setup
   rules: context start [startup, resume, clear, compact] as full text · subagents yes · on violation yes
   package cache: 25 packages, 1395 rules, fetched 2026-10-27T23:12:30.021Z
   vale config: /Users/you/proj/.vale.ini (nearest above cwd)
-  packages: https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip
+  packages: https://github.com/ifandelse/just-say-so/releases/download/v0.20.0/JustSaySo.zip
   bundled styles: ai-tells v1.37.0, STE v0.1.0 (rules/packages.json)
   vocabulary: Project (2 accepted)
   formats: reply = md, publish = md
   extra rules: none (.just-say-so-rules.json in the project root, or rules.extra, adds, replaces, or drops bullets)
 
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
+  reply        reply.reply          JustSaySo 7 of 7 rules on · STE 6 of 12 rules on · ai-tells 127 of 137 rules on · levels: 128 error, 4 warning, 8 suggestion · off: STE.Ambiguity, STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength (and 10 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 
 No warnings.

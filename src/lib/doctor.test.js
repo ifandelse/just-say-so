@@ -23,6 +23,8 @@ import { makeSandbox } from '../../test/helpers/sandbox.js';
  *   warnings: a brace-list section naming paths that do not exist
  *   raw: global and per-section lines, levels folded in
  *   formatDoctor: no warnings line · numbered warnings
+ *   facts: a filled package cache fetched on two dates · the package
+ *     synced but the JustSaySo style missing under StylesPath
  */
 
 function tmpdir() {
@@ -135,6 +137,43 @@ describe('doctor', () => {
       ]);
       expect(text).toContain("Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)");
       expect(text).toContain('Raw section settings, in the order Vale applies them');
+    });
+  });
+
+describe('when the package cache is filled and the synced package lacks the JustSaySo style', () => {
+    let report;
+
+    beforeEach(() => {
+      const work = tmpdir();
+      const styles = path.join(work, 'styles');
+      stylesWith(styles, { 'Local.Soft': 'warning' });
+      fs.mkdirSync(path.join(styles, '.vale-config'));
+      const ini = path.join(work, '.vale.ini');
+      fs.writeFileSync(ini, 'StylesPath = styles\nPackages = https://github.com/ifandelse/just-say-so/releases/download/v0.1.0/JustSaySo.zip\n[*]\nBasedOnStyles = Local\n');
+      const cache = path.join(work, 'state', 'packages');
+      fs.mkdirSync(cache, { recursive: true });
+      fs.writeFileSync(path.join(cache, 'Calzone.json'), JSON.stringify({ name: 'Calzone', url: 'u', fetched: '2026-10-01T00:00:00.000Z', rules: [{ id: 'Calzone.Crust' }, { id: 'Calzone.Sauce' }] }));
+      fs.writeFileSync(path.join(cache, 'Stromboli.json'), JSON.stringify({ name: 'Stromboli', url: 'u', fetched: '2026-10-03T00:00:00.000Z', rules: [{ id: 'Stromboli.Roll' }] }));
+      vale({
+        resolved: {
+          Formats: { reply: 'md', publish: 'md' },
+          GBaseStyles: ['Local'],
+          GChecks: {},
+          SBaseStyles: {},
+          SChecks: {},
+          RuleToLevel: {},
+          SLevels: {},
+          Paths: [styles],
+          ConfigFiles: [ini]
+        }
+      });
+      report = doctorReport(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), JUST_SAY_SO_STATE_DIR: path.join(work, 'state') });
+    });
+
+    it('should report the cache span and warn that the style is missing, not that sync is needed', () => {
+      expect(report.facts).toContain('package cache: 2 packages, 3 rules, fetched 2026-10-01T00:00:00.000Z to 2026-10-03T00:00:00.000Z');
+      expect(report.warnings).toContain('The JustSaySo package is listed but its style is not under StylesPath. Run vale sync.');
+      expect(report.warnings).not.toContain(expect.stringMatching(/holds no synced package config/));
     });
   });
 

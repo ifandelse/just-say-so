@@ -85,7 +85,9 @@ describe('glob', () => {
           negated: t('[!r]eply.reply', 'reply.reply'),
           dir: t('docs/*', 'reply.reply'),
           unclosed: t('a[b', 'a[b'),
-          dot: t('reply.reply', 'replyXreply')
+          dot: t('reply.reply', 'replyXreply'),
+          question: t('repl?.reply', 'reply.reply'),
+          questionSlash: t('docs?x', 'docs/x')
         };
       });
 
@@ -105,7 +107,9 @@ describe('glob', () => {
           negated: false,
           dir: false,
           unclosed: true,
-          dot: false
+          dot: false,
+          question: true,
+          questionSlash: false
         });
       });
     });

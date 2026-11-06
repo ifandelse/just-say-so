@@ -7,7 +7,7 @@ sidebar:
 
 ## Where you are
 
-`.just-say-so-rules.json` exists with the drafted bullets for ai-tells. The same file can change the shipped bullets.
+`.just-say-so-rules.json` exists with the drafted bullets for Google. The same file can change the shipped bullets.
 
 ## Reword a shipped bullet
 

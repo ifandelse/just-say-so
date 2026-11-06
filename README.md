@@ -17,10 +17,10 @@ Vale is a command you run on files, and it forgets each run when it exits. just-
 The agent writes a file. The plugin runs Vale on the file it just wrote and hands the agent the alerts. Under the default setting the write stands, the agent is told to fix the errors, and the turn can still end with them in place. In `block` mode the turn is held until they are fixed. The message the agent gets:
 
 ```
-just-say-so: Vale reports 5 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
-  - L3 error JustSaySo.FillerFrames: Banned filler frame: 'It's important to note'. Delete it and state the point directly. ["It's important to note"]
+just-say-so: Vale reports 3 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
   - L3 error JustSaySo.Leverage: Banned buzzword: 'leverage'. Use a concrete verb: use, apply, rely on. ["leverage"]
   - L3 error JustSaySo.Buzzwords: Banned buzzword: 'streamline'. Use a precise domain term or delete it. ["streamline"]
+  - L3 error JustSaySo.Buzzwords: Banned buzzword: 'robust'. Use a precise domain term or delete it. ["robust"]
   - L3 suggestion JustSaySo.Intensifiers: Empty intensifier: 'very'. Replace it with a measurement or a concrete consequence. ["very"]
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```
@@ -60,9 +60,9 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
+  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
-  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion
+  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 
@@ -93,7 +93,7 @@ node scripts/vendor-packages.js   # re-download the bundled packages at the pins
 
 Hook logic sits in `src/lib/hooks/` as pure `run(input, env)` functions. The scripts in `src/hooks/` are stdin shims around them. Test conventions live in [.ai/UnitTestGeneration.md](.ai/UnitTestGeneration.md).
 
-Releases bump the version in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, tag it (`v0.19.0`), and attach `JustSaySo.zip` from `scripts/package-style.sh`. Within a minor series, import paths and function signatures under `src/lib/` do not change. Before 1.0, a minor bump may change anything.
+Releases bump the version in `package.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`, tag it (`v0.19.0`), and attach `JustSaySo.zip` from `scripts/package-style.sh`. Within a minor series, import paths and function signatures under `src/lib/` do not change. Before 1.0, a minor bump may change anything.
 
 ## License
 

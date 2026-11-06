@@ -32,7 +32,7 @@ node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everythin
    ```yaml
    repos:
      - repo: https://github.com/ifandelse/just-say-so
-       rev: v0.5.0
+       rev: v0.19.1
        hooks:
          - id: vale-staged
    ```
@@ -40,7 +40,7 @@ node "<repo or plugin dir>/src/cli/check-staged.js" --base main  # CI: everythin
 2. **Husky or plain `.git/hooks`.** Add this repo as a dev dependency from a tag, then call the bin from your hook. The lockfile is the pin, and the package has no transitive dependencies:
 
    ```json
-   { "devDependencies": { "just-say-so": "github:ifandelse/just-say-so#v0.5.0" } }
+   { "devDependencies": { "just-say-so": "github:ifandelse/just-say-so#v0.19.1" } }
    ```
 
    ```
@@ -79,7 +79,7 @@ Fields the forced file sets win over the project file, so a mode committed to `.
 
 Until the action supports refs, pin by vendoring, which means copying the plugin into your repository:
 
-1. Copy `.claude-plugin/`, `hooks/`, `rules/`, `skills/`, and `src/` from a tagged release into your repository, under a path such as `.github/plugins/just-say-so/`.
+1. Copy `.claude-plugin/`, `hooks/`, `rules/`, `skills/`, `src/`, `styles/`, and `vale/` from a tagged release into your repository, under a path such as `.github/plugins/just-say-so/`.
 2. Point the action at that directory:
 
    ```yaml
@@ -87,6 +87,6 @@ Until the action supports refs, pin by vendoring, which means copying the plugin
      plugin_marketplaces: ${{ github.workspace }}/.github/plugins/just-say-so
    ```
 
-3. Record the tag you copied. To upgrade later, diff your copy against the new tag (`git diff v0.1.2 v0.1.3` in a clone of this repo) and apply what changed.
+3. Record the tag you copied. To upgrade later, diff your copy against the new tag (`git diff v0.19.0 v0.19.1` in a clone of this repo) and apply what changed.
 
 The copy needs no install step: zero npm dependencies, Node ≥ 18.

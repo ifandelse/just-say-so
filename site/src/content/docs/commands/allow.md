@@ -9,7 +9,7 @@ sidebar:
 
 Adds a term to the project's Vale vocabulary so the checker stops flagging it, in the session and at commit time. The rules permit a buzzword "when it has precise meaning or is relevant to the domain", and whether a term qualifies is a fact about your project. The fact belongs in your project for that reason. The term goes into `accept.txt` under the `StylesPath` and `Vocab` the nearest `.vale.ini` names. When the ini lacks those keys, the command adds `StylesPath = styles` and `Vocab = Project` first.
 
-Before it writes, the command lints the term under the project's config to learn which rules report it. Vale ignores the vocabulary for a rule that sets `nonword: true`, which most ai-tells rules do. When every reporting rule is one of those, the command writes nothing and explains the two ways out: reword the phrase, or turn the rule off with a `= NO` line in `.vale.ini`. When some reporting rules honour the vocabulary and some do not, it writes the entry for the first kind and explains the rest.
+Before it writes, the command lints the term under the project's config to learn which rules report it. Vale ignores the vocabulary for a rule that sets `nonword: true`, which most ai-tells rules do. The command writes the entry, lints the term again, and compares. A rule that stopped reporting is one the entry silenced. A rule that still reports is named with its reason. When a rule reported the term before the write and none stopped, the entry is removed again and the output gives the two ways out: reword the phrase, or turn the rule off with a `= NO` line in `.vale.ini`. When the first lint reports no rule, the command keeps the entry and says that nothing reports the term yet.
 
 ## Synopsis
 
@@ -23,7 +23,7 @@ The term, quoted when it holds spaces: `/just-say-so:allow "robust regression"`.
 
 ## What it reads and writes
 
-Reads the nearest `.vale.ini`, runs `vale ls-config` and one lint of the term, and reads the rule files of the rules that report it. Writes the term to the vocabulary's `accept.txt` when a reporting rule honours it, creating the file and the `Vocab` key when they are missing, and logs an `allow` event with the rules the entry could not reach. A term already present, with the same case, is reported and not added twice.
+Reads the nearest `.vale.ini`, runs `vale ls-config` and two lints of the term, one before the write and one after, and reads the rule files of the rules that still report it. Writes the term to the vocabulary's `accept.txt`, creating the file and the `Vocab` key when they are missing, removes it again when a rule reported the term before the write and none stopped, or when the second lint fails because the entry is an invalid expression, and logs an `allow` event with the rules the entry did not silence. A term already present, with the same case, is reported and not added twice.
 
 ## What it prints
 

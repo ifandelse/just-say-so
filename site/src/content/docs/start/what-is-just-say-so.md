@@ -38,10 +38,10 @@ The rules manifest belongs to both columns. Its bullets are the injected text, a
 With the default settings, written files and replies are on `warn`: the agent is told what broke and nothing is held. Publishing is on `block` for the Artifact page from the start, because nothing can un-publish. After the agent writes a file, it gets a message like this one and fixes the file:
 
 ```
-just-say-so: Vale reports 5 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
-  - L3 error JustSaySo.FillerFrames: Banned filler frame: 'It's important to note'. Delete it and state the point directly. ["It's important to note"]
+just-say-so: Vale reports 3 error(s), 0 warning(s), 1 suggestion(s) in notes.md (whole file — this write created or replaced it):
   - L3 error JustSaySo.Leverage: Banned buzzword: 'leverage'. Use a concrete verb: use, apply, rely on. ["leverage"]
   - L3 error JustSaySo.Buzzwords: Banned buzzword: 'streamline'. Use a precise domain term or delete it. ["streamline"]
+  - L3 error JustSaySo.Buzzwords: Banned buzzword: 'robust'. Use a precise domain term or delete it. ["robust"]
   - L3 suggestion JustSaySo.Intensifiers: Empty intensifier: 'very'. Replace it with a measurement or a concrete consequence. ["very"]
 Fix the errors before finishing. Treat warnings and suggestions as advice.
 ```

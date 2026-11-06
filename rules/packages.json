@@ -1,5 +1,5 @@
 {
-  "$comment": "The Vale packages the plugin bundles beside JustSaySo, and the settings it ships for their rules. scripts/vendor-packages.js downloads each pinned release, checks its SHA-256, and unpacks the style into styles/<name>/; the copies are committed and never edited. `rules` maps a rule id to NO or to a level; every other rule runs at the level its file declares. scripts/build.js renders the [*], [*.reply], and [*.publish] sections of vale/fallback.ini and .vale.ini from this file, and a test fails when they drift. The choices were made rule by rule on 2026-10-30; the review is in docs/reports.",
+  "$comment": "The Vale packages the plugin bundles beside JustSaySo, and the settings it ships for their rules. scripts/vendor-packages.js downloads each pinned release, checks its SHA-256, and unpacks the style into styles/<name>/; the copies are committed and never edited. `rules` maps a rule id to NO or to a level; every other rule runs at the level its file declares. scripts/build.js renders the [*] section and the prose section (Markdown and the other document formats, chat replies, published fragments) of vale/fallback.ini and .vale.ini from this file, and a test fails when they drift. The choices were made rule by rule on 2026-10-30; the review is in docs/reports.",
   "packages": [
     {
       "name": "ai-tells",

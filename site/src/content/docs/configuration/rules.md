@@ -25,7 +25,7 @@ The context starts that inject the rules: any of `startup`, `resume`, `clear`, a
 
 ## contextStartText
 
-Which rendering a context start and a subagent start inject. `full`, the default, is every bullet with its examples and the Vale rules that check it, about 600 words. `condensed` is the short texts, about 330 words. The prompt after a violation always uses the condensed form with the report. Shipped bullets with no short text, three at present, go out only in the full text.
+Which rendering a context start and a subagent start inject. `full`, the default, is every bullet with its examples and the Vale rules that check it, about 730 words. `condensed` is the short texts, about 370 words. The prompt after a violation always uses the condensed form with the report. Shipped bullets with no short text, three at present, go out only in the full text.
 
 ## onSubagentStart
 

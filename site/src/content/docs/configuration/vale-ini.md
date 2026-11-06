@@ -22,7 +22,7 @@ The JustSaySo package holds those lines, so a project that loads the package nee
 ## The package
 
 ```ini
-Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.0/JustSaySo.zip
+Packages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip
 ```
 
 The package is a complete Vale package with three styles. JustSaySo is the shipped banned-term bullets as Vale rules. ai-tells and STE are community packages the plugin bundles, pinned at a release and unchanged. The package's `.vale.ini` has the `[formats]` lines and two style sections:
@@ -36,6 +36,8 @@ ai-tells.ShipOveruse = NO
 BasedOnStyles = JustSaySo, ai-tells, STE
 STE.PassiveVoice = suggestion
 ```
+
+The block above shows one line of each kind. The shipped file has 14 `NO` lines under `[*]` and 6 level lines under the prose section.
 
 JustSaySo, ai-tells, and STE run on prose formats, chat replies, and published text. Code files keep JustSaySo alone, and a code comment is checked for the banned list and nothing wider. The `NO` and level lines are the plugin's choices for the bundled rules, 14 off and 6 at suggestion out of 149. The reference page [The Vale engine](/reference/vale/) lists where the choices are recorded and how the build renders them.
 

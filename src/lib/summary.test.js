@@ -267,7 +267,7 @@ describe('summary', () => {
   });
 
   describe('when a rewrite is unlinted and another keeps the same rule', () => {
-    let s;
+    let s, text;
 
     beforeEach(() => {
       const A = '/p/a';
@@ -278,11 +278,12 @@ describe('summary', () => {
           rejection('s1', A, 2, 3, 0, 'x', [rb('JustSaySo.Buzzwords', 'error', 'synergy')], [rb('JustSaySo.Buzzwords', 'error', 'synergy')])
         ]
       );
+      text = formatSummary(s);
     });
 
     it('should count the unlinted rewrite apart and name the surviving rule', () => {
       expect(s.rewrites).toEqual({ total: 2, clean: 0, keptError: 1, unlinted: 1, surviving: [{ check: 'JustSaySo.Buzzwords', count: 1 }] });
-      expect(formatSummary(s)).toContain('  rules that survive a rewrite: JustSaySo.Buzzwords 1');
+      expect(text).toContain('  rules that survive a rewrite: JustSaySo.Buzzwords 1');
     });
   });
 

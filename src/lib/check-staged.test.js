@@ -106,24 +106,47 @@ describe('fileLevelRules', () => {
 });
 
 describe('stylesDirFor', () => {
-  it('should resolve StylesPath relative to the config file', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-ini-'));
-    const ini = path.join(dir, '.vale.ini');
-    fs.writeFileSync(ini, 'StylesPath = .vale/styles\nMinAlertLevel = suggestion\n');
-    expect(stylesDirFor(ini)).toBe(path.join(dir, '.vale', 'styles'));
+  let dir, ini, result;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-ini-'));
+    ini = path.join(dir, '.vale.ini');
+  });
+
+  afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('should return null when the config cannot be read', () => {
-    expect(stylesDirFor(path.join(os.tmpdir(), 'no-such-dir', '.vale.ini'))).toBeNull();
+  describe('when the config names a StylesPath', () => {
+    beforeEach(() => {
+      fs.writeFileSync(ini, 'StylesPath = .vale/styles\nMinAlertLevel = suggestion\n');
+      result = stylesDirFor(ini);
+    });
+
+    it('should resolve it relative to the config file', () => {
+      expect(result).toBe(path.join(dir, '.vale', 'styles'));
+    });
   });
 
-  it('should return null when the config has no StylesPath', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-ini-'));
-    const ini = path.join(dir, '.vale.ini');
-    fs.writeFileSync(ini, 'MinAlertLevel = suggestion\n');
-    expect(stylesDirFor(ini)).toBe(null);
-    fs.rmSync(dir, { recursive: true, force: true });
+  describe('when the config cannot be read', () => {
+    beforeEach(() => {
+      result = stylesDirFor(path.join(dir, 'no-such-dir', '.vale.ini'));
+    });
+
+    it('should return null', () => {
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('when the config has no StylesPath', () => {
+    beforeEach(() => {
+      fs.writeFileSync(ini, 'MinAlertLevel = suggestion\n');
+      result = stylesDirFor(ini);
+    });
+
+    it('should return null', () => {
+      expect(result).toBeNull();
+    });
   });
 });
 
@@ -301,12 +324,15 @@ describe('runStagedCheck', () => {
       });
     });
 
-describe('when git quotes a path and Vale reports it under that spelling', () => {
+    describe('when git quotes a path and Vale reports it under that spelling', () => {
       let result;
 
       beforeEach(() => {
         // git prints a non-ASCII name as "caf\\303\\251.md", quotes included,
         // and the diff header carries the same escape without the quotes.
+        // Quoting is git's default, and the developer's global config can turn
+        // it off, so the repo pins it on to reach the branch under test.
+        sh(['config', 'core.quotePath', 'true']);
         write('café.md', 'A forbidden line.\n');
         sh(['add', 'café.md']);
         sh(['commit', '-qm', 'add a quoted path']);

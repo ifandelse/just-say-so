@@ -4,7 +4,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 
 ### Precision first
 
-- Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one. Checked by 5 Vale rules, among them STE.Ambiguity, ai-tells.IncompleteComparison, ai-tells.FigurativeWorth.
+- Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one. Checked by ai-tells.IncompleteComparison, ai-tells.FigurativeWorth, ai-tells.FigurativeEarns, ai-tells.FigurativeMints.
 - On first use of a term the reader may not know, add a short definition in the same sentence. Then use the term freely.
 - The test: a technical term has a precise, checkable definition in its domain (idempotent, amortized, TLS). A buzzword could appear in any press release (robust, seamless). Keep the first kind, delete the second.
 - Do not remove information the reader needs. Remove information they do not need. Simplify the sentence, not the substance.
@@ -32,7 +32,8 @@ dictionary and minus its part-of-speech restrictions.
 
 - These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them. Checked by 16 Vale rules, among them JustSaySo.Buzzwords, JustSaySo.Substitutions, JustSaySo.Leverage.
 - Any format of "it's not {x}, it's {y}". Checked by 8 Vale rules, among them JustSaySo.NegativeParallelism, ai-tells.ContrastiveNegation, ai-tells.ContrastiveFormulas.
-- Filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to"). Checked by 16 Vale rules, among them JustSaySo.FillerFrames, JustSaySo.Substitutions, ai-tells.FillerPhrases.
+- Filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to"). Checked by 15 Vale rules, among them JustSaySo.FillerFrames, JustSaySo.Substitutions, ai-tells.FillerPhrases.
+- Formal transitions as connectors: moreover, furthermore, thus, hence, consequently, and the rest of that register. Delete the transition, or write "and", "but", or "so". "For example" and "therefore" are allowed. Checked by JustSaySo.Transitions.
 - Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence. Checked by 5 Vale rules, among them JustSaySo.Intensifiers, ai-tells.FillerIntensifier, ai-tells.OverusedVocabulary.
 - Restating the question, re-summarizing what was just said, or repeating a point in new words. Checked by ai-tells.RestatementMarkers, ai-tells.SummativeAppositive, ai-tells.SelfReference, ai-tells.HollowAcknowledgment.
 - Banned hedge frames: "It's important to note," "This may seem X, but," stacked hedges. Bare may/might/could are allowed when they state real uncertainty or permission. If uncertain, state what is uncertain and why. Checked by 9 Vale rules, among them ai-tells.HedgingPhrases, ai-tells.DefensiveHedges, ai-tells.StackedHedges.

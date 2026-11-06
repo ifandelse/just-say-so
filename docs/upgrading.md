@@ -1,5 +1,9 @@
 # Upgrading
 
+## 0.20.0
+
+The settings for the bundled rules change. `ai-tells.FormalTransitions` is off, and a new generated rule, `JustSaySo.Transitions`, reports the same 65 phrases minus "for example" and "therefore", which are allowed. `STE.Ambiguity` is off, so "e.g." is allowed, and so are "i.e.", "etc.", "and/or", and a lowercase pair such as read/write. `ai-tells.OverusedVocabulary` runs at suggestion instead of error, so "crucial" and "vital" no longer block. `JustSaySo.Intensifiers` still reports them at suggestion. The rules text gains a bullet under Banned for the transitions, and the condensed reminder has 22 bullets. A project that turned `STE.Ambiguity` off itself can drop that line. After you update the `Packages` URL and run `vale sync`, the doctor reads JustSaySo 7 of 7, STE 6 of 12, and ai-tells 127 of 137 rules on for prose targets.
+
 ## 0.19.1
 
 The 0.19.0 package zip carried a stray vocabulary, `styles/config/vocabularies/Project/accept.txt`, left behind by a test. A project that named `Vocab = Project` and ran `vale sync` on that zip had its own `accept.txt` replaced by the package's copy, which held one line. If you synced 0.19.0, check `styles/config/vocabularies/Project/accept.txt` and restore your entries from version control or from the `allow` events in the events log. The package now holds no vocabulary, the build refuses one, and the 0.19.0 asset was replaced.

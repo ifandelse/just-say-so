@@ -19,6 +19,7 @@ Apply to all prose: chat, explanations, docs, reports, answers.
 - These buzzwords are banned in vague or ornamental usage: leverage, robust, seamless, holistic, streamline, empower, cutting-edge, game-changing, synergy, delve, utilize (use "use"), structural spine, load bearing, blast radius, belt-and-suspenders, honest take. When these words have precise meaning or are relevant to the domain, use them.
 - Banned: any format of "it's not {x}, it's {y}".
 - Banned filler frames: "It's important to note," "It should be noted that," "In today's landscape," "In order to" (use "to").
+- Banned: formal transitions as connectors (moreover, furthermore, thus, hence). "For example" and "therefore" are allowed.
 - Empty intensifiers: very, truly, crucial, vital. Replace them with a measurement or a concrete consequence.
 - Banned hedge frames ("It's important to note," "This may seem X, but," stacked hedges). Bare may/might/could are allowed for real uncertainty or permission. If uncertain, state what is uncertain and why.
 - Restating the question, re-summarizing what was just said, or repeating a point in new words.

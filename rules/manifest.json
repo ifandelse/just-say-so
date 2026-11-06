@@ -20,6 +20,7 @@
     "buzzwords",
     "negative-parallelism",
     "filler-frames",
+    "transitions",
     "intensifiers",
     "hedge-frames",
     "no-restating",
@@ -34,7 +35,6 @@
           "full": "Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one.",
           "short": "Use the correct technical term when it is the most accurate word. Never substitute a vaguer word for a precise one.",
           "vale": [
-            "STE.Ambiguity",
             "ai-tells.IncompleteComparison",
             "ai-tells.FigurativeWorth",
             "ai-tells.FigurativeEarns",
@@ -354,7 +354,6 @@
             "JustSaySo.Substitutions",
             "ai-tells.FillerPhrases",
             "ai-tells.HedgingPhrases",
-            "ai-tells.FormalTransitions",
             "ai-tells.ParticipialPadding",
             "ai-tells.Metacommentary",
             "ai-tells.ListIntroductions",
@@ -388,6 +387,223 @@
                 "term": "In order to",
                 "quote": true,
                 "hint": "use \"to\""
+              }
+            ]
+          }
+        },
+        {
+          "id": "transitions",
+          "full": "Formal transitions as connectors: moreover, furthermore, thus, hence, consequently, and the rest of that register. Delete the transition, or write \"and\", \"but\", or \"so\". \"For example\" and \"therefore\" are allowed.",
+          "short": "Banned: formal transitions as connectors (moreover, furthermore, thus, hence). \"For example\" and \"therefore\" are allowed.",
+          "vale": [
+            "JustSaySo.Transitions"
+          ],
+          "style": {
+            "name": "Transitions",
+            "message": "Formal transition: '%s'. Delete it, or write 'and', 'but', or 'so'.",
+            "level": "error",
+            "terms": [
+              {
+                "term": "Moreover"
+              },
+              {
+                "term": "Furthermore"
+              },
+              {
+                "term": "Additionally"
+              },
+              {
+                "term": "Consequently"
+              },
+              {
+                "term": "Subsequently"
+              },
+              {
+                "term": "Nevertheless"
+              },
+              {
+                "term": "Nonetheless"
+              },
+              {
+                "term": "Conversely"
+              },
+              {
+                "term": "Accordingly"
+              },
+              {
+                "term": "Hence"
+              },
+              {
+                "term": "Thus"
+              },
+              {
+                "term": "Thereby"
+              },
+              {
+                "term": "Henceforth"
+              },
+              {
+                "term": "Likewise"
+              },
+              {
+                "term": "Similarly"
+              },
+              {
+                "term": "In addition"
+              },
+              {
+                "term": "In contrast"
+              },
+              {
+                "term": "On the contrary"
+              },
+              {
+                "term": "By contrast"
+              },
+              {
+                "term": "As a result"
+              },
+              {
+                "term": "For instance"
+              },
+              {
+                "term": "In particular"
+              },
+              {
+                "term": "Notably"
+              },
+              {
+                "term": "Importantly"
+              },
+              {
+                "term": "Crucially"
+              },
+              {
+                "term": "With that in mind"
+              },
+              {
+                "term": "With this in mind"
+              },
+              {
+                "term": "To that end"
+              },
+              {
+                "term": "In turn"
+              },
+              {
+                "term": "Building on this"
+              },
+              {
+                "term": "Building on that"
+              },
+              {
+                "term": "That's why"
+              },
+              {
+                "term": "This is why"
+              },
+              {
+                "term": "Which is why"
+              },
+              {
+                "term": "That's because"
+              },
+              {
+                "term": "This is because"
+              },
+              {
+                "term": "What's more"
+              },
+              {
+                "term": "What is more"
+              },
+              {
+                "term": "Not to mention"
+              },
+              {
+                "term": "To that point"
+              },
+              {
+                "term": "On that note"
+              },
+              {
+                "term": "On a related note"
+              },
+              {
+                "term": "Case in point"
+              },
+              {
+                "term": "A case in point"
+              },
+              {
+                "term": "Along the same lines"
+              },
+              {
+                "term": "In the same vein"
+              },
+              {
+                "term": "By extension"
+              },
+              {
+                "term": "To top it off"
+              },
+              {
+                "term": "That's not all"
+              },
+              {
+                "term": "Better yet"
+              },
+              {
+                "term": "Even better"
+              },
+              {
+                "term": "Equally important"
+              },
+              {
+                "term": "Equally crucial"
+              },
+              {
+                "term": "Equally significant"
+              },
+              {
+                "term": "That is to say"
+              },
+              {
+                "term": "In light of this"
+              },
+              {
+                "term": "In light of that"
+              },
+              {
+                "term": "Given this"
+              },
+              {
+                "term": "Given that"
+              },
+              {
+                "term": "Given the above"
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^Specifically(?=,)",
+                "label": "Specifically, at the start of a sentence"
+              },
+              {
+                "regex": "^Significantly(?=,)",
+                "label": "Significantly, at the start of a sentence"
+              },
+              {
+                "regex": "^Essentially(?=,)",
+                "label": "Essentially, at the start of a sentence"
+              },
+              {
+                "regex": "^Fundamentally(?=,)",
+                "label": "Fundamentally, at the start of a sentence"
+              },
+              {
+                "regex": "^Of note",
+                "label": "Of note"
               }
             ]
           }

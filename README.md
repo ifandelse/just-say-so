@@ -60,9 +60,9 @@ A clean report ends with `No warnings.` and shows, per target, which rules are o
 
 ```
 Targets (the plugin's reading of the Vale config: rules on per style, then how many of those sit at each level)
-  reply        reply.reply          JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
+  reply        reply.reply          JustSaySo 7 of 7 rules on · STE 6 of 12 rules on · ai-tells 127 of 137 rules on · levels: 128 error, 4 warning, 8 suggestion · off: STE.Ambiguity, STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength (and 10 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
-  files .md    doc.md               JustSaySo 6 of 6 rules on · STE 7 of 12 rules on · ai-tells 128 of 137 rules on · levels: 130 error, 4 warning, 7 suggestion · off: STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength, ai-tells.AnthropomorphicAdjectives (and 8 more)
+  files .md    doc.md               JustSaySo 7 of 7 rules on · STE 6 of 12 rules on · ai-tells 127 of 137 rules on · levels: 128 error, 4 warning, 8 suggestion · off: STE.Ambiguity, STE.Contractions, STE.Dictionary, STE.Gerunds, STE.Modals, STE.ProcedureLength (and 10 more)
                sections: [*] [{*.md,*.mdx,*.markdown,*.txt,*.rst,*.adoc,*.asciidoc,*.html,*.htm,*.reply,*.publish}]
 ```
 

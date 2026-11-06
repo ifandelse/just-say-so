@@ -13,6 +13,11 @@ import { matchGhTrigger, matchesMcpTool, collectStrings, collectProseFields, tok
  *   collectProseFields: strings with whitespace only, with path and leaf
  *                   field · arrays carry the parent's field · bare string ·
  *                   null → []
+ *   tokenize: an unterminated single quote · a backslash inside and outside
+ *                   double quotes · an unterminated double quote
+ *   extractGhTexts: an api field flag with no value · a field value with
+ *                   no = · an unsafe field value · an unsafe @file path · a
+ *                   value flag with no value
  */
 
 describe('addons', () => {
@@ -139,6 +144,31 @@ describe('tokenize', () => {
   it('should split separators into their own tokens', () => {
     const values = tokenize('cd x && gh pr view|head').map((t) => t.value);
     expect(values).toEqual(['cd', 'x', '&&', 'gh', 'pr', 'view', '|', 'head']);
+  });
+
+describe('when quotes are left open or backslashes escape characters', () => {
+    let openSingle, escaped, openDouble;
+
+    beforeEach(() => {
+      openSingle = tokenize("gh pr edit 9 --body 'never closed");
+      escaped = tokenize('gh pr edit 9 --body "a \\"quoted\\" word" plain\\ space');
+      openDouble = tokenize('gh pr edit 9 --body "never closed');
+    });
+
+    it('should keep the text after an open single quote and mark it unsafe', () => {
+      expect(openSingle.at(-1)).toEqual({ value: 'never closed', unsafe: true });
+    });
+
+    it('should drop the backslash and keep the escaped character, inside and outside quotes', () => {
+      expect(escaped.slice(-2)).toEqual([
+        { value: 'a "quoted" word', unsafe: false },
+        { value: 'plain space', unsafe: false }
+      ]);
+    });
+
+    it('should mark an open double quote unsafe', () => {
+      expect(openDouble.at(-1)).toEqual({ value: 'never closed', unsafe: true });
+    });
   });
 });
 
@@ -271,6 +301,41 @@ describe('extractGhTexts', () => {
         [{ label: '--input', reason: 'shell expansion in the file path' }],
         [{ label: '--input', reason: 'missing value' }]
       ]);
+    });
+  });
+
+describe('when gh api fields are malformed or depend on the shell', () => {
+    let noValue, noEquals, unsafeValue, unsafeFile;
+
+    beforeEach(() => {
+      noValue = extractGhTexts('gh api repos/o/r/issues -f');
+      noEquals = extractGhTexts('gh api repos/o/r/issues -f body');
+      unsafeValue = extractGhTexts('gh api repos/o/r/issues -f body="$(cat f)"');
+      unsafeFile = extractGhTexts('gh api repos/o/r/issues -F body=@$HOME/body.md');
+    });
+
+    it('should skip a field flag with no value and a value with no =', () => {
+      expect({ noValue, noEquals }).toEqual({
+        noValue: { target: 'gh api', payloads: [], unresolved: [] },
+        noEquals: { target: 'gh api', payloads: [], unresolved: [] }
+      });
+    });
+
+    it('should mark an unsafe value and an unsafe file path unresolved', () => {
+      expect(unsafeValue.unresolved).toEqual([{ label: '-f body', reason: 'shell expansion in the value' }]);
+      expect(unsafeFile.unresolved).toEqual([{ label: '-F body', reason: 'shell expansion in the file path' }]);
+    });
+  });
+
+  describe('when a value flag has no value', () => {
+    let out;
+
+    beforeEach(() => {
+      out = extractGhTexts('gh pr create --title');
+    });
+
+    it('should mark the flag unresolved', () => {
+      expect(out).toEqual({ target: 'gh pr create', payloads: [], unresolved: [{ label: '--title', reason: 'missing value' }] });
     });
   });
 

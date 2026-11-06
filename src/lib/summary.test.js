@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { summarize, formatSummary, recordTime } from './summary.js';
+import { summarize, formatSummary, formatSituation, recordTime } from './summary.js';
 
 /*
  * Branch map — src/lib/summary.js
@@ -47,7 +47,12 @@ import { summarize, formatSummary, recordTime } from './summary.js';
  *     the join is chronological and bounded by the latest compaction or
  *     clear before the restate, so neither a reused index after compaction
  *     nor a pre-compaction turn stands in for the rejected turn
- *   formatSummary: empty · full · unavailable rates
+ *   formatSummary: empty · full · unavailable rates · events with no
+ *     rejections (no rules, no reasons) · a surviving rule listed
+ *   window: an until bound · a record whose id holds no time is out ·
+ *     one rejected reply reporting the same rule twice counts once · a
+ *     linted rewrite under an unlinted rejected reply survives nothing
+ *   formatSituation: a kind it does not know prints the head alone
  */
 
 const T0 = Date.UTC(2026, 9, 1, 12, 0, 0); // 2026-10-01T12:00:00Z
@@ -277,6 +282,7 @@ describe('summary', () => {
 
     it('should count the unlinted rewrite apart and name the surviving rule', () => {
       expect(s.rewrites).toEqual({ total: 2, clean: 0, keptError: 1, unlinted: 1, surviving: [{ check: 'JustSaySo.Buzzwords', count: 1 }] });
+      expect(formatSummary(s)).toContain('  rules that survive a rewrite: JustSaySo.Buzzwords 1');
     });
   });
 
@@ -606,6 +612,54 @@ describe('summary', () => {
 
     it('should keep one project only', () => {
       expect([s.volume.turns, s.volume.rejections, s.window.projects]).toEqual([1, 1, ['/p/b']]);
+    });
+  });
+
+  describe('when the log has turns and no rejection joins the window', () => {
+    let s, text;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      s = summarize([session('s1', A, 0), reply('s1', A, 1, 1, 0, 'pass', [LEV])], []);
+      text = formatSummary(s);
+    });
+
+    it('should say there are no rejections and print none for the empty lists', () => {
+      expect(s.window).toMatchObject({ eventsPresent: true, rejectionsPresent: false });
+      expect(text).toContain('  no rejections in this window');
+      expect(text).toContain('Rules on rejected replies (0 linted, 0 unlinted)\n  none');
+      expect(text).toContain('Reasons given (0 without one)\n  none');
+    });
+  });
+
+  describe('when the window has an until bound, a record with no time, and a reply reporting one rule twice', () => {
+    let s;
+
+    beforeEach(() => {
+      const A = '/p/a';
+      const late = rejection('s1', A, 90, 4, 0, 'late', [rb('JustSaySo.Buzzwords', 'error', 'synergy')]);
+      const timeless = { ...rejection('s1', A, 5, 3, 0, 'timeless', [rb('JustSaySo.Buzzwords', 'error', 'synergy')]), id: 'no-time-here' };
+      const twice = rejection('s1', A, 2, 2, 0, 'twice', [rb('JustSaySo.Buzzwords', 'error', 'synergy'), rb('JustSaySo.Buzzwords', 'error', 'robust')], []);
+      const unlintedRejected = rejection('s1', A, 3, 2, 0, 'unlinted', null, [rb('JustSaySo.Buzzwords', 'error', 'synergy')]);
+      s = summarize([session('s1', A, 0), reply('s1', A, 1, 1, 0, 'pass', []), reply('s1', A, 80, 2, 0, 'pass', [])], [late, timeless, twice, unlintedRejected], { until: at(60) });
+    });
+
+    it('should keep the late and timeless records out and count the doubled rule once', () => {
+      expect(s.volume).toMatchObject({ turns: 1, rejections: 2 });
+      expect(s.rejected.rules).toEqual([{ check: 'JustSaySo.Buzzwords', error: 1, warning: 0, suggestion: 0, records: 1 }]);
+      expect(s.rewrites).toEqual({ total: 2, clean: 1, keptError: 1, unlinted: 0, surviving: [] });
+    });
+  });
+
+  describe('when a situation has a kind the formatter does not know', () => {
+    let text;
+
+    beforeEach(() => {
+      text = formatSituation({ kind: 'E_COLD_CALZONE', project: '/p/a', tag: 'tone', count: 3, rules: [] });
+    });
+
+    it('should print the head alone', () => {
+      expect(text).toBe('/p/a · #tone: 3');
     });
   });
 

@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { selectedStyles, adviceInputs, formatAdvice } from './advise.js';
+
+const { mockSpawnSync } = vi.hoisted(() => ({ mockSpawnSync: vi.fn() }));
+vi.mock('node:child_process', () => ({ spawnSync: mockSpawnSync }));
+
+import { selectedStyles, adviceInputs, formatAdvice, projectFacts } from './advise.js';
 
 /*
  * Branch map — src/lib/advise.js
@@ -16,6 +20,11 @@ import { selectedStyles, adviceInputs, formatAdvice } from './advise.js';
  *     flag · cache line empty, filled, stale
  *   formatAdvice: nothing to advise · a project with every section, the
  *     typed reasons per tag included · empty candidates say what that means
+ *   projectFacts: vale reads the config → packages from the ini, the reply
+ *     styles, every installed rule with its reply-target state · vale
+ *     cannot read it → vale: false · a config path vale resolves that
+ *     the plugin cannot read → no packages · adviceInputs reads the facts
+ *     itself when none are passed
  */
 
 const REGISTRY = [
@@ -117,6 +126,84 @@ describe('advise', () => {
       expect(text).toContain("#zzz · candidates: none found by word overlap with the tag and its reasons. That is this search's limit");
       expect(text).toContain('Registry packages this project does not have (0 of 1 cached):\n    Voices (not cached): Voices.');
       expect(text).toContain('More packages outside the registry: https://github.com/topics/vale-linter-style');
+    });
+  });
+
+describe('when the facts are read from a project on disk', () => {
+    let facts, broken, inputs, work, styles, ini;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jss-advise-facts-')));
+      styles = path.join(work, 'styles');
+      fs.mkdirSync(path.join(styles, 'JustSaySo'), { recursive: true });
+      fs.mkdirSync(path.join(styles, 'acme'), { recursive: true });
+      fs.writeFileSync(path.join(styles, 'JustSaySo', 'Buzzwords.yml'), "extends: existence\nmessage: \"Banned buzzword: '%s'.\"\nlevel: error\n");
+      fs.writeFileSync(path.join(styles, 'acme', 'Soft.yml'), "extends: existence\nmessage: \"Soft: '%s'.\"\nlevel: warning\n");
+      ini = path.join(work, '.vale.ini');
+      fs.writeFileSync(ini, 'StylesPath = styles\nPackages = https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip, Google\n[*]\nBasedOnStyles = JustSaySo\n[*.reply]\nBasedOnStyles = JustSaySo, acme\nacme.Soft = NO\n');
+      const resolved = {
+        Formats: {},
+        GBaseStyles: ['JustSaySo'],
+        GChecks: {},
+        SBaseStyles: { '*.reply': ['JustSaySo', 'acme'] },
+        SChecks: { '*.reply': { 'acme.Soft': false } },
+        RuleToLevel: {},
+        SLevels: {},
+        Paths: [styles],
+        ConfigFiles: [ini]
+      };
+      mockSpawnSync.mockImplementation((_cmd, args) => {
+        if (args[0] !== 'ls-config') return { status: 0, stdout: '' };
+        return args[1] === `--config=${ini}` ? { status: 0, stdout: JSON.stringify(resolved) } : { status: 2, stdout: '' };
+      });
+      const env = { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), JUST_SAY_SO_STATE_DIR: path.join(work, 'state') };
+      facts = projectFacts(work, env);
+      broken = projectFacts(path.join(os.tmpdir()), env);
+      inputs = adviceInputs({ situations: [situation(work, 'tone', 'uncovered')] }, { registry: REGISTRY, cache: [], env });
+    });
+
+    it('should list the packages, the reply styles, and every installed rule with its state', () => {
+      expect(facts).toEqual({
+        project: work,
+        vale: true,
+        configPath: ini,
+        packages: ['https://github.com/ifandelse/just-say-so/releases/download/v0.19.1/JustSaySo.zip', 'Google'],
+        styles: ['JustSaySo', 'acme'],
+        installed: [
+          { id: 'JustSaySo.Buzzwords', level: 'error', extends: 'existence', message: "Banned buzzword: '%s'.", description: null, link: null, sample: [], enabled: true, installed: true, package: 'JustSaySo' },
+          { id: 'acme.Soft', level: 'warning', extends: 'existence', message: "Soft: '%s'.", description: null, link: null, sample: [], enabled: false, installed: true, package: 'acme' }
+        ],
+        state: expect.any(Map)
+      });
+    });
+
+    it('should report vale: false for a project vale cannot read', () => {
+      expect(broken).toMatchObject({ vale: false, packages: [], styles: [], installed: [] });
+    });
+
+    it('should read the facts itself when none are passed', () => {
+      expect(inputs.projects).toEqual([expect.objectContaining({ project: work, vale: true, replyStyles: ['JustSaySo', 'acme'] })]);
+    });
+  });
+
+describe('when the configured Vale config cannot be read', () => {
+    let facts, work;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jss-advise-unread-')));
+      const missing = path.join(work, 'gone', '.vale.ini');
+      fs.writeFileSync(path.join(work, '.just-say-so.json'), JSON.stringify({ vale: { config: missing } }));
+      mockSpawnSync.mockImplementation((_cmd, args) => {
+        if (args[0] !== 'ls-config') return { status: 0, stdout: '' };
+        return { status: 0, stdout: JSON.stringify({ GBaseStyles: [], GChecks: {}, SBaseStyles: {}, SChecks: {}, RuleToLevel: {}, SLevels: {}, Paths: [], ConfigFiles: [] }) };
+      });
+      facts = projectFacts(work, { JUST_SAY_SO_CONFIG: path.join(work, 'none.json'), JUST_SAY_SO_STATE_DIR: path.join(work, 'state') });
+    });
+
+    it('should report no packages and no styles', () => {
+      expect(facts).toMatchObject({ vale: true, packages: [], styles: [], installed: [] });
     });
   });
 

@@ -114,6 +114,10 @@ describe('stylesDirFor', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it('should return null when the config cannot be read', () => {
+    expect(stylesDirFor(path.join(os.tmpdir(), 'no-such-dir', '.vale.ini'))).toBeNull();
+  });
+
   it('should return null when the config has no StylesPath', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-ini-'));
     const ini = path.join(dir, '.vale.ini');
@@ -198,7 +202,12 @@ describe('runStagedCheck', () => {
         "const fs = require('node:fs');",
         'const args = process.argv.slice(2);',
         "if (args[0] === 'ls-dirs') process.exit(0);",
+        "if (process.env.JSS_TEST_VALE_FAIL) { process.stderr.write('E_COLD_CALZONE'); process.exit(2); }",
+        "if (process.env.JSS_TEST_VALE_GARBAGE) { process.stdout.write('not json'); process.exit(0); }",
         'const file = args[args.length - 1];',
+        // Stand in for a Vale that found the file git named: one alert, no read.
+        "if (process.env.JSS_TEST_VALE_ALWAYS) { process.stdout.write(JSON.stringify({ [file]: [{ Check: 'Test.Banned', Severity: 'error', Line: 1, Span: [1, 9], Match: 'forbidden', Message: 'banned' }] })); process.exit(1); }",
+        "if (process.env.JSS_TEST_VALE_EMPTY) { process.stdout.write(JSON.stringify({ [file]: [], note: 'nothing' })); process.exit(0); }",
         "const lines = fs.readFileSync(file, 'utf8').split('\\n');",
         'const alerts = [];',
         'lines.forEach((text, i) => {',
@@ -292,6 +301,24 @@ describe('runStagedCheck', () => {
       });
     });
 
+describe('when git quotes a path and Vale reports it under that spelling', () => {
+      let result;
+
+      beforeEach(() => {
+        // git prints a non-ASCII name as "caf\\303\\251.md", quotes included,
+        // and the diff header carries the same escape without the quotes.
+        write('café.md', 'A forbidden line.\n');
+        sh(['add', 'café.md']);
+        sh(['commit', '-qm', 'add a quoted path']);
+        result = runStagedCheck({ base: 'main', cwd: repo, env: { ...env, JSS_TEST_VALE_ALWAYS: '1' } });
+      });
+
+      it('should refuse to judge the file rather than drop its alerts', () => {
+        expect(result.exitCode).toBe(2);
+        expect(result.notices).toEqual(['just-say-so: Vale and git disagree about these paths: "caf\\303\\251.md"']);
+      });
+    });
+
     describe('when the branch changed no prose', () => {
       let result;
 
@@ -340,6 +367,149 @@ describe('runStagedCheck', () => {
         expect(result.report).toContain('docs/guide.md');
         expect(result.notices).toEqual([expect.stringContaining('error-level alerts on added lines')]);
       });
+    });
+
+    describe('when two staged lines have errors', () => {
+      let result;
+
+      beforeEach(() => {
+        write('doc.md', '# Doc\n\nClean.\n\nA forbidden line the branch committed.\n\nStaged forbidden one.\n\nStaged forbidden two.\n');
+        sh(['add', 'doc.md']);
+        result = runStagedCheck({ cwd: repo, env });
+      });
+
+      it('should list both in line order and count them', () => {
+        expect(result.exitCode).toBe(1);
+        expect(errorLines(result)).toEqual([7, 9]);
+        expect(result.report).toContain('Totals: 2 error(s), 0 warning(s), 0 suggestion(s) across 1 file(s).');
+      });
+    });
+
+    describe('when the staged prose is clean', () => {
+      let result;
+
+      beforeEach(() => {
+        write('doc.md', '# Doc\n\nClean.\n\nA forbidden line the branch committed.\n\nA clean staged line.\n');
+        sh(['add', 'doc.md']);
+        result = runStagedCheck({ cwd: repo, env });
+      });
+
+      it('should pass with no report', () => {
+        expect(result).toEqual({ exitCode: 0, report: '', notices: [] });
+      });
+    });
+
+    describe('when nothing prose is staged', () => {
+      let result;
+
+      beforeEach(() => {
+        write('notes.txt', 'forbidden but not prose\n');
+        sh(['add', 'notes.txt']);
+        result = runStagedCheck({ cwd: repo, env });
+      });
+
+      it('should pass with no report', () => {
+        expect(result).toEqual({ exitCode: 0, report: '', notices: [] });
+      });
+    });
+
+    describe('when vale reports an empty list and a value that is not a list', () => {
+      let result;
+
+      beforeEach(() => {
+        write('doc.md', '# Doc\n\nClean.\n\nA forbidden line the branch committed.\n\nStaged forbidden one.\n');
+        sh(['add', 'doc.md']);
+        result = runStagedCheck({ cwd: repo, env: { ...env, JSS_TEST_VALE_EMPTY: '1' } });
+      });
+
+      it('should pass with no report', () => {
+        expect(result).toEqual({ exitCode: 0, report: '', notices: [] });
+      });
+    });
+
+    describe('when vale itself fails', () => {
+      let result;
+
+      beforeEach(() => {
+        write('doc.md', '# Doc\n\nStaged.\n');
+        sh(['add', 'doc.md']);
+        result = runStagedCheck({ cwd: repo, env: { ...env, JSS_TEST_VALE_FAIL: '1' } });
+      });
+
+      it('should exit 2 naming the file and the error', () => {
+        expect(result).toEqual({ exitCode: 2, report: '', notices: ['just-say-so: vale failed on doc.md: E_COLD_CALZONE'] });
+      });
+    });
+
+    describe('when vale prints something that is not JSON', () => {
+      let result;
+
+      beforeEach(() => {
+        write('doc.md', '# Doc\n\nStaged.\n');
+        sh(['add', 'doc.md']);
+        result = runStagedCheck({ cwd: repo, env: { ...env, JSS_TEST_VALE_GARBAGE: '1' } });
+      });
+
+      it('should exit 2 naming the file', () => {
+        expect(result).toEqual({ exitCode: 2, report: '', notices: ['just-say-so: vale produced unparseable output on doc.md'] });
+      });
+    });
+  });
+
+  describe('when the skip flag is set', () => {
+    let result;
+
+    beforeEach(() => {
+      result = runStagedCheck({ cwd: repo, env: { ...env, JUST_SAY_SO_PRECOMMIT: '0' } });
+    });
+
+    it('should skip with one notice', () => {
+      expect(result).toEqual({ exitCode: 0, report: '', notices: ['just-say-so: check skipped (JUST_SAY_SO_PRECOMMIT=0)'] });
+    });
+  });
+
+  describe('when the directory is not a git repository', () => {
+    let result, outside;
+
+    beforeEach(() => {
+      outside = fs.mkdtempSync(path.join(os.tmpdir(), 'jss-norepo-'));
+      result = runStagedCheck({ cwd: outside, env: { ...env, GIT_CEILING_DIRECTORIES: path.dirname(outside) } });
+    });
+
+    afterEach(() => {
+      fs.rmSync(outside, { recursive: true, force: true });
+    });
+
+    it('should exit 2 with the git error', () => {
+      expect(result.exitCode).toBe(2);
+      expect(result.report).toBe('');
+      expect(result.notices).toEqual([expect.stringMatching(/^just-say-so: git rev-parse failed: fatal: not a git repository/)]);
+    });
+  });
+
+  describe('when vale is not on PATH', () => {
+    let result;
+
+    beforeEach(() => {
+      result = runStagedCheck({ cwd: repo, env: { ...env, PATH: path.join(repo, 'no-such-bin') } });
+    });
+
+    it('should skip with one notice', () => {
+      expect(result).toEqual({ exitCode: 0, report: '', notices: ['just-say-so: vale not found on PATH; staged check skipped'] });
+    });
+  });
+
+  describe('when the base does not exist', () => {
+    let result;
+
+    beforeEach(() => {
+      result = runStagedCheck({ base: 'no-such-branch', cwd: repo, env });
+    });
+
+    it('should exit 2 with the git error', () => {
+      expect(result.exitCode).toBe(2);
+      expect(result.report).toBe('');
+      expect(result.notices).toEqual([expect.stringMatching(/^just-say-so: git merge-base failed: fatal: Not a valid object name no-such-branch/)]);
     });
   });
 });

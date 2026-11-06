@@ -257,6 +257,20 @@ describe('manifest', () => {
     });
   });
 
+  describe('findDefaultExtra', () => {
+    describe('when no directory is given', () => {
+      let result;
+
+      beforeEach(() => {
+        result = findDefaultExtra(null);
+      });
+
+      it('should find nothing', () => {
+        expect(result).toBeNull();
+      });
+    });
+  });
+
   describe('loadExtra', () => {
     it('should return the fragment alone, or null when unset or unreadable', () => {
       const dir = tmpdir();

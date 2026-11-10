@@ -25,8 +25,41 @@ import {
 export const PROSE_EXT = ['.md', '.mdx', '.markdown', '.html', '.htm'];
 const SPAWN_TIMEOUT_MS = 30_000;
 
-const DIFF_HEADER = /^diff --git "?a\/(.+?)"? "?b\/(.+?)"?$/;
+// The b side is captured with its quotes when git quoted it, so the same
+// decoder that handles --name-only output handles the header.
+const DIFF_HEADER = /^diff --git (?:"a\/(?:[^"\\]|\\.)*"|a\/.*?) (?:("b\/(?:[^"\\]|\\.)*")|b\/(.*))$/;
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+
+const C_ESCAPES = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 };
+
+/**
+ * Decode a path as git prints it. A name with a byte outside ASCII, a double
+ * quote, a backslash, or a control character comes out C-quoted, as in
+ * `"caf\303\251.md"`, from --name-only, ls-files, and the diff header
+ * alike. Handing that spelling to Vale finds no file, and Vale reports a
+ * missing file as clean. Decoding here keeps the names given to Vale and to
+ * checkout-index equal to the names on disk, whatever core.quotePath says
+ * on the developer's machine.
+ */
+export function unquoteGitPath(text) {
+  if (!(text.startsWith('"') && text.endsWith('"'))) return text;
+  const chars = [...text.slice(1, -1)];
+  const bytes = [];
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] !== '\\') {
+      bytes.push(...Buffer.from(chars[i], 'utf8'));
+      continue;
+    }
+    const next = chars[++i];
+    if (/[0-7]/.test(next)) {
+      bytes.push(parseInt(chars.slice(i, i + 3).join(''), 8));
+      i += 2;
+    } else {
+      bytes.push(C_ESCAPES[next] ?? next.charCodeAt(0));
+    }
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
 
 function git(args, cwd) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', timeout: SPAWN_TIMEOUT_MS });
@@ -63,7 +96,7 @@ export function parseAddedLines(diffText) {
   for (const line of diffText.split('\n')) {
     const header = DIFF_HEADER.exec(line);
     if (header) {
-      current = header[2];
+      current = header[1] !== undefined ? unquoteGitPath(header[1]).slice(2) : header[2];
       if (!added.has(current)) added.set(current, new Set());
       continue;
     }
@@ -133,26 +166,21 @@ export function stylesDirFor(configPath) {
 
 /**
  * Keep alerts on added lines plus whole-file rules; `added=null` keeps
- * everything. Returns the kept alerts and the paths Vale reported that the
- * diff never mentioned — a path in one map and not the other means the
- * paths given to Vale and to git disagree, and silently dropping that
- * file's alerts would hide the mistake.
+ * everything.
  */
 export function selectAlerts(alertsByFile, added, fileLevel) {
   const kept = new Map();
-  const unmapped = [];
   for (const [file, alerts] of alertsByFile) {
     let rows;
     if (added === null) {
       rows = alerts;
     } else {
-      if (!added.has(file)) unmapped.push(file);
       const allowed = added.get(file) ?? new Set();
       rows = alerts.filter((a) => allowed.has(a.Line) || fileLevel.has(a.Check));
     }
     if (rows.length > 0) kept.set(file, rows);
   }
-  return { kept, unmapped };
+  return kept;
 }
 
 // One vale invocation per file, from `rootDir` with repo-relative paths, so
@@ -162,6 +190,12 @@ export function selectAlerts(alertsByFile, added, fileLevel) {
 function lintFiles(files, rootDir, configPath, env) {
   const alertsByFile = new Map();
   for (const file of files) {
+    // Vale prints {} and exits 0 for a path it cannot find, which would pass
+    // the gate with nothing read. A file git named and the tree lacks is a
+    // failure to report, not a clean file.
+    if (!fs.existsSync(path.join(rootDir, file))) {
+      throw new Error(`git named ${file} but no such file exists under ${rootDir}`);
+    }
     const r = spawnSync('vale', ['--no-exit', '--output=JSON', `--config=${configPath}`, file], {
       cwd: rootDir,
       encoding: 'utf8',
@@ -259,12 +293,14 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
       const pathspec = ['--', ...PROSE_EXT.map((e) => `*${e}`)];
       const tracked = gitOrThrow(['diff', '--name-only', '--diff-filter=ACMR', mergeBase, ...pathspec], root)
         .split('\n')
-        .filter(Boolean);
+        .filter(Boolean)
+        .map(unquoteGitPath);
       // An untracked prose file is outside git's diff; every line of it is
       // an addition the branch will make.
       untracked = gitOrThrow(['ls-files', '--others', '--exclude-standard', ...pathspec], root)
         .split('\n')
-        .filter(Boolean);
+        .filter(Boolean)
+        .map(unquoteGitPath);
       files = [...tracked, ...untracked];
       if (files.length === 0) return { exitCode: 0, report: '', notices: [] };
       diffText = gitOrThrow(['diff', '-U0', mergeBase, '--', ...extensionPathspec(files)], root);
@@ -274,6 +310,7 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
       files = gitOrThrow(['diff', '--cached', '--name-only', '--diff-filter=ACMR'], root)
         .split('\n')
         .filter(Boolean)
+        .map(unquoteGitPath)
         .filter(isProse);
       if (files.length === 0) return { exitCode: 0, report: '', notices: [] };
       // The index content is what the commit receives, so it is the version
@@ -289,13 +326,9 @@ export function runStagedCheck({ base = null, cwd = process.cwd(), env = process
 
     const added = parseAddedLines(diffText);
     for (const file of untracked) added.set(file, allLines(path.join(lintRoot, file)));
-    const { kept, unmapped } = selectAlerts(raw, added, fileLevel);
+    const kept = selectAlerts(raw, added, fileLevel);
     const { lines, totals } = renderReport(kept, scope, files.length);
     const notices = [];
-    if (unmapped.length > 0) {
-      notices.push(`just-say-so: Vale and git disagree about these paths: ${unmapped.sort().join(', ')}`);
-      return { exitCode: 2, report: lines.join('\n'), notices };
-    }
     if (totals.error > 0) {
       notices.push(
         'just-say-so: error-level alerts on added lines. Fix them, or skip once with ' +

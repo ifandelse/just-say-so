@@ -9,7 +9,8 @@ import {
   isWholeFileRule,
   fileLevelRules,
   stylesDirFor,
-  selectAlerts
+  selectAlerts,
+  unquoteGitPath
 } from './check-staged.js';
 
 describe('parseAddedLines', () => {
@@ -55,6 +56,57 @@ describe('parseAddedLines', () => {
   it('should default a hunk with no count to one line', () => {
     const added = parseAddedLines('diff --git a/x.md b/x.md\n@@ -0,0 +1 @@\n+only');
     expect([...added.get('x.md')]).toEqual([1]);
+  });
+
+  describe('when git quoted the paths in the header', () => {
+    let added;
+
+    beforeEach(() => {
+      added = parseAddedLines(
+        [
+          'diff --git "a/caf\\303\\251.md" "b/caf\\303\\251.md"',
+          '@@ -0,0 +1 @@',
+          '+only',
+          'diff --git "a/say \\"hi\\".md" "b/say \\"hi\\".md"',
+          '@@ -0,0 +1,2 @@',
+          '+one',
+          '+two'
+        ].join('\n')
+      );
+    });
+
+    it('should key the lines by the decoded path', () => {
+      expect([...added.keys()]).toEqual(['café.md', 'say "hi".md']);
+      expect([...added.get('say "hi".md')]).toEqual([1, 2]);
+    });
+  });
+});
+
+describe('unquoteGitPath', () => {
+  let results;
+
+  beforeEach(() => {
+    results = {
+      plain: unquoteGitPath('docs/plain name.md'),
+      octal: unquoteGitPath('"caf\\303\\251.md"'),
+      quote: unquoteGitPath('"say \\"hi\\".md"'),
+      control: unquoteGitPath('"tab\\there\\\\slash.md"'),
+      mixed: unquoteGitPath('"café \\"x\\".md"')
+    };
+  });
+
+  it('should return a path git did not quote as it is', () => {
+    expect(results.plain).toBe('docs/plain name.md');
+  });
+
+  it('should decode octal bytes, escaped quotes, control characters, and literal non-ASCII', () => {
+    expect(results).toEqual({
+      plain: 'docs/plain name.md',
+      octal: 'café.md',
+      quote: 'say "hi".md',
+      control: 'tab\there\\slash.md',
+      mixed: 'café "x".md'
+    });
   });
 });
 
@@ -162,31 +214,28 @@ describe('selectAlerts', () => {
   it('should keep alerts on added lines and drop the rest', () => {
     const alerts = new Map([['a.md', [alert(3), alert(9)]]]);
     const added = new Map([['a.md', new Set([3])]]);
-    const { kept, unmapped } = selectAlerts(alerts, added, new Set());
+    const kept = selectAlerts(alerts, added, new Set());
     expect(kept.get('a.md').map((a) => a.Line)).toEqual([3]);
-    expect(unmapped).toEqual([]);
   });
 
   it('should keep whole-file rules on any line of a changed file', () => {
     const alerts = new Map([['a.md', [alert(1, 'House.Metric'), alert(9)]]]);
     const added = new Map([['a.md', new Set([400])]]);
-    const { kept } = selectAlerts(alerts, added, new Set(['House.Metric']));
+    const kept = selectAlerts(alerts, added, new Set(['House.Metric']));
     expect(kept.get('a.md').map((a) => a.Check)).toEqual(['House.Metric']);
   });
 
-  it('should report paths Vale saw that the diff never mentioned', () => {
+  it('should drop every alert of a path the diff never mentioned', () => {
     const alerts = new Map([['elsewhere.md', [alert(1)]]]);
     const added = new Map([['a.md', new Set([1])]]);
-    const { kept, unmapped } = selectAlerts(alerts, added, new Set());
-    expect(unmapped).toEqual(['elsewhere.md']);
+    const kept = selectAlerts(alerts, added, new Set());
     expect(kept.has('elsewhere.md')).toBe(false);
   });
 
   it('should keep everything when there is no diff to filter by', () => {
     const alerts = new Map([['a.md', [alert(3), alert(9)]]]);
-    const { kept, unmapped } = selectAlerts(alerts, null, new Set());
+    const kept = selectAlerts(alerts, null, new Set());
     expect(kept.get('a.md')).toHaveLength(2);
-    expect(unmapped).toEqual([]);
   });
 });
 
@@ -228,8 +277,6 @@ describe('runStagedCheck', () => {
         "if (process.env.JSS_TEST_VALE_FAIL) { process.stderr.write('E_COLD_CALZONE'); process.exit(2); }",
         "if (process.env.JSS_TEST_VALE_GARBAGE) { process.stdout.write('not json'); process.exit(0); }",
         'const file = args[args.length - 1];',
-        // Stand in for a Vale that found the file git named: one alert, no read.
-        "if (process.env.JSS_TEST_VALE_ALWAYS) { process.stdout.write(JSON.stringify({ [file]: [{ Check: 'Test.Banned', Severity: 'error', Line: 1, Span: [1, 9], Match: 'forbidden', Message: 'banned' }] })); process.exit(1); }",
         "if (process.env.JSS_TEST_VALE_EMPTY) { process.stdout.write(JSON.stringify({ [file]: [], note: 'nothing' })); process.exit(0); }",
         "const lines = fs.readFileSync(file, 'utf8').split('\\n');",
         'const alerts = [];',
@@ -324,24 +371,59 @@ describe('runStagedCheck', () => {
       });
     });
 
-    describe('when git quotes a path and Vale reports it under that spelling', () => {
+    describe('when a committed prose file has a non-ASCII name', () => {
       let result;
 
       beforeEach(() => {
-        // git prints a non-ASCII name as "caf\\303\\251.md", quotes included,
-        // and the diff header carries the same escape without the quotes.
-        // Quoting is git's default, and the developer's global config can turn
-        // it off, so the repo pins it on to reach the branch under test.
+        // git prints the name as "caf\\303\\251.md" when core.quotePath is on,
+        // its default. The repo pins it on so a developer's global setting
+        // cannot hide the decoding under test.
         sh(['config', 'core.quotePath', 'true']);
         write('café.md', 'A forbidden line.\n');
         sh(['add', 'café.md']);
         sh(['commit', '-qm', 'add a quoted path']);
-        result = runStagedCheck({ base: 'main', cwd: repo, env: { ...env, JSS_TEST_VALE_ALWAYS: '1' } });
+        result = runStagedCheck({ base: 'main', cwd: repo, env });
       });
 
-      it('should refuse to judge the file rather than drop its alerts', () => {
+      it('should lint the file under its real name', () => {
+        expect(result.exitCode).toBe(1);
+        // Line 5 is doc.md's error, committed on the branch by the setup.
+        expect(errorLines(result).sort()).toEqual([1, 5]);
+        expect(result.report).toContain('café.md');
+      });
+    });
+
+    describe('when a committed prose file has a double quote in its name', () => {
+      let result;
+
+      beforeEach(() => {
+        // git quotes this name whatever core.quotePath says.
+        write('say "hi".md', 'A forbidden line.\n');
+        sh(['add', 'say "hi".md']);
+        sh(['commit', '-qm', 'add a path with a quote']);
+        result = runStagedCheck({ base: 'main', cwd: repo, env });
+      });
+
+      it('should lint the file under its real name', () => {
+        expect(result.exitCode).toBe(1);
+        expect(errorLines(result).sort()).toEqual([1, 5]);
+        expect(result.report).toContain('say "hi".md');
+      });
+    });
+
+    describe('when a committed prose path is a symlink to nothing', () => {
+      let result;
+
+      beforeEach(() => {
+        fs.symlinkSync('missing.md', path.join(repo, 'link.md'));
+        sh(['add', 'link.md']);
+        sh(['commit', '-qm', 'add a dangling link']);
+        result = runStagedCheck({ base: 'main', cwd: repo, env });
+      });
+
+      it('should fail rather than let Vale report the missing file as clean', () => {
         expect(result.exitCode).toBe(2);
-        expect(result.notices).toEqual(['just-say-so: Vale and git disagree about these paths: "caf\\303\\251.md"']);
+        expect(result.notices).toEqual([`just-say-so: git named link.md but no such file exists under ${repo}`]);
       });
     });
 
@@ -392,6 +474,23 @@ describe('runStagedCheck', () => {
         expect(errorLines(result)).toEqual([3]);
         expect(result.report).toContain('docs/guide.md');
         expect(result.notices).toEqual([expect.stringContaining('error-level alerts on added lines')]);
+      });
+    });
+
+    describe('when a staged prose file has a non-ASCII name', () => {
+      let result;
+
+      beforeEach(() => {
+        sh(['config', 'core.quotePath', 'true']);
+        write('café.md', 'Staged forbidden line.\n');
+        sh(['add', 'café.md']);
+        result = runStagedCheck({ cwd: repo, env });
+      });
+
+      it('should materialize and lint the file under its real name', () => {
+        expect(result.exitCode).toBe(1);
+        expect(errorLines(result)).toEqual([1]);
+        expect(result.report).toContain('café.md');
       });
     });
 
